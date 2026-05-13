@@ -251,6 +251,13 @@ export async function buildVapiContext(userId: string): Promise<Record<string, u
     workday_hours,
     calendar_stress,
 
+    // ── Today's mood summary ─────────────────────────────────────────────
+    mood_avg_today:
+      todayMoods.length > 0
+        ? +(todayMoods.reduce((s, m) => s + m.score, 0) / todayMoods.length).toFixed(1)
+        : null,
+    mood_count_today: todayMoods.length,
+
     // ── AI insight ───────────────────────────────────────────────────────
     latest_pattern,
   };
