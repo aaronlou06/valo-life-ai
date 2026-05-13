@@ -5,12 +5,13 @@ import {
   Inter_700Bold,
   useFonts,
 } from "@expo-google-fonts/inter";
-import { ClerkProvider, ClerkLoaded } from "@clerk/expo";
+import { ClerkProvider, ClerkLoaded, ClerkLoading } from "@clerk/expo";
 import { tokenCache } from "@clerk/expo/token-cache";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Stack } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import React, { useEffect } from "react";
+import { View, ActivityIndicator } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { KeyboardProvider } from "react-native-keyboard-controller";
 import { SafeAreaProvider } from "react-native-safe-area-context";
@@ -60,6 +61,11 @@ export default function RootLayout() {
       publishableKey={publishableKey}
       tokenCache={tokenCache}
     >
+      <ClerkLoading>
+        <View style={{ flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: "#F7F5F2" }}>
+          <ActivityIndicator size="large" color="#C17B3F" />
+        </View>
+      </ClerkLoading>
       <ClerkLoaded>
         <SafeAreaProvider>
           <ErrorBoundary>
