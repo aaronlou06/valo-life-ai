@@ -8,3 +8,4 @@ export * from "./userProfiles";
 export * from "./calendarEvents";
 export * from "./debriefExtractions";
 export * from "./transcripts";
+export * from "./calls";

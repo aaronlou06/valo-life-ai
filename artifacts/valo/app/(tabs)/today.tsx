@@ -104,10 +104,21 @@ export default function TodayScreen() {
       contentContainerStyle={{ paddingTop: topPad + 16, paddingBottom: bottomPad + tabBarH + 16, paddingHorizontal: 20 }}
       refreshControl={<RefreshControl refreshing={!!isRefetching} onRefresh={refetch} tintColor={colors.primary} />}
     >
-      <Text style={[styles.greeting, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>{todayLabel()}</Text>
-      <Text style={[styles.greetingName, { color: colors.foreground, fontFamily: "Inter_700Bold" }]}>
-        {greeting()}{user?.firstName ? `, ${user.firstName}` : ""}.
-      </Text>
+      <View style={styles.topRow}>
+        <View style={{ flex: 1 }}>
+          <Text style={[styles.greeting, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>{todayLabel()}</Text>
+          <Text style={[styles.greetingName, { color: colors.foreground, fontFamily: "Inter_700Bold" }]}>
+            {greeting()}{user?.firstName ? `, ${user.firstName}` : ""}.
+          </Text>
+        </View>
+        <TouchableOpacity
+          onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); router.push("/settings"); }}
+          style={[styles.gearBtn, { backgroundColor: colors.card, borderColor: colors.border }]}
+          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+        >
+          <Feather name="settings" size={18} color={colors.mutedForeground} />
+        </TouchableOpacity>
+      </View>
 
       {isLoading ? (
         <ActivityIndicator color={colors.primary} style={{ marginTop: 40 }} />
@@ -163,8 +174,18 @@ export default function TodayScreen() {
 }
 
 const styles = StyleSheet.create({
+  topRow: { flexDirection: "row", alignItems: "flex-start", marginBottom: 28 },
+  gearBtn: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    borderWidth: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    marginTop: 6,
+  },
   greeting: { fontSize: 14, marginBottom: 4 },
-  greetingName: { fontSize: 28, marginBottom: 28, lineHeight: 34 },
+  greetingName: { fontSize: 28, lineHeight: 34 },
   sectionLabel: { fontSize: 12, letterSpacing: 0.8, textTransform: "uppercase", marginBottom: 12, marginTop: 4 },
   metricsRow: { flexDirection: "row", flexWrap: "wrap", gap: 10, marginBottom: 24 },
   metricTile: { flex: 1, minWidth: "44%", padding: 16, borderRadius: 14, borderWidth: 1, alignItems: "center" },

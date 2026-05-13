@@ -1,0 +1,81 @@
+import { Router, type IRouter } from "express";
+import { eq } from "drizzle-orm";
+import { db, userProfilesTable } from "@workspace/db";
+import { requireAuth, type AuthenticatedRequest } from "../middlewares/requireAuth";
+
+const router: IRouter = Router();
+
+router.get("/settings", requireAuth, async (req, res): Promise<void> => {
+  const userId = (req as AuthenticatedRequest).userId;
+
+  const rows = await db
+    .select()
+    .from(userProfilesTable)
+    .where(eq(userProfilesTable.userId, userId))
+    .limit(1);
+
+  const profile = rows[0] ?? null;
+
+  res.status(200).json({
+    phoneNumber: profile?.phoneNumber ?? null,
+    preferredCallTime: profile?.preferredCallTime ?? null,
+    callTimezone: profile?.callTimezone ?? null,
+    callsEnabled: profile?.callsEnabled ?? false,
+    name: profile?.name ?? null,
+    lifePriorities: profile?.lifePriorities ?? null,
+  });
+});
+
+router.patch("/settings", requireAuth, async (req, res): Promise<void> => {
+  const userId = (req as AuthenticatedRequest).userId;
+  const {
+    phoneNumber,
+    preferredCallTime,
+    callTimezone,
+    callsEnabled,
+    name,
+    lifePriorities,
+  } = req.body as {
+    phoneNumber?: string | null;
+    preferredCallTime?: string | null;
+    callTimezone?: string | null;
+    callsEnabled?: boolean;
+    name?: string | null;
+    lifePriorities?: string | null;
+  };
+
+  const updateValues: Partial<{
+    phoneNumber: string | null;
+    preferredCallTime: string | null;
+    callTimezone: string | null;
+    callsEnabled: boolean;
+    name: string | null;
+    lifePriorities: string | null;
+  }> = {};
+
+  if (phoneNumber !== undefined) updateValues.phoneNumber = phoneNumber;
+  if (preferredCallTime !== undefined) updateValues.preferredCallTime = preferredCallTime;
+  if (callTimezone !== undefined) updateValues.callTimezone = callTimezone;
+  if (callsEnabled !== undefined) updateValues.callsEnabled = callsEnabled;
+  if (name !== undefined) updateValues.name = name;
+  if (lifePriorities !== undefined) updateValues.lifePriorities = lifePriorities;
+
+  const existing = await db
+    .select({ id: userProfilesTable.id })
+    .from(userProfilesTable)
+    .where(eq(userProfilesTable.userId, userId))
+    .limit(1);
+
+  if (existing.length > 0) {
+    await db
+      .update(userProfilesTable)
+      .set(updateValues)
+      .where(eq(userProfilesTable.userId, userId));
+  } else {
+    await db.insert(userProfilesTable).values({ userId, ...updateValues });
+  }
+
+  res.status(200).json({ ok: true });
+});
+
+export default router;

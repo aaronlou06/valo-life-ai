@@ -1,0 +1,18 @@
+Create the outbound call system so Valo can call users at their scheduled debrief time. Do the following:
+1. Add three fields to the users table: phone_number (string), preferred_call_time (string stored as HH:MM in 24-hour format), call_timezone (string, e.g. 'America/Denver'), and calls_enabled (boolean, default false).
+2. Create a Settings screen accessible from the Today tab via a gear icon in the top right. The Settings screen should have: a phone number input field, a time picker for the daily call time, a timezone selector defaulting to the device timezone, and a toggle to enable or disable the daily call. Save all of these to the user's database record when they tap Save.
+3. Create a backend scheduled job that runs every minute. Each time it runs it should: query all users where calls_enabled is true and where preferred_call_time matches the current time converted to their timezone, then for each matching user: call buildVapiContext(userId) to get their real-time context payload, then make a POST request to https://api.vapi.ai/call/phone with the Authorization header set to Bearer and the VAPI_API_KEY secret, with this request body:
+json{
+  "assistantId": "1f6a73ec-abef-4181-ac53-31b6a037a613",
+  "customer": {
+    "number": "[user's phone number]"
+  },
+  "phoneNumberId": "[your Vapi phone number ID from the dashboard]",
+  "assistantOverrides": {
+    "variableValues": "[the full context payload from buildVapiContext]"
+  }
+}
+4. Store each call attempt in a calls table with: userId, initiated_at timestamp, vapi_call_id (returned in the Vapi response), status (initiated/completed/failed), and duration_seconds.
+5. Create a webhook endpoint at POST /api/vapi/webhook that Vapi will hit when calls end. It should: update the call record status and duration, and if Vapi sends a transcript in the webhook payload, pipe it directly to POST /api/debrief/process with the userId and transcript.
+Store the Vapi phone number ID in Replit Secrets as VAPI_PHONE_NUMBER_ID."
+Then go back to Vapi dashboard → Phone Numbers → click your number → copy the Phone Number ID (it looks like a UUID) → add it to Replit Secrets as VAPI_PHONE_NUMBER_ID.

@@ -9,6 +9,8 @@ import logEntriesRouter from "./log-entries";
 import dashboardRouter from "./dashboard";
 import vapiContextRouter from "./vapi-context";
 import debriefRouter from "./debrief";
+import settingsRouter from "./settings";
+import vapiWebhookRouter from "./vapi-webhook";
 
 const router: IRouter = Router();
 
@@ -22,5 +24,7 @@ router.use(logEntriesRouter);
 router.use(dashboardRouter);
 router.use(vapiContextRouter);
 router.use(debriefRouter);
+router.use(settingsRouter);
+router.use(vapiWebhookRouter);
 
 export default router;
