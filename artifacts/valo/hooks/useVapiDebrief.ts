@@ -9,22 +9,29 @@ export type TranscriptEntry = {
   text: string;
 };
 
+export type DebriefExtraction = {
+  mood_score: number | null;
+  primary_emotion: string | null;
+  energy_level: string | null;
+  work_quality: string | null;
+  work_stress: string | null;
+  meaningful_connection: boolean | null;
+  relationship_quality: string | null;
+  sense_of_purpose: number | null;
+  motivation_level: number | null;
+  morning_routine_done: boolean | null;
+  workout_felt: string | null;
+  nutrition_quality: string | null;
+  one_win: string | null;
+  one_struggle: string | null;
+  tomorrow_intention: string | null;
+  valo_observation: string | null;
+  flags: string[];
+};
+
 const ASSISTANT_ID =
   process.env.EXPO_PUBLIC_VAPI_ASSISTANT_ID ??
   "1f6a73ec-abef-4181-ac53-31b6a037a613";
-
-function extractSummaryPoints(entries: TranscriptEntry[]): string[] {
-  const valosLines = entries
-    .filter((t) => t.role === "assistant" && t.text.trim().length > 50)
-    .map((t) => t.text.trim());
-  const seen = new Set<string>();
-  const unique = valosLines.filter((t) => {
-    if (seen.has(t)) return false;
-    seen.add(t);
-    return true;
-  });
-  return unique.slice(-3);
-}
 
 export function useVapiDebrief(
   userId: string,
@@ -34,7 +41,8 @@ export function useVapiDebrief(
   const [transcript, setTranscript] = useState<TranscriptEntry[]>([]);
   const [isMuted, setIsMuted] = useState(false);
   const [isValoSpeaking, setIsValoSpeaking] = useState(false);
-  const [summary, setSummary] = useState<string[]>([]);
+  const [debriefExtraction, setDebriefExtraction] =
+    useState<DebriefExtraction | null>(null);
 
   const transcriptRef = useRef<TranscriptEntry[]>([]);
 
@@ -52,7 +60,7 @@ export function useVapiDebrief(
       setTimeout(async () => {
         try {
           const token = await getToken();
-          await fetch(
+          const res = await fetch(
             `https://${process.env.EXPO_PUBLIC_DOMAIN}/api/debrief/process`,
             {
               method: "POST",
@@ -63,10 +71,34 @@ export function useVapiDebrief(
               body: JSON.stringify({ userId, transcript: finalTranscript }),
             }
           );
+          if (res.ok) {
+            const data = await res.json();
+            if (data.extraction) {
+              const raw = data.extraction;
+              setDebriefExtraction({
+                mood_score: typeof raw.mood_score === "number" ? raw.mood_score : null,
+                primary_emotion: typeof raw.primary_emotion === "string" ? raw.primary_emotion : null,
+                energy_level: typeof raw.energy_level === "string" ? raw.energy_level : null,
+                work_quality: typeof raw.work_quality === "string" ? raw.work_quality : null,
+                work_stress: typeof raw.work_stress === "string" ? raw.work_stress : null,
+                meaningful_connection: typeof raw.meaningful_connection === "boolean" ? raw.meaningful_connection : null,
+                relationship_quality: typeof raw.relationship_quality === "string" ? raw.relationship_quality : null,
+                sense_of_purpose: typeof raw.sense_of_purpose === "number" ? raw.sense_of_purpose : null,
+                motivation_level: typeof raw.motivation_level === "number" ? raw.motivation_level : null,
+                morning_routine_done: typeof raw.morning_routine_done === "boolean" ? raw.morning_routine_done : null,
+                workout_felt: typeof raw.workout_felt === "string" ? raw.workout_felt : null,
+                nutrition_quality: typeof raw.nutrition_quality === "string" ? raw.nutrition_quality : null,
+                one_win: typeof raw.one_win === "string" ? raw.one_win : null,
+                one_struggle: typeof raw.one_struggle === "string" ? raw.one_struggle : null,
+                tomorrow_intention: typeof raw.tomorrow_intention === "string" ? raw.tomorrow_intention : null,
+                valo_observation: typeof raw.valo_observation === "string" ? raw.valo_observation : null,
+                flags: Array.isArray(raw.flags) ? raw.flags : [],
+              });
+            }
+          }
         } catch (err) {
           console.error("Debrief process error:", err);
         } finally {
-          setSummary(extractSummaryPoints(transcriptRef.current));
           setCallState("idle");
         }
       }, 1000);
@@ -119,7 +151,7 @@ export function useVapiDebrief(
     setCallState("loading");
     setTranscript([]);
     transcriptRef.current = [];
-    setSummary([]);
+    setDebriefExtraction(null);
     setIsMuted(false);
 
     try {
@@ -150,7 +182,7 @@ export function useVapiDebrief(
     setIsMuted(next);
   }, [isMuted]);
 
-  const clearSummary = useCallback(() => setSummary([]), []);
+  const clearExtraction = useCallback(() => setDebriefExtraction(null), []);
 
   return {
     callState,
@@ -160,7 +192,7 @@ export function useVapiDebrief(
     isMuted,
     toggleMute,
     isValoSpeaking,
-    summary,
-    clearSummary,
+    debriefExtraction,
+    clearExtraction,
   };
 }

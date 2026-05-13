@@ -13,7 +13,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { useColors } from "@/hooks/useColors";
-import { useVapiDebrief } from "@/hooks/useVapiDebrief";
+import { useVapiDebrief, type DebriefExtraction } from "@/hooks/useVapiDebrief";
 import { useVoiceContext, type VoiceContextData } from "@/hooks/useVoiceContext";
 import { useAuth } from "@clerk/expo";
 
@@ -238,7 +238,7 @@ export default function VoiceScreen() {
 
   const { data: ctx, isLoading: ctxLoading } = useVoiceContext(safeUserId);
 
-  const { callState, transcript, startCall, endCall, isMuted, toggleMute, isValoSpeaking, summary, clearSummary } =
+  const { callState, transcript, startCall, endCall, isMuted, toggleMute, isValoSpeaking, debriefExtraction, clearExtraction } =
     useVapiDebrief(safeUserId, getToken as () => Promise<string | null>);
 
   const scrollRef = useRef<ScrollView>(null);
@@ -254,7 +254,7 @@ export default function VoiceScreen() {
   const isLoading = callState === "loading";
   const isEnding = callState === "ending";
   const isIdle = callState === "idle";
-  const showSummary = isIdle && summary.length > 0;
+  const showSummary = isIdle && debriefExtraction != null;
 
   useEffect(() => {
     if (isActive || isLoading) {
@@ -359,29 +359,105 @@ export default function VoiceScreen() {
       )}
 
       {/* ── SUMMARY CARD ────────────────────────────────────────────────── */}
-      {showSummary && (
+      {showSummary && debriefExtraction != null && (
         <View style={{ gap: 12 }}>
           <View style={[styles.summaryCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
             <Text style={[styles.summaryTitle, { color: colors.foreground, fontFamily: "Inter_700Bold" }]}>
               Debrief complete
             </Text>
-            <Text style={[styles.summarySubheading, { color: colors.mutedForeground, fontFamily: "Inter_500Medium" }]}>
-              KEY TAKEAWAYS FROM VALO
-            </Text>
-            <View style={{ gap: 10 }}>
-              {summary.map((point, i) => (
-                <View key={i} style={styles.summaryPoint}>
-                  <View style={[styles.summaryDot, { backgroundColor: colors.primary }]} />
-                  <Text style={[styles.summaryPointText, { color: colors.foreground, fontFamily: "Inter_400Regular" }]}>
-                    {point}
+
+            {/* Metadata row: mood score, energy, primary emotion */}
+            <View style={styles.summaryMeta}>
+              {debriefExtraction.mood_score != null && (
+                <View style={[styles.summaryChip, { backgroundColor: colors.secondary }]}>
+                  <Text style={[styles.summaryChipText, { color: colors.foreground, fontFamily: "Inter_600SemiBold" }]}>
+                    Mood {debriefExtraction.mood_score}/10
                   </Text>
                 </View>
-              ))}
+              )}
+              {debriefExtraction.energy_level != null && (
+                <View style={[styles.summaryChip, { backgroundColor: colors.secondary }]}>
+                  <Text style={[styles.summaryChipText, { color: colors.foreground, fontFamily: "Inter_600SemiBold" }]}>
+                    {debriefExtraction.energy_level} energy
+                  </Text>
+                </View>
+              )}
+              {debriefExtraction.primary_emotion != null && (
+                <View style={[styles.summaryChip, { backgroundColor: colors.secondary }]}>
+                  <Text style={[styles.summaryChipText, { color: colors.foreground, fontFamily: "Inter_600SemiBold" }]}>
+                    {debriefExtraction.primary_emotion}
+                  </Text>
+                </View>
+              )}
             </View>
+
+            {/* Valo's observation */}
+            {debriefExtraction.valo_observation != null && (
+              <View style={{ gap: 6 }}>
+                <Text style={[styles.summarySubheading, { color: colors.mutedForeground, fontFamily: "Inter_500Medium" }]}>
+                  VALO'S OBSERVATION
+                </Text>
+                <Text style={[styles.summaryObservation, { color: colors.foreground, fontFamily: "Inter_400Regular" }]}>
+                  {debriefExtraction.valo_observation}
+                </Text>
+              </View>
+            )}
+
+            {/* Win / struggle / intention */}
+            {(debriefExtraction.one_win != null || debriefExtraction.one_struggle != null || debriefExtraction.tomorrow_intention != null) && (
+              <View style={{ gap: 8, marginTop: 4 }}>
+                <Text style={[styles.summarySubheading, { color: colors.mutedForeground, fontFamily: "Inter_500Medium" }]}>
+                  KEY POINTS
+                </Text>
+                {debriefExtraction.one_win != null && (
+                  <View style={styles.summaryPoint}>
+                    <View style={[styles.summaryDot, { backgroundColor: GOOD_GREEN }]} />
+                    <Text style={[styles.summaryPointText, { color: colors.foreground, fontFamily: "Inter_400Regular" }]}>
+                      {debriefExtraction.one_win}
+                    </Text>
+                  </View>
+                )}
+                {debriefExtraction.one_struggle != null && (
+                  <View style={styles.summaryPoint}>
+                    <View style={[styles.summaryDot, { backgroundColor: OK_AMBER }]} />
+                    <Text style={[styles.summaryPointText, { color: colors.foreground, fontFamily: "Inter_400Regular" }]}>
+                      {debriefExtraction.one_struggle}
+                    </Text>
+                  </View>
+                )}
+                {debriefExtraction.tomorrow_intention != null && (
+                  <View style={styles.summaryPoint}>
+                    <View style={[styles.summaryDot, { backgroundColor: colors.primary }]} />
+                    <Text style={[styles.summaryPointText, { color: colors.foreground, fontFamily: "Inter_400Regular" }]}>
+                      Tomorrow: {debriefExtraction.tomorrow_intention}
+                    </Text>
+                  </View>
+                )}
+              </View>
+            )}
+
+            {/* Flags */}
+            {debriefExtraction.flags.length > 0 && (
+              <View style={{ gap: 6, marginTop: 4 }}>
+                <Text style={[styles.summarySubheading, { color: colors.mutedForeground, fontFamily: "Inter_500Medium" }]}>
+                  VALO NOTED
+                </Text>
+                <View style={styles.summaryMeta}>
+                  {debriefExtraction.flags.map((flag, i) => (
+                    <View key={i} style={[styles.summaryChip, { backgroundColor: colors.muted }]}>
+                      <Text style={[styles.summaryChipText, { color: colors.mutedForeground, fontFamily: "Inter_500Medium" }]}>
+                        {flag}
+                      </Text>
+                    </View>
+                  ))}
+                </View>
+              </View>
+            )}
           </View>
+
           <TouchableOpacity
             style={[styles.newDebriefBtn, { borderColor: colors.border }]}
-            onPress={() => { clearSummary(); }}
+            onPress={() => { clearExtraction(); }}
           >
             <Text style={[styles.newDebriefText, { color: colors.mutedForeground, fontFamily: "Inter_500Medium" }]}>
               Start a new debrief
@@ -692,6 +768,14 @@ const styles = StyleSheet.create({
   transcriptText: { fontSize: 14, lineHeight: 21 },
 
   // Summary
+  summaryMeta: { flexDirection: "row", flexWrap: "wrap", gap: 6, marginBottom: 4 },
+  summaryChip: {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 20,
+  },
+  summaryChipText: { fontSize: 12 },
+  summaryObservation: { fontSize: 15, lineHeight: 22 },
   summaryCard: {
     borderRadius: 16,
     borderWidth: 1,

@@ -6,3 +6,5 @@ export * from "./insights";
 export * from "./logEntries";
 export * from "./userProfiles";
 export * from "./calendarEvents";
+export * from "./debriefExtractions";
+export * from "./transcripts";

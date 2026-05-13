@@ -22,6 +22,12 @@ export const dailyLogsTable = pgTable("daily_logs", {
   stressScore: integer("stress_score"),
   readinessScore: integer("readiness_score"),
 
+  // Debrief-extracted fields (written by Claude after evening debrief)
+  moodScore: integer("mood_score"),
+  primaryEmotion: text("primary_emotion"),
+  energyLevel: text("energy_level"),
+  meaningfulConnection: boolean("meaningful_connection"),
+
   // Daily lifestyle logs
   waterOz: integer("water_oz"),
   mealsCount: integer("meals_count"),
