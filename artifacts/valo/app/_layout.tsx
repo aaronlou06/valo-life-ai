@@ -26,7 +26,6 @@ SplashScreen.preventAutoHideAsync();
 const queryClient = new QueryClient();
 
 const publishableKey = process.env.EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY!;
-const proxyUrl = process.env.EXPO_PUBLIC_CLERK_PROXY_URL || undefined;
 
 function RootLayoutNav() {
   return (
@@ -60,7 +59,6 @@ export default function RootLayout() {
     <ClerkProvider
       publishableKey={publishableKey}
       tokenCache={tokenCache}
-      proxyUrl={proxyUrl}
     >
       <ClerkLoaded>
         <SafeAreaProvider>
