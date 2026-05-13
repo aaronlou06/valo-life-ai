@@ -1,0 +1,27 @@
+kind = "mobile"
+previewPath = "/"
+title = "Valo"
+version = "1.0.0"
+id = "artifacts/valo"
+router = "expo-domain"
+
+[[integratedSkills]]
+name = "expo"
+version = "1.0.0"
+
+[[services]]
+ensurePreviewReachable = "/status"
+name = "expo"
+paths = [ "/" ]
+localPort = 22627
+
+[services.development]
+run = "pnpm --filter @workspace/valo run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/valo", "run", "build" ]
+run = [ "pnpm", "--filter", "@workspace/valo", "run", "serve" ]
+
+[services.env]
+PORT = "22627"
+BASE_PATH = "/"
