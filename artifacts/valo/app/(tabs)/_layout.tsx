@@ -6,9 +6,9 @@ import { SymbolView } from "expo-symbols";
 import { Feather } from "@expo/vector-icons";
 import React, { useEffect, useState } from "react";
 import { Platform, StyleSheet, View, useColorScheme, ActivityIndicator } from "react-native";
-import { useAuth } from "@clerk/expo";
 import { setAuthTokenGetter } from "@workspace/api-client-react";
 import { useColors } from "@/hooks/useColors";
+import { useValoAuth } from "@/contexts/AuthContext";
 import { isOnboardingComplete } from "@/hooks/onboardingState";
 
 function NativeTabLayout() {
@@ -113,7 +113,7 @@ function ClassicTabLayout() {
 }
 
 export default function TabLayout() {
-  const { isSignedIn, isLoaded, getToken } = useAuth();
+  const { isSignedIn, isLoaded, getToken } = useValoAuth();
   const colors = useColors();
   const [onboardingChecked, setOnboardingChecked] = useState(isOnboardingComplete());
   const [needsOnboarding, setNeedsOnboarding] = useState(false);

@@ -17,7 +17,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
-import { useAuth } from "@clerk/expo";
+import { useValoAuth } from "@/contexts/AuthContext";
 import { useColors } from "@/hooks/useColors";
 
 const COMMON_TIMEZONES = [
@@ -114,7 +114,7 @@ export default function SettingsScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const { getToken } = useAuth();
+  const { getToken } = useValoAuth();
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);

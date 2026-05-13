@@ -10,7 +10,7 @@ import {
   RefreshControl,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useUser } from "@clerk/expo";
+import { useValoAuth } from "@/contexts/AuthContext";
 import { useRouter } from "expo-router";
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
@@ -84,7 +84,7 @@ function PillarCard({ title, score, status, color }: PillarCardProps) {
 export default function TodayScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
-  const { user } = useUser();
+  const { name } = useValoAuth();
   const router = useRouter();
 
   const { data: dashboard, isLoading, refetch, isRefetching } = useGetDashboard();
@@ -108,7 +108,7 @@ export default function TodayScreen() {
         <View style={{ flex: 1 }}>
           <Text style={[styles.greeting, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>{todayLabel()}</Text>
           <Text style={[styles.greetingName, { color: colors.foreground, fontFamily: "Inter_700Bold" }]}>
-            {greeting()}{user?.firstName ? `, ${user.firstName}` : ""}.
+            {greeting()}{name ? `, ${name}` : ""}.
           </Text>
         </View>
         <TouchableOpacity

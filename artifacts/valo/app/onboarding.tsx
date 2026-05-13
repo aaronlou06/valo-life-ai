@@ -15,7 +15,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
-import { useAuth } from "@clerk/expo";
+import { useValoAuth } from "@/contexts/AuthContext";
 import { useColors } from "@/hooks/useColors";
 import { markOnboardingComplete } from "@/hooks/onboardingState";
 
@@ -151,7 +151,7 @@ export default function OnboardingScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const { getToken } = useAuth();
+  const { getToken, updateName } = useValoAuth();
 
   const [stepIndex, setStepIndex] = useState(0);
   const [saving, setSaving] = useState(false);
@@ -236,6 +236,7 @@ export default function OnboardingScreen() {
         });
       }
 
+      if (name.trim()) updateName(name.trim());
       markOnboardingComplete();
       animateTransition(() => setStepIndex(TOTAL_STEPS));
     } catch {
@@ -245,7 +246,7 @@ export default function OnboardingScreen() {
     } finally {
       setSaving(false);
     }
-  }, [getToken, name, priorities, feelMore, feelLess, phoneNumber, callTime, goal, animateTransition]);
+  }, [getToken, updateName, name, priorities, feelMore, feelLess, phoneNumber, callTime, goal, animateTransition]);
 
   const handleContinue = useCallback(() => {
     if (!canContinue() || saving) return;

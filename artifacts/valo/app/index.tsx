@@ -1,9 +1,9 @@
-import { useAuth } from "@clerk/expo";
+import { useValoAuth } from "@/contexts/AuthContext";
 import { Redirect } from "expo-router";
 import { View, ActivityIndicator } from "react-native";
 
 export default function Index() {
-  const { isSignedIn, isLoaded } = useAuth();
+  const { isSignedIn, isLoaded } = useValoAuth();
 
   if (!isLoaded) {
     return (

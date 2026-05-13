@@ -9,3 +9,4 @@ export * from "./calendarEvents";
 export * from "./debriefExtractions";
 export * from "./transcripts";
 export * from "./calls";
+export * from "./users";

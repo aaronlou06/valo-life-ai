@@ -15,7 +15,7 @@ import * as Haptics from "expo-haptics";
 import { useColors } from "@/hooks/useColors";
 import { useVapiDebrief, type DebriefExtraction } from "@/hooks/useVapiDebrief";
 import { useVoiceContext, type VoiceContextData } from "@/hooks/useVoiceContext";
-import { useAuth } from "@clerk/expo";
+import { useValoAuth } from "@/contexts/AuthContext";
 
 const STEPS_GOAL = 10_000;
 const VALO_BLUE = "#3B82F6";
@@ -233,7 +233,7 @@ function PromptCards({ ctx }: { ctx: VoiceContextData }) {
 export default function VoiceScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
-  const { userId, getToken } = useAuth();
+  const { userId, getToken } = useValoAuth();
   const safeUserId = userId ?? "";
 
   const { data: ctx, isLoading: ctxLoading } = useVoiceContext(safeUserId);

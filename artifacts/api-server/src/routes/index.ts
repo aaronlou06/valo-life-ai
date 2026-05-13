@@ -1,4 +1,5 @@
 import { Router, type IRouter } from "express";
+import authRouter from "./auth";
 import healthRouter from "./health";
 import dailyLogsRouter from "./daily-logs";
 import moodsRouter from "./moods";
@@ -14,6 +15,7 @@ import vapiWebhookRouter from "./vapi-webhook";
 
 const router: IRouter = Router();
 
+router.use(authRouter);
 router.use(healthRouter);
 router.use(dailyLogsRouter);
 router.use(moodsRouter);
