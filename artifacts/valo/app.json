@@ -14,7 +14,12 @@
       "backgroundColor": "#F7F5F2"
     },
     "ios": {
-      "supportsTablet": false
+      "supportsTablet": false,
+      "bitcode": false,
+      "infoPlist": {
+        "NSMicrophoneUsageDescription": "Valo needs microphone access to conduct your evening debrief.",
+        "UIBackgroundModes": ["voip"]
+      }
     },
     "android": {},
     "web": {
@@ -28,7 +33,20 @@
         }
       ],
       "expo-font",
-      "expo-web-browser"
+      "expo-web-browser",
+      "@config-plugins/react-native-webrtc",
+      "@daily-co/config-plugin-rn-daily-js",
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "minSdkVersion": 24
+          },
+          "ios": {
+            "deploymentTarget": "16.4"
+          }
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true,

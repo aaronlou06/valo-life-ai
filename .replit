@@ -26,3 +26,8 @@ externalPort = 80
 [[ports]]
 localPort = 22627
 externalPort = 3000
+
+[userenv]
+
+[userenv.shared]
+EXPO_PUBLIC_VAPI_ASSISTANT_ID = "1f6a73ec-abef-4181-ac53-31b6a037a613"

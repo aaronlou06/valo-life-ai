@@ -7,6 +7,8 @@ import habitsRouter from "./habits";
 import insightsRouter from "./insights";
 import logEntriesRouter from "./log-entries";
 import dashboardRouter from "./dashboard";
+import vapiContextRouter from "./vapi-context";
+import debriefRouter from "./debrief";
 
 const router: IRouter = Router();
 
@@ -18,5 +20,7 @@ router.use(habitsRouter);
 router.use(insightsRouter);
 router.use(logEntriesRouter);
 router.use(dashboardRouter);
+router.use(vapiContextRouter);
+router.use(debriefRouter);
 
 export default router;
