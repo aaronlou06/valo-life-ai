@@ -4,11 +4,12 @@ import { Redirect, Tabs } from "expo-router";
 import { Icon, Label, NativeTabs } from "expo-router/unstable-native-tabs";
 import { SymbolView } from "expo-symbols";
 import { Feather } from "@expo/vector-icons";
-import React, { useEffect } from "react";
-import { Platform, StyleSheet, View, useColorScheme } from "react-native";
+import React, { useEffect, useState } from "react";
+import { Platform, StyleSheet, View, useColorScheme, ActivityIndicator } from "react-native";
 import { useAuth } from "@clerk/expo";
 import { setAuthTokenGetter } from "@workspace/api-client-react";
 import { useColors } from "@/hooks/useColors";
+import { isOnboardingComplete } from "@/hooks/onboardingState";
 
 function NativeTabLayout() {
   return (
@@ -113,13 +114,51 @@ function ClassicTabLayout() {
 
 export default function TabLayout() {
   const { isSignedIn, isLoaded, getToken } = useAuth();
+  const colors = useColors();
+  const [onboardingChecked, setOnboardingChecked] = useState(isOnboardingComplete());
+  const [needsOnboarding, setNeedsOnboarding] = useState(false);
 
   useEffect(() => {
     setAuthTokenGetter(() => getToken());
   }, [getToken]);
 
-  if (!isLoaded) return null;
+  useEffect(() => {
+    if (!isSignedIn || isOnboardingComplete()) {
+      setOnboardingChecked(true);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      try {
+        const token = await getToken();
+        const apiBase = process.env.EXPO_PUBLIC_DOMAIN
+          ? `https://${process.env.EXPO_PUBLIC_DOMAIN}`
+          : "";
+        const headers: Record<string, string> = {};
+        if (token) headers["Authorization"] = `Bearer ${token}`;
+        const res = await fetch(`${apiBase}/api/settings`, { headers });
+        if (res.ok && !cancelled) {
+          const data = await res.json();
+          setNeedsOnboarding(!data.name);
+        }
+      } catch {
+        // network failure — don't block the user
+      } finally {
+        if (!cancelled) setOnboardingChecked(true);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [isSignedIn, getToken]);
+
+  if (!isLoaded || !onboardingChecked) {
+    return (
+      <View style={{ flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: colors.background }}>
+        <ActivityIndicator color={colors.primary} />
+      </View>
+    );
+  }
   if (!isSignedIn) return <Redirect href="/(auth)/sign-in" />;
+  if (needsOnboarding) return <Redirect href="/onboarding" />;
 
   if (isLiquidGlassAvailable()) return <NativeTabLayout />;
   return <ClassicTabLayout />;
