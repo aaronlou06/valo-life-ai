@@ -1,4 +1,4 @@
-import { pgTable, serial, text, timestamp, real, integer } from "drizzle-orm/pg-core";
+import { pgTable, serial, text, timestamp, real, integer, boolean } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 
@@ -6,13 +6,31 @@ export const dailyLogsTable = pgTable("daily_logs", {
   id: serial("id").primaryKey(),
   userId: text("user_id").notNull(),
   date: text("date").notNull(),
+
+  // Wearable / health metrics
   sleepHours: real("sleep_hours"),
+  sleepScore: integer("sleep_score"),
   hrv: integer("hrv"),
   restingHeartRate: integer("resting_heart_rate"),
   steps: integer("steps"),
+  activeCalories: integer("active_calories"),
   workoutType: text("workout_type"),
   workoutDuration: integer("workout_duration"),
   workoutEffort: integer("workout_effort"),
+  workoutHrPeak: integer("workout_hr_peak"),
+  recoveryScore: integer("recovery_score"),
+  stressScore: integer("stress_score"),
+  readinessScore: integer("readiness_score"),
+
+  // Daily lifestyle logs
+  waterOz: integer("water_oz"),
+  mealsCount: integer("meals_count"),
+  morningRoutineCompleted: boolean("morning_routine_completed"),
+  sunlightLogged: boolean("sunlight_logged"),
+  meditationLogged: boolean("meditation_logged"),
+  focusSessionsCount: integer("focus_sessions_count"),
+  focusSessionsTotalMinutes: integer("focus_sessions_total_minutes"),
+
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 });
