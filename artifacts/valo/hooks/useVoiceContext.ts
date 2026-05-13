@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { useAuth } from "@clerk/expo";
+import { useValoAuth } from "@/contexts/AuthContext";
 
 export type VoiceContextData = {
   user_id: string;
@@ -39,7 +39,7 @@ export type VoiceContextData = {
 };
 
 export function useVoiceContext(userId: string) {
-  const { getToken } = useAuth();
+  const { getToken } = useValoAuth();
 
   return useQuery({
     queryKey: ["voice-context", userId],
