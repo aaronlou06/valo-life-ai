@@ -34,18 +34,7 @@
       ],
       "expo-font",
       "@config-plugins/react-native-webrtc",
-      "@daily-co/config-plugin-rn-daily-js",
-      [
-        "expo-build-properties",
-        {
-          "android": {
-            "minSdkVersion": 24
-          },
-          "ios": {
-            "deploymentTarget": "16.4"
-          }
-        }
-      ]
+      "@daily-co/config-plugin-rn-daily-js"
     ],
     "experiments": {
       "typedRoutes": true,

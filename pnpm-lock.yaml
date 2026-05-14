@@ -416,11 +416,11 @@ importers:
         specifier: ^7.25.2
         version: 7.29.0
       '@config-plugins/react-native-webrtc':
-        specifier: ^14.0.0
-        version: 14.0.0(expo@54.0.34)
+        specifier: ^13.0.0
+        version: 13.0.0(expo@54.0.34)
       '@daily-co/config-plugin-rn-daily-js':
-        specifier: ^0.0.12
-        version: 0.0.12(expo@54.0.34)
+        specifier: ^0.0.11
+        version: 0.0.11(expo@54.0.34)
       '@daily-co/react-native-daily-js':
         specifier: ^0.84.1
         version: 0.84.1(@daily-co/react-native-webrtc@118.0.3-daily.4(react-native@0.81.5(@babel/core@7.29.0)(@types/react@19.1.17)(react@19.1.0)))(@react-native-async-storage/async-storage@2.2.0(react-native@0.81.5(@babel/core@7.29.0)(@types/react@19.1.17)(react@19.1.0)))(react-native-background-timer@2.4.1(react-native@0.81.5(@babel/core@7.29.0)(@types/react@19.1.17)(react@19.1.0)))(react-native-get-random-values@2.0.0(react-native@0.81.5(@babel/core@7.29.0)(@types/react@19.1.17)(react@19.1.0)))(react-native@0.81.5(@babel/core@7.29.0)(@types/react@19.1.17)(react@19.1.0))
@@ -472,9 +472,6 @@ importers:
       expo-blur:
         specifier: ~15.0.8
         version: 15.0.8(expo@54.0.34)(react-native@0.81.5(@babel/core@7.29.0)(@types/react@19.1.17)(react@19.1.0))(react@19.1.0)
-      expo-build-properties:
-        specifier: ^56.0.6
-        version: 56.0.6(expo@54.0.34)
       expo-constants:
         specifier: ~18.0.11
         version: 18.0.13(expo@54.0.34)(react-native@0.81.5(@babel/core@7.29.0)(@types/react@19.1.17)(react@19.1.0))
@@ -1170,15 +1167,15 @@ packages:
     peerDependencies:
       commander: ~14.0.0
 
-  '@config-plugins/react-native-webrtc@14.0.0':
-    resolution: {integrity: sha512-RUynr1I7WZ4HDi0S1KvWRka3VZpRgGWyE4UPw8V+gvda6o2iv15ACcWo6GsBGJ7OsDoO+Ny/N2L1+MNviqv3LQ==}
+  '@config-plugins/react-native-webrtc@13.0.0':
+    resolution: {integrity: sha512-EtRRLXmsU4GcDA3TgIxtqg++eh/CjbI6EV8N/1EFQTtaWI2lpww0fg+S0wd+ndXE0dFWaLqUFvZuyTAaAoOSeA==}
     peerDependencies:
-      expo: ^55
+      expo: ^54
 
-  '@daily-co/config-plugin-rn-daily-js@0.0.12':
-    resolution: {integrity: sha512-OZ5UXbpScL7GL7gk9X/VsMqH7iuxK5Y3DM6zfxDRY8Ar+mamBy9ggsZUWqIHTi5tJDOyyTx7lUfmlRfZpKnu6w==}
+  '@daily-co/config-plugin-rn-daily-js@0.0.11':
+    resolution: {integrity: sha512-ZNfniHIlivEx+MI5OObvIV7c1C9Fb1quresK+8PGTd6FbBZiYKJdU3YxqvQ5P0CvfkdveCXvZ95Zbqc7S2YUBQ==}
     peerDependencies:
-      expo: ^55.0.0
+      expo: ^54.0.0
 
   '@daily-co/daily-js@0.89.1':
     resolution: {integrity: sha512-1RnXtzg8aeJYLhmMjRK9mnsWRljwsM2OUBJH5onpAOFIjHPSA7h03DSCd8D/YMyrpX8jQHcVMDSWOhcj+tZD/A==}
@@ -1351,12 +1348,6 @@ packages:
 
   '@expo/schema-utils@0.1.8':
     resolution: {integrity: sha512-9I6ZqvnAvKKDiO+ZF8BpQQFYWXOJvTAL5L/227RUbWG1OVZDInFifzCBiqAZ3b67NRfeAgpgvbA7rejsqhY62A==}
-
-  '@expo/schema-utils@55.0.4':
-    resolution: {integrity: sha512-65IdeeE8dAZR3n3J5Eq7LYiQ8BFGeEYCWPBCzycvafL7PkskbCyIclTQarRwf/HXFoRvezKCjaLwy/8v9Prk6g==}
-
-  '@expo/schema-utils@56.0.1':
-    resolution: {integrity: sha512-CZ/+mYbQmWeOnkCGlWy9K+lFxbJSMFY7+TqBZcKzBSTU5Q7IGRvn/sOG3TdNjIdLPmbA8xe7R/c3UUQ28R9i9w==}
 
   '@expo/sdk-runtime-versions@1.0.0':
     resolution: {integrity: sha512-Doz2bfiPndXYFPMRwPyGa1k5QaKDVpY806UJj570epIiMzWaYyCtobasyfC++qfIXVb5Ocy7r3tP9d62hAQ7IQ==}
@@ -3530,13 +3521,8 @@ packages:
       react: '*'
       react-native: '*'
 
-  expo-build-properties@55.0.13:
-    resolution: {integrity: sha512-UYZhUKyh7YQhbJdkBvo68WUQ7fOtZeSV7F8kfYkjEiN/ADRHG0WfEIiddvGfi9cH/5iwpptv/+Lu5cx6uvfegA==}
-    peerDependencies:
-      expo: '*'
-
-  expo-build-properties@56.0.6:
-    resolution: {integrity: sha512-I97hglSqFBDCSjaWKUWahb3lCmFIfogG8NW61VEOayGEQQ4Zw9UoXGZbQeo7vAYeeYTx+jfJfkbvJRxwr80eUw==}
+  expo-build-properties@0.14.8:
+    resolution: {integrity: sha512-GTFNZc5HaCS9RmCi6HspCe2+isleuOWt2jh7UEKHTDQ9tdvzkIoWc7U6bQO9lH3Mefk4/BcCUZD/utl7b1wdqw==}
     peerDependencies:
       expo: '*'
 
@@ -6629,15 +6615,15 @@ snapshots:
     dependencies:
       commander: 14.0.3
 
-  '@config-plugins/react-native-webrtc@14.0.0(expo@54.0.34)':
+  '@config-plugins/react-native-webrtc@13.0.0(expo@54.0.34)':
     dependencies:
       expo: 54.0.34(@babel/core@7.29.0)(@expo/metro-runtime@6.1.2)(expo-router@6.0.23)(react-native@0.81.5(@babel/core@7.29.0)(@types/react@19.1.17)(react@19.1.0))(react@19.1.0)(typescript@5.9.3)
 
-  '@daily-co/config-plugin-rn-daily-js@0.0.12(expo@54.0.34)':
+  '@daily-co/config-plugin-rn-daily-js@0.0.11(expo@54.0.34)':
     dependencies:
       '@expo/config-plugins': 8.0.11
       expo: 54.0.34(@babel/core@7.29.0)(@expo/metro-runtime@6.1.2)(expo-router@6.0.23)(react-native@0.81.5(@babel/core@7.29.0)(@types/react@19.1.17)(react@19.1.0))(react@19.1.0)(typescript@5.9.3)
-      expo-build-properties: 55.0.13(expo@54.0.34)
+      expo-build-properties: 0.14.8(expo@54.0.34)
     transitivePeerDependencies:
       - supports-color
 
@@ -7075,10 +7061,6 @@ snapshots:
       - supports-color
 
   '@expo/schema-utils@0.1.8': {}
-
-  '@expo/schema-utils@55.0.4': {}
-
-  '@expo/schema-utils@56.0.1': {}
 
   '@expo/sdk-runtime-versions@1.0.0': {}
 
@@ -9632,18 +9614,10 @@ snapshots:
       react: 19.1.0
       react-native: 0.81.5(@babel/core@7.29.0)(@types/react@19.1.17)(react@19.1.0)
 
-  expo-build-properties@55.0.13(expo@54.0.34):
+  expo-build-properties@0.14.8(expo@54.0.34):
     dependencies:
-      '@expo/schema-utils': 55.0.4
+      ajv: 8.18.0
       expo: 54.0.34(@babel/core@7.29.0)(@expo/metro-runtime@6.1.2)(expo-router@6.0.23)(react-native@0.81.5(@babel/core@7.29.0)(@types/react@19.1.17)(react@19.1.0))(react@19.1.0)(typescript@5.9.3)
-      resolve-from: 5.0.0
-      semver: 7.8.0
-
-  expo-build-properties@56.0.6(expo@54.0.34):
-    dependencies:
-      '@expo/schema-utils': 56.0.1
-      expo: 54.0.34(@babel/core@7.29.0)(@expo/metro-runtime@6.1.2)(expo-router@6.0.23)(react-native@0.81.5(@babel/core@7.29.0)(@types/react@19.1.17)(react@19.1.0))(react@19.1.0)(typescript@5.9.3)
-      resolve-from: 5.0.0
       semver: 7.8.0
 
   expo-constants@18.0.13(expo@54.0.34)(react-native@0.81.5(@babel/core@7.29.0)(@types/react@19.1.17)(react@19.1.0)):
