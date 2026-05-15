@@ -329,15 +329,60 @@ function GoalCreationModal({
     );
 
     switch (form.goalType) {
-      case "milestone":
+      case "milestone": {
+        const milestoneSteps = [
+          { label: "Lay the foundation", done: false },
+          { label: "Frame the structure", done: false },
+          { label: "Walls + insulation", done: false },
+          { label: "Interior & finishes", done: false },
+          { label: "Move in", done: true },
+        ];
         return (
           <View style={styles.stepBody}>
             <Text style={[styles.stepHeading, { color: colors.foreground, fontFamily: "Inter_700Bold" }]}>
               Break it into steps
             </Text>
-            {renderExamples("milestone")}
+            <View style={[styles.howItWorksCard, { backgroundColor: colors.muted, borderColor: colors.border }]}>
+              <Text style={[styles.examplesLabel, { color: colors.mutedForeground, fontFamily: "Inter_600SemiBold" }]}>
+                HOW IT WORKS
+              </Text>
+              <Text style={[styles.howItWorksTitle, { color: colors.foreground, fontFamily: "Inter_600SemiBold" }]}>
+                Build a House
+              </Text>
+              <View style={styles.stepChain}>
+                {milestoneSteps.map((s, i) => (
+                  <View key={i} style={styles.stepChainRow}>
+                    <View style={styles.stepChainLeft}>
+                      <View style={[
+                        styles.stepChainBox,
+                        {
+                          borderColor: s.done ? colors.primary : colors.mutedForeground,
+                          backgroundColor: s.done ? colors.primary : "transparent",
+                        },
+                      ]}>
+                        {s.done && <Feather name="check" size={9} color={colors.primaryForeground} />}
+                      </View>
+                      {i < milestoneSteps.length - 1 && (
+                        <View style={[styles.stepChainLine, { backgroundColor: colors.border }]} />
+                      )}
+                    </View>
+                    <Text style={[
+                      styles.stepChainLabel,
+                      {
+                        color: s.done ? colors.mutedForeground : colors.foreground,
+                        fontFamily: "Inter_400Regular",
+                        textDecorationLine: s.done ? "line-through" : "none",
+                        opacity: s.done ? 0.6 : 1,
+                      },
+                    ]}>
+                      {s.label}
+                    </Text>
+                  </View>
+                ))}
+              </View>
+            </View>
             <Text style={[styles.stepSub, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
-              Add up to 10 milestones. Tap to remove.
+              Break your goal into steps. Check them off as you go.
             </Text>
             {form.subtasks.map((task, i) => (
               <View key={i} style={styles.subtaskRow}>
@@ -378,6 +423,7 @@ function GoalCreationModal({
             )}
           </View>
         );
+      }
 
       case "readiness":
         return (
@@ -1098,6 +1144,16 @@ const styles = StyleSheet.create({
   examplesCard: { borderWidth: 1, borderRadius: 10, padding: 12, gap: 4, marginBottom: 4 },
   examplesLabel: { fontSize: 10, letterSpacing: 0.8, marginBottom: 2 },
   examplesItem: { fontSize: 13, lineHeight: 20 },
+
+  // How it works / step chain
+  howItWorksCard: { borderWidth: 1, borderStyle: "dashed", borderRadius: 10, padding: 14, gap: 8, marginBottom: 4 },
+  howItWorksTitle: { fontSize: 14, marginBottom: 4 },
+  stepChain: { gap: 0 },
+  stepChainRow: { flexDirection: "row", alignItems: "flex-start", gap: 10, minHeight: 28 },
+  stepChainLeft: { alignItems: "center", width: 16 },
+  stepChainBox: { width: 16, height: 16, borderRadius: 3, borderWidth: 1.5, justifyContent: "center", alignItems: "center" },
+  stepChainLine: { width: 1.5, flex: 1, minHeight: 12 },
+  stepChainLabel: { fontSize: 13, lineHeight: 20, paddingTop: 0, flex: 1 },
 
   // Nav
   navRow: { flexDirection: "row", alignItems: "center", gap: 12, paddingTop: 12, borderTopWidth: 1 },
