@@ -324,6 +324,12 @@ export default function VoiceScreen() {
     }
   }, [isActive, isLoading, isEnding, startCall, endCall]);
 
+  const handleMicLongPress = useCallback(() => {
+    if (isLoading || isEnding || isActive) return;
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+    startCall();
+  }, [isLoading, isEnding, isActive, startCall]);
+
   const ringColor = isActive
     ? isValoSpeaking
       ? VALO_BLUE
@@ -344,6 +350,99 @@ export default function VoiceScreen() {
       <Text style={[styles.header, { color: colors.foreground, fontFamily: "Inter_700Bold" }]}>
         Voice debrief
       </Text>
+
+      {/* ── MIC BUTTON (idle + active + loading) ────────────────────────── */}
+      {!isEnding && !showSummary && (
+        <View style={styles.micSection}>
+          <View style={styles.micWrapper}>
+            {(isActive || isLoading) && (
+              <Animated.View
+                style={[
+                  styles.pulseRing,
+                  {
+                    borderColor: ringColor,
+                    transform: [{ scale: pulseScale }],
+                    opacity: pulseOpacity,
+                  },
+                ]}
+              />
+            )}
+            <TouchableOpacity
+              onPress={handleMicPress}
+              onLongPress={handleMicLongPress}
+              delayLongPress={400}
+              disabled={isLoading || isEnding}
+              activeOpacity={0.8}
+              style={[
+                styles.micButton,
+                {
+                  backgroundColor: isActive
+                    ? colors.primary
+                    : colors.card,
+                  borderColor: isActive ? colors.primary : colors.border,
+                },
+              ]}
+            >
+              {isLoading ? (
+                <ActivityIndicator color={colors.primary} size="large" />
+              ) : (
+                <Feather
+                  name={isActive ? "square" : "mic"}
+                  size={34}
+                  color={isActive ? colors.primaryForeground : colors.foreground}
+                />
+              )}
+            </TouchableOpacity>
+          </View>
+
+          {!isActive && !isLoading && (
+            <Text style={[styles.micHint, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
+              Tap to begin your evening debrief
+            </Text>
+          )}
+
+          {/* Active call controls */}
+          {isActive && (
+            <View style={styles.callControls}>
+              <TouchableOpacity
+                style={[
+                  styles.controlBtn,
+                  {
+                    backgroundColor: isMuted ? colors.muted : colors.card,
+                    borderColor: colors.border,
+                  },
+                ]}
+                onPress={() => {
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                  toggleMute();
+                }}
+              >
+                <Feather
+                  name={isMuted ? "mic-off" : "mic"}
+                  size={18}
+                  color={isMuted ? colors.mutedForeground : colors.foreground}
+                />
+                <Text style={[styles.controlBtnText, { color: isMuted ? colors.mutedForeground : colors.foreground, fontFamily: "Inter_500Medium" }]}>
+                  {isMuted ? "Unmute" : "Mute"}
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.controlBtn, styles.endBtn]}
+                onPress={() => {
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+                  endCall();
+                }}
+              >
+                <Feather name="phone-off" size={18} color="#fff" />
+                <Text style={[styles.controlBtnText, { color: "#fff", fontFamily: "Inter_500Medium" }]}>
+                  End call
+                </Text>
+              </TouchableOpacity>
+            </View>
+          )}
+        </View>
+      )}
 
       {/* ── ENDING STATE: processing ────────────────────────────────────── */}
       {isEnding && (
@@ -509,97 +608,6 @@ export default function VoiceScreen() {
           <Text style={[styles.speakerLabel, { color: isValoSpeaking ? VALO_BLUE : USER_GREEN, fontFamily: "Inter_600SemiBold" }]}>
             {isValoSpeaking ? "Valo is speaking" : "Listening to you"}
           </Text>
-        </View>
-      )}
-
-      {/* ── MIC BUTTON (idle + active + loading) ────────────────────────── */}
-      {!isEnding && !showSummary && (
-        <View style={styles.micSection}>
-          <View style={styles.micWrapper}>
-            {(isActive || isLoading) && (
-              <Animated.View
-                style={[
-                  styles.pulseRing,
-                  {
-                    borderColor: ringColor,
-                    transform: [{ scale: pulseScale }],
-                    opacity: pulseOpacity,
-                  },
-                ]}
-              />
-            )}
-            <TouchableOpacity
-              onPress={handleMicPress}
-              disabled={isLoading || isEnding}
-              activeOpacity={0.8}
-              style={[
-                styles.micButton,
-                {
-                  backgroundColor: isActive
-                    ? colors.primary
-                    : colors.card,
-                  borderColor: isActive ? colors.primary : colors.border,
-                },
-              ]}
-            >
-              {isLoading ? (
-                <ActivityIndicator color={colors.primary} size="large" />
-              ) : (
-                <Feather
-                  name={isActive ? "square" : "mic"}
-                  size={34}
-                  color={isActive ? colors.primaryForeground : colors.foreground}
-                />
-              )}
-            </TouchableOpacity>
-          </View>
-
-          {!isActive && !isLoading && (
-            <Text style={[styles.micHint, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
-              Tap to begin your evening debrief
-            </Text>
-          )}
-
-          {/* Active call controls */}
-          {isActive && (
-            <View style={styles.callControls}>
-              <TouchableOpacity
-                style={[
-                  styles.controlBtn,
-                  {
-                    backgroundColor: isMuted ? colors.muted : colors.card,
-                    borderColor: colors.border,
-                  },
-                ]}
-                onPress={() => {
-                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                  toggleMute();
-                }}
-              >
-                <Feather
-                  name={isMuted ? "mic-off" : "mic"}
-                  size={18}
-                  color={isMuted ? colors.mutedForeground : colors.foreground}
-                />
-                <Text style={[styles.controlBtnText, { color: isMuted ? colors.mutedForeground : colors.foreground, fontFamily: "Inter_500Medium" }]}>
-                  {isMuted ? "Unmute" : "Mute"}
-                </Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={[styles.controlBtn, styles.endBtn]}
-                onPress={() => {
-                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
-                  endCall();
-                }}
-              >
-                <Feather name="phone-off" size={18} color="#fff" />
-                <Text style={[styles.controlBtnText, { color: "#fff", fontFamily: "Inter_500Medium" }]}>
-                  End call
-                </Text>
-              </TouchableOpacity>
-            </View>
-          )}
         </View>
       )}
 
