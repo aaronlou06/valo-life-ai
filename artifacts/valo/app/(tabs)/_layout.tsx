@@ -1,11 +1,13 @@
 import { BlurView } from "expo-blur";
 import { isLiquidGlassAvailable } from "expo-glass-effect";
-import { Redirect, Tabs } from "expo-router";
+import { Redirect, Tabs, useRouter } from "expo-router";
 import { Icon, Label, NativeTabs } from "expo-router/unstable-native-tabs";
 import { SymbolView } from "expo-symbols";
 import { Feather } from "@expo/vector-icons";
 import React, { useEffect, useState } from "react";
-import { Platform, StyleSheet, View, useColorScheme, ActivityIndicator } from "react-native";
+import { Platform, StyleSheet, View, useColorScheme, ActivityIndicator, TouchableOpacity } from "react-native";
+import * as Haptics from "expo-haptics";
+import { triggerVoiceStart } from "@/lib/voiceTrigger";
 import { setAuthTokenGetter } from "@workspace/api-client-react";
 import { useColors } from "@/hooks/useColors";
 import { useValoAuth } from "@/contexts/AuthContext";
@@ -44,6 +46,7 @@ function ClassicTabLayout() {
   const isDark = colorScheme === "dark";
   const isIOS = Platform.OS === "ios";
   const isWeb = Platform.OS === "web";
+  const router = useRouter();
 
   return (
     <Tabs
@@ -82,6 +85,16 @@ function ClassicTabLayout() {
           title: "Check In",
           tabBarIcon: ({ color }) =>
             isIOS ? <SymbolView name="checkmark.circle" tintColor={color} size={24} /> : <Feather name="check-circle" size={22} color={color} />,
+          tabBarButton: (props) => (
+            <TouchableOpacity
+              {...props}
+              onLongPress={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+                triggerVoiceStart();
+                router.push("/(tabs)/checkin");
+              }}
+            />
+          ),
         }}
       />
       <Tabs.Screen

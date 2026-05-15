@@ -1,4 +1,6 @@
 import React, { useRef, useEffect, useCallback } from "react";
+import { useFocusEffect } from "expo-router";
+import { consumeVoiceTrigger } from "@/lib/voiceTrigger";
 import {
   View,
   Text,
@@ -314,6 +316,14 @@ export default function VoiceScreen() {
     }
   }, [transcript.length]);
 
+  useFocusEffect(
+    useCallback(() => {
+      if (consumeVoiceTrigger()) {
+        startCall();
+      }
+    }, [startCall])
+  );
+
   const handleMicPress = useCallback(() => {
     if (isLoading || isEnding) return;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
@@ -369,8 +379,6 @@ export default function VoiceScreen() {
             )}
             <TouchableOpacity
               onPress={handleMicPress}
-              onLongPress={handleMicLongPress}
-              delayLongPress={400}
               disabled={isLoading || isEnding}
               activeOpacity={0.8}
               style={[
