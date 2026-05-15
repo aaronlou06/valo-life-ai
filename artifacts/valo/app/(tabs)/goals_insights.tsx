@@ -49,6 +49,7 @@ interface GoalForm {
   subtasks: string[];
   subtaskDates: string[];
   // readiness
+  prepStartDate: string;
   eventDate: string;
   readinessSessions: number;
   // measurement / performance / quota
@@ -73,6 +74,7 @@ const DEFAULT_FORM: GoalForm = {
   goalType: "",
   subtasks: [""],
   subtaskDates: [""],
+  prepStartDate: "",
   eventDate: "",
   readinessSessions: 3,
   currentValue: "",
@@ -481,7 +483,9 @@ function GoalCreationModal({
           title: goalTitle,
           goalType: form.goalType || "milestone",
           category: form.category,
-          targetDate: form.targetDate.trim() || null,
+          targetDate: form.goalType === "readiness"
+            ? JSON.stringify({ prepStart: form.prepStartDate.trim(), eventDate: form.eventDate.trim() })
+            : form.targetDate.trim() || null,
           notes: form.notes.trim() || null,
           unit: form.unit.trim() || null,
           direction: form.direction,
@@ -507,6 +511,34 @@ function GoalCreationModal({
             },
           })
         );
+      }
+
+      // Fire calendar events for readiness prep start and event day
+      if (form.goalType === "readiness") {
+        if (form.prepStartDate.trim()) {
+          calendarJobs.push(
+            createCalendarEvent.mutateAsync({
+              data: {
+                title: `${goalTitle} - Prep begins`,
+                date: form.prepStartDate.trim(),
+                type: "goal-deadline",
+                notes: `Goal deadline: ${goalTitle} - Prep begins`,
+              },
+            })
+          );
+        }
+        if (form.eventDate.trim()) {
+          calendarJobs.push(
+            createCalendarEvent.mutateAsync({
+              data: {
+                title: `${goalTitle} - Event day`,
+                date: form.eventDate.trim(),
+                type: "goal-deadline",
+                notes: `Goal deadline: ${goalTitle} - Event day`,
+              },
+            })
+          );
+        }
       }
 
       // Fire calendar events for each milestone sub-task deadline
@@ -790,13 +822,19 @@ function GoalCreationModal({
               Tell me about the event
             </Text>
             {renderExamples("readiness")}
-            <Text style={labelStyle}>Event date</Text>
-            <TextInput
-              style={inputStyle}
+            <Text style={labelStyle}>When do you start preparing?</Text>
+            <DatePickerField
+              value={form.prepStartDate}
+              onChange={(v) => patch({ prepStartDate: v })}
+              placeholder="Set prep start date"
+              colors={colors}
+            />
+            <Text style={[labelStyle, { marginTop: 16 }]}>When is the event?</Text>
+            <DatePickerField
               value={form.eventDate}
-              onChangeText={(v) => patch({ eventDate: v })}
-              placeholder="e.g. 2025-10-15"
-              placeholderTextColor={colors.mutedForeground}
+              onChange={(v) => patch({ eventDate: v })}
+              placeholder="Set event date"
+              colors={colors}
             />
             <Text style={[labelStyle, { marginTop: 16 }]}>Prep sessions per week</Text>
             {renderFrequencySelector(form.readinessSessions, 1, 7, (v) => patch({ readinessSessions: v }))}
