@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from "react";
+import React, { useState, useCallback, useRef, useMemo, useEffect } from "react";
 import {
   View,
   Text,
@@ -104,6 +104,304 @@ const CATEGORIES = [
 ];
 
 const TOTAL_STEPS = 5;
+
+// ─── Date Picker ──────────────────────────────────────────────────────────────
+
+const PICKER_ITEM_H = 44;
+const PICKER_VISIBLE = 5;
+const PICKER_MONTHS = [
+  "January", "February", "March", "April", "May", "June",
+  "July", "August", "September", "October", "November", "December",
+];
+const PICKER_MONTHS_SHORT = [
+  "Jan", "Feb", "Mar", "Apr", "May", "Jun",
+  "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
+];
+const _BASE_YEAR = new Date().getFullYear();
+const PICKER_YEAR_STRS = Array.from({ length: 7 }, (_, i) => String(_BASE_YEAR + i));
+const PICKER_YEAR_NUMS = Array.from({ length: 7 }, (_, i) => _BASE_YEAR + i);
+
+function formatDateDisplay(iso: string): string {
+  if (!iso) return "";
+  const parts = iso.split("-");
+  const y = Number(parts[0]);
+  const m = Number(parts[1]);
+  const d = Number(parts[2]);
+  if (isNaN(y) || isNaN(m) || isNaN(d)) return iso;
+  return `${PICKER_MONTHS_SHORT[m - 1]} ${d}, ${y}`;
+}
+
+type PickerColors = ReturnType<typeof useColors>;
+
+function PickerColumn({
+  items,
+  selectedIndex,
+  onSelect,
+  colors,
+}: {
+  items: string[];
+  selectedIndex: number;
+  onSelect: (i: number) => void;
+  colors: PickerColors;
+}) {
+  const scrollRef = useRef<ScrollView>(null);
+  const isScrollingRef = useRef(false);
+
+  useEffect(() => {
+    if (isScrollingRef.current) return;
+    const safe = Math.max(0, Math.min(selectedIndex, items.length - 1));
+    const t = setTimeout(() => {
+      scrollRef.current?.scrollTo({ y: safe * PICKER_ITEM_H, animated: false });
+    }, 60);
+    return () => clearTimeout(t);
+  }, [selectedIndex, items.length]);
+
+  return (
+    <View style={{ flex: 1, height: PICKER_ITEM_H * PICKER_VISIBLE, overflow: "hidden" }}>
+      <ScrollView
+        ref={scrollRef}
+        showsVerticalScrollIndicator={false}
+        snapToInterval={PICKER_ITEM_H}
+        decelerationRate="fast"
+        contentContainerStyle={{ paddingVertical: PICKER_ITEM_H * 2 }}
+        onScrollBeginDrag={() => { isScrollingRef.current = true; }}
+        onMomentumScrollEnd={(e) => {
+          isScrollingRef.current = false;
+          const idx = Math.round(e.nativeEvent.contentOffset.y / PICKER_ITEM_H);
+          onSelect(Math.max(0, Math.min(idx, items.length - 1)));
+        }}
+        onScrollEndDrag={(e) => {
+          isScrollingRef.current = false;
+          const idx = Math.round(e.nativeEvent.contentOffset.y / PICKER_ITEM_H);
+          onSelect(Math.max(0, Math.min(idx, items.length - 1)));
+        }}
+      >
+        {items.map((item, i) => (
+          <TouchableOpacity
+            key={i}
+            style={{ height: PICKER_ITEM_H, justifyContent: "center", alignItems: "center" }}
+            onPress={() => {
+              scrollRef.current?.scrollTo({ y: i * PICKER_ITEM_H, animated: true });
+              onSelect(i);
+            }}
+          >
+            <Text
+              style={{
+                fontSize: 16,
+                color: i === selectedIndex ? colors.foreground : colors.mutedForeground,
+                fontFamily: i === selectedIndex ? "Inter_600SemiBold" : "Inter_400Regular",
+              }}
+            >
+              {item}
+            </Text>
+          </TouchableOpacity>
+        ))}
+      </ScrollView>
+    </View>
+  );
+}
+
+function DatePickerField({
+  value,
+  onChange,
+  placeholder = "Set deadline",
+  compact = false,
+  colors,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  placeholder?: string;
+  compact?: boolean;
+  colors: PickerColors;
+}) {
+  const [open, setOpen] = useState(false);
+
+  const parseIso = (iso: string) => {
+    const parts = iso.split("-").map(Number);
+    return {
+      month: (parts[1] ?? new Date().getMonth() + 1) - 1,
+      day: (parts[2] ?? new Date().getDate()) - 1,
+      year: parts[0] ?? new Date().getFullYear(),
+    };
+  };
+
+  const todayBase = new Date();
+  const initial = value
+    ? parseIso(value)
+    : { month: todayBase.getMonth(), day: todayBase.getDate() - 1, year: todayBase.getFullYear() };
+
+  const [selMonth, setSelMonth] = useState(initial.month);
+  const [selDay, setSelDay] = useState(initial.day);
+  const [selYear, setSelYear] = useState(initial.year);
+
+  const daysInMonth = new Date(selYear, selMonth + 1, 0).getDate();
+  const dayItems = useMemo(
+    () => Array.from({ length: daysInMonth }, (_, i) => String(i + 1)),
+    [daysInMonth],
+  );
+  const clampedDay = Math.min(selDay, daysInMonth - 1);
+  const yearIdx = Math.max(0, PICKER_YEAR_NUMS.indexOf(selYear));
+
+  const handleOpen = () => {
+    const today = new Date();
+    const parsed = value
+      ? parseIso(value)
+      : { month: today.getMonth(), day: today.getDate() - 1, year: today.getFullYear() };
+    setSelMonth(parsed.month);
+    setSelDay(parsed.day);
+    setSelYear(parsed.year);
+    setOpen(true);
+  };
+
+  const handleConfirm = () => {
+    const m = String(selMonth + 1).padStart(2, "0");
+    const d = String(clampedDay + 1).padStart(2, "0");
+    onChange(`${selYear}-${m}-${d}`);
+    setOpen(false);
+  };
+
+  return (
+    <>
+      <TouchableOpacity
+        onPress={handleOpen}
+        style={{
+          flexDirection: "row",
+          alignItems: "center",
+          gap: 6,
+          borderWidth: 1,
+          borderRadius: 10,
+          paddingHorizontal: 10,
+          paddingVertical: compact ? 8 : 10,
+          borderColor: value ? colors.primary : colors.border,
+          backgroundColor: colors.card,
+          ...(compact ? { width: 130 } : {}),
+          marginTop: compact ? 0 : 4,
+        }}
+      >
+        <Feather
+          name="calendar"
+          size={14}
+          color={value ? colors.primary : colors.mutedForeground}
+        />
+        <Text
+          style={{
+            fontSize: compact ? 13 : 15,
+            color: value ? colors.foreground : colors.mutedForeground,
+            fontFamily: "Inter_400Regular",
+            flexShrink: 1,
+          }}
+          numberOfLines={1}
+        >
+          {value ? formatDateDisplay(value) : placeholder}
+        </Text>
+      </TouchableOpacity>
+
+      <Modal
+        visible={open}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setOpen(false)}
+      >
+        <View style={{ flex: 1, justifyContent: "flex-end", backgroundColor: "rgba(0,0,0,0.45)" }}>
+          <TouchableOpacity
+            style={{ flex: 1 }}
+            activeOpacity={1}
+            onPress={() => setOpen(false)}
+          />
+          <View
+            style={{
+              backgroundColor: colors.card,
+              borderTopLeftRadius: 20,
+              borderTopRightRadius: 20,
+              paddingBottom: 36,
+              borderTopWidth: 1,
+              borderColor: colors.border,
+            }}
+          >
+            <View
+              style={{
+                flexDirection: "row",
+                justifyContent: "space-between",
+                alignItems: "center",
+                paddingHorizontal: 20,
+                paddingTop: 16,
+                paddingBottom: 12,
+                borderBottomWidth: 1,
+                borderColor: colors.border,
+              }}
+            >
+              <TouchableOpacity onPress={() => setOpen(false)}>
+                <Text style={{ fontSize: 15, color: colors.mutedForeground, fontFamily: "Inter_400Regular" }}>
+                  Cancel
+                </Text>
+              </TouchableOpacity>
+              <Text style={{ fontSize: 16, color: colors.foreground, fontFamily: "Inter_600SemiBold" }}>
+                Pick a date
+              </Text>
+              <TouchableOpacity onPress={handleConfirm}>
+                <Text style={{ fontSize: 15, color: colors.primary, fontFamily: "Inter_600SemiBold" }}>
+                  Done
+                </Text>
+              </TouchableOpacity>
+            </View>
+
+            <View style={{ flexDirection: "row", paddingHorizontal: 20, paddingTop: 10, paddingBottom: 2 }}>
+              {["MONTH", "DAY", "YEAR"].map((label) => (
+                <Text
+                  key={label}
+                  style={{
+                    flex: 1,
+                    textAlign: "center",
+                    fontSize: 11,
+                    letterSpacing: 0.6,
+                    color: colors.mutedForeground,
+                    fontFamily: "Inter_500Medium",
+                  }}
+                >
+                  {label}
+                </Text>
+              ))}
+            </View>
+
+            <View style={{ flexDirection: "row", paddingHorizontal: 20, position: "relative" }}>
+              <View
+                pointerEvents="none"
+                style={{
+                  position: "absolute",
+                  left: 20,
+                  right: 20,
+                  top: PICKER_ITEM_H * 2,
+                  height: PICKER_ITEM_H,
+                  borderTopWidth: 1,
+                  borderBottomWidth: 1,
+                  borderColor: colors.border,
+                }}
+              />
+              <PickerColumn
+                items={PICKER_MONTHS}
+                selectedIndex={selMonth}
+                onSelect={setSelMonth}
+                colors={colors}
+              />
+              <PickerColumn
+                items={dayItems}
+                selectedIndex={clampedDay}
+                onSelect={setSelDay}
+                colors={colors}
+              />
+              <PickerColumn
+                items={PICKER_YEAR_STRS}
+                selectedIndex={yearIdx}
+                onSelect={(i) => setSelYear(PICKER_YEAR_NUMS[i]!)}
+                colors={colors}
+              />
+            </View>
+          </View>
+        </View>
+      </Modal>
+    </>
+  );
+}
 
 // ─── GoalCreationModal ────────────────────────────────────────────────────────
 
@@ -445,16 +743,16 @@ function GoalCreationModal({
                   placeholder={`Step ${i + 1}`}
                   placeholderTextColor={colors.mutedForeground}
                 />
-                <TextInput
-                  style={[inputStyle, styles.subtaskDateInput]}
+                <DatePickerField
                   value={form.subtaskDates[i] ?? ""}
-                  onChangeText={(v) => {
+                  onChange={(v) => {
                     const next = [...form.subtaskDates];
                     next[i] = v;
                     patch({ subtaskDates: next });
                   }}
                   placeholder="Due date"
-                  placeholderTextColor={colors.mutedForeground}
+                  compact
+                  colors={colors}
                 />
                 {form.subtasks.length > 1 && (
                   <TouchableOpacity
@@ -688,12 +986,11 @@ function GoalCreationModal({
         <Text style={[styles.fieldHint, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
           This will appear on your calendar as a reminder.
         </Text>
-        <TextInput
-          style={inputStyle}
+        <DatePickerField
           value={form.targetDate}
-          onChangeText={(v) => patch({ targetDate: v })}
-          placeholder="No deadline"
-          placeholderTextColor={colors.mutedForeground}
+          onChange={(v) => patch({ targetDate: v })}
+          placeholder="Set deadline"
+          colors={colors}
         />
         <Text style={[labelStyle, { marginTop: 16 }]}>Category</Text>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 4 }}>
@@ -1164,7 +1461,6 @@ const styles = StyleSheet.create({
   // Fields
   fieldLabel: { fontSize: 12, letterSpacing: 0.5, textTransform: "uppercase", marginTop: 4 },
   fieldHint: { fontSize: 12, lineHeight: 17, marginTop: 2, marginBottom: 4 },
-  subtaskDateInput: { width: 100, flexShrink: 0 },
   fieldInput: {
     borderWidth: 1,
     borderRadius: 10,
