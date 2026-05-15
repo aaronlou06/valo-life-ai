@@ -11,6 +11,7 @@ import {
   Modal,
   KeyboardAvoidingView,
   Alert,
+  Switch,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Feather } from "@expo/vector-icons";
@@ -233,6 +234,7 @@ function DatePickerField({
   colors: PickerColors;
 }) {
   const [open, setOpen] = useState(false);
+  const [timeEnabled, setTimeEnabled] = useState(false);
 
   const parseIsoFull = (iso: string) => {
     const hasTime = iso.includes("T");
@@ -293,13 +295,14 @@ function DatePickerField({
     setSelHour(parsed.hour);
     setSelMinute(parsed.minute);
     setSelAmPm(parsed.ampm);
+    setTimeEnabled(showTime && value.includes("T"));
     setOpen(true);
   };
 
   const handleConfirm = () => {
     const mm = String(selMonth + 1).padStart(2, "0");
     const dd = String(clampedDay + 1).padStart(2, "0");
-    if (!showTime) {
+    if (!showTime || !timeEnabled) {
       onChange(`${selYear}-${mm}-${dd}`);
     } else {
       const hourVal = selHour + 1; // 1-12
@@ -314,7 +317,7 @@ function DatePickerField({
     setOpen(false);
   };
 
-  const colLabels = showTime
+  const colLabels = showTime && timeEnabled
     ? ["MON", "DAY", "YEAR", "HOUR", "MIN", "AM/PM"]
     : ["MONTH", "DAY", "YEAR"];
 
@@ -394,7 +397,7 @@ function DatePickerField({
                 </Text>
               </TouchableOpacity>
               <Text style={{ fontSize: 16, color: colors.foreground, fontFamily: "Inter_600SemiBold" }}>
-                {showTime ? "Pick date & time" : "Pick a date"}
+                {showTime && timeEnabled ? "Pick date & time" : "Pick a date"}
               </Text>
               <TouchableOpacity onPress={handleConfirm}>
                 <Text style={{ fontSize: 15, color: colors.primary, fontFamily: "Inter_600SemiBold" }}>
@@ -453,7 +456,7 @@ function DatePickerField({
                 onSelect={(i) => setSelYear(PICKER_YEAR_NUMS[i]!)}
                 colors={colors}
               />
-              {showTime && (
+              {showTime && timeEnabled && (
                 <>
                   <PickerColumn
                     items={PICKER_HOURS}
@@ -476,6 +479,32 @@ function DatePickerField({
                 </>
               )}
             </View>
+
+            {showTime && (
+              <View
+                style={{
+                  flexDirection: "row",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  paddingHorizontal: 20,
+                  paddingTop: 12,
+                  paddingBottom: 4,
+                  marginTop: 4,
+                  borderTopWidth: 1,
+                  borderColor: colors.border,
+                }}
+              >
+                <Text style={{ fontSize: 14, color: colors.mutedForeground, fontFamily: "Inter_400Regular" }}>
+                  Add a time (optional)
+                </Text>
+                <Switch
+                  value={timeEnabled}
+                  onValueChange={setTimeEnabled}
+                  trackColor={{ false: colors.border, true: colors.primary }}
+                  thumbColor={colors.card}
+                />
+              </View>
+            )}
           </View>
         </View>
       </Modal>
