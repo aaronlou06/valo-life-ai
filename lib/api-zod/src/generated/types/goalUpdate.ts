@@ -12,4 +12,27 @@ export interface GoalUpdate {
   targetDate?: string | null;
   progressPercent?: number;
   category?: string;
+  goalType?: string;
+  /** @nullable */
+  currentValue?: number | null;
+  /** @nullable */
+  targetValue?: number | null;
+  /** @nullable */
+  unit?: string | null;
+  /** @nullable */
+  direction?: string | null;
+  /** @nullable */
+  xpPoints?: number | null;
+  /** @nullable */
+  currentTier?: string | null;
+  /** @nullable */
+  tiers?: string | null;
+  /** @nullable */
+  milestones?: string | null;
+  /** @nullable */
+  avoidanceLimit?: number | null;
+  /** @nullable */
+  linkedHabitIds?: string | null;
+  /** @nullable */
+  notes?: string | null;
 }

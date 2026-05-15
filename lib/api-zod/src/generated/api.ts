@@ -100,6 +100,18 @@ export const CreateGoalBody = zod.object({
   targetDate: zod.string().nullish(),
   progressPercent: zod.number().optional(),
   category: zod.string().optional(),
+  goalType: zod.string().optional(),
+  currentValue: zod.number().nullish(),
+  targetValue: zod.number().nullish(),
+  unit: zod.string().nullish(),
+  direction: zod.string().nullish(),
+  xpPoints: zod.number().nullish(),
+  currentTier: zod.string().nullish(),
+  tiers: zod.string().nullish(),
+  milestones: zod.string().nullish(),
+  avoidanceLimit: zod.number().nullish(),
+  linkedHabitIds: zod.string().nullish(),
+  notes: zod.string().nullish(),
 });
 
 /**
@@ -114,6 +126,18 @@ export const UpdateGoalBody = zod.object({
   targetDate: zod.string().nullish(),
   progressPercent: zod.number().optional(),
   category: zod.string().optional(),
+  goalType: zod.string().optional(),
+  currentValue: zod.number().nullish(),
+  targetValue: zod.number().nullish(),
+  unit: zod.string().nullish(),
+  direction: zod.string().nullish(),
+  xpPoints: zod.number().nullish(),
+  currentTier: zod.string().nullish(),
+  tiers: zod.string().nullish(),
+  milestones: zod.string().nullish(),
+  avoidanceLimit: zod.number().nullish(),
+  linkedHabitIds: zod.string().nullish(),
+  notes: zod.string().nullish(),
 });
 
 export const UpdateGoalResponse = zod.object({

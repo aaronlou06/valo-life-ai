@@ -1,0 +1,51 @@
+In app/(tabs)/goals_insights.tsx, replace the simple 'add goal' text input with a multi-step goal creation modal. When the user taps the + button next to 'Big Goals', open a full-screen modal with these steps:
+Step 1 — Name it
+
+Large text input: 'What do you want to achieve?'
+Subtext: 'Be specific. Vague goals stay dreams.'
+Next button (disabled until text is entered)
+
+Step 2 — Pick the type
+
+Header: 'How do you want to track progress?'
+7 tappable cards in a scrollable grid, each with an icon, name, and one-line description:
+
+🎯 Milestone — 'Big goal broken into steps'
+📅 Readiness — 'Preparing for an event or date'
+📏 Measurement — 'A number moving toward a target'
+💪 Performance — 'Beat a personal record'
+🔥 Consistency — 'Show up regularly'
+📦 Quota — 'Accumulate a total amount'
+⚡ Leveling — 'Progress through skill tiers'
+🚫 Avoidance — 'Reduce or eliminate something'
+
+
+Tapping a card selects it (highlighted in primary color)
+Next button enabled once a type is selected
+
+Step 3 — Configure it
+Show different fields based on the selected type:
+
+Milestone: Add up to 10 sub-tasks (text inputs with + button to add more, tap to remove)
+Readiness: Event date picker (text input for now), prep sessions per week (number input)
+Measurement: Current value, target value, unit (text input e.g. 'lbs', 'km'), direction toggle (Increase / Decrease)
+Performance: Current PR (number), target (number), unit (text)
+Consistency: Target frequency (times per week, 1-7 selector)
+Quota: Current total (number), target total (number), unit (text)
+Leveling: Tier names (e.g. Beginner, Intermediate, Advanced, Expert) — up to 5, add/remove
+Avoidance: Max allowed per week (0-7 selector, 0 = full elimination)
+
+Step 4 — Details
+
+Target date (optional text input, placeholder 'No deadline')
+Category picker — horizontal scroll of chips: Health, Fitness, Career, Financial, Relationships, Spirituality, Learning, Lifestyle, Personal
+Notes (optional multiline text input)
+
+Step 5 — Review & Save
+
+Summary card showing: goal title, type badge, key metric, category, target date
+'Create goal' button that calls the API
+On success: close modal, refresh goals list, haptic success feedback
+
+Navigation: Back/Next buttons at bottom of each step. Show step indicator dots at the top (5 dots, current step highlighted).
+Use the existing color system, Inter fonts, and match the visual style of the app. Store all form state in a single goalForm object with useState. The modal should use React Native's Modal component with animationType='slide'."

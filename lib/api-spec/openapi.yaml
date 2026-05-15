@@ -416,6 +416,30 @@ components:
           type: integer
         category:
           type: string
+        goalType:
+          type: string
+        currentValue:
+          type: ["integer", "null"]
+        targetValue:
+          type: ["integer", "null"]
+        unit:
+          type: ["string", "null"]
+        direction:
+          type: ["string", "null"]
+        xpPoints:
+          type: ["integer", "null"]
+        currentTier:
+          type: ["string", "null"]
+        tiers:
+          type: ["string", "null"]
+        milestones:
+          type: ["string", "null"]
+        avoidanceLimit:
+          type: ["integer", "null"]
+        linkedHabitIds:
+          type: ["string", "null"]
+        notes:
+          type: ["string", "null"]
 
     GoalUpdate:
       type: object
@@ -428,6 +452,30 @@ components:
           type: integer
         category:
           type: string
+        goalType:
+          type: string
+        currentValue:
+          type: ["integer", "null"]
+        targetValue:
+          type: ["integer", "null"]
+        unit:
+          type: ["string", "null"]
+        direction:
+          type: ["string", "null"]
+        xpPoints:
+          type: ["integer", "null"]
+        currentTier:
+          type: ["string", "null"]
+        tiers:
+          type: ["string", "null"]
+        milestones:
+          type: ["string", "null"]
+        avoidanceLimit:
+          type: ["integer", "null"]
+        linkedHabitIds:
+          type: ["string", "null"]
+        notes:
+          type: ["string", "null"]
 
     Habit:
       type: object
