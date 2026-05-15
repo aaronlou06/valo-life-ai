@@ -304,6 +304,30 @@ function GoalCreationModal({
     const labelStyle = [styles.fieldLabel, { color: colors.mutedForeground, fontFamily: "Inter_500Medium" }];
     const inputStyle = [styles.fieldInput, { color: colors.foreground, borderColor: colors.border, backgroundColor: colors.card, fontFamily: "Inter_400Regular" }];
 
+    const EXAMPLES: Record<GoalType, string[]> = {
+      milestone:    ["Launch my business", "Get promoted", "Plan a wedding", "Write a book"],
+      readiness:    ["Run a marathon", "Pass the bar exam", "Compete in a tournament", "Give a TED talk"],
+      measurement:  ["Lose 20 lbs", "Sleep 7.5hrs average", "Save $10,000", "Reach 180 lbs"],
+      performance:  ["Bench press 315 lbs", "Run a 5-minute mile", "Do 20 pull-ups", "Shoot 80 in golf"],
+      consistency:  ["Work out 4x a week", "Pray every morning", "Read 20 minutes daily", "No alcohol on weekdays"],
+      quota:        ["Read 24 books this year", "Log 100 workouts", "Walk 1 million steps", "Save $500/month"],
+      leveling:     ["Learn Spanish", "Master BJJ", "Get my real estate license", "Become a better public speaker"],
+      avoidance:    ["Stop scrolling before bed", "Quit porn", "Limit alcohol to once a week", "No junk food on weekdays"],
+    };
+
+    const renderExamples = (type: GoalType) => (
+      <View style={[styles.examplesCard, { backgroundColor: colors.muted, borderColor: colors.border }]}>
+        <Text style={[styles.examplesLabel, { color: colors.mutedForeground, fontFamily: "Inter_600SemiBold" }]}>
+          EXAMPLES
+        </Text>
+        {EXAMPLES[type].map((ex) => (
+          <Text key={ex} style={[styles.examplesItem, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
+            {ex}
+          </Text>
+        ))}
+      </View>
+    );
+
     switch (form.goalType) {
       case "milestone":
         return (
@@ -311,6 +335,7 @@ function GoalCreationModal({
             <Text style={[styles.stepHeading, { color: colors.foreground, fontFamily: "Inter_700Bold" }]}>
               Break it into steps
             </Text>
+            {renderExamples("milestone")}
             <Text style={[styles.stepSub, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
               Add up to 10 milestones. Tap to remove.
             </Text>
@@ -360,6 +385,7 @@ function GoalCreationModal({
             <Text style={[styles.stepHeading, { color: colors.foreground, fontFamily: "Inter_700Bold" }]}>
               Tell me about the event
             </Text>
+            {renderExamples("readiness")}
             <Text style={labelStyle}>Event date</Text>
             <TextInput
               style={inputStyle}
@@ -396,6 +422,7 @@ function GoalCreationModal({
             <Text style={[styles.stepHeading, { color: colors.foreground, fontFamily: "Inter_700Bold" }]}>
               {headings[form.goalType]}
             </Text>
+            {renderExamples(form.goalType as "measurement" | "performance" | "quota")}
             <Text style={labelStyle}>{currentLabels[form.goalType]}</Text>
             <TextInput
               style={inputStyle}
@@ -469,6 +496,7 @@ function GoalCreationModal({
             <Text style={[styles.stepHeading, { color: colors.foreground, fontFamily: "Inter_700Bold" }]}>
               How often?
             </Text>
+            {renderExamples("consistency")}
             <Text style={[styles.stepSub, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
               Target times per week
             </Text>
@@ -482,6 +510,7 @@ function GoalCreationModal({
             <Text style={[styles.stepHeading, { color: colors.foreground, fontFamily: "Inter_700Bold" }]}>
               Name your tiers
             </Text>
+            {renderExamples("leveling")}
             <Text style={[styles.stepSub, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
               Up to 5, from lowest to highest.
             </Text>
@@ -528,6 +557,7 @@ function GoalCreationModal({
             <Text style={[styles.stepHeading, { color: colors.foreground, fontFamily: "Inter_700Bold" }]}>
               Set your limit
             </Text>
+            {renderExamples("avoidance")}
             <Text style={[styles.stepSub, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
               Max allowed occurrences per week. Set 0 for full elimination.
             </Text>
@@ -1063,6 +1093,11 @@ const styles = StyleSheet.create({
   reviewRow: { flexDirection: "row", alignItems: "center", gap: 6 },
   reviewRowText: { fontSize: 13 },
   reviewNotes: { fontSize: 13, lineHeight: 19, marginTop: 4 },
+
+  // Examples card
+  examplesCard: { borderWidth: 1, borderRadius: 10, padding: 12, gap: 4, marginBottom: 4 },
+  examplesLabel: { fontSize: 10, letterSpacing: 0.8, marginBottom: 2 },
+  examplesItem: { fontSize: 13, lineHeight: 20 },
 
   // Nav
   navRow: { flexDirection: "row", alignItems: "center", gap: 12, paddingTop: 12, borderTopWidth: 1 },
