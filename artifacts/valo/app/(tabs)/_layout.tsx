@@ -18,21 +18,21 @@ function NativeTabLayout() {
         <Icon sf={{ default: "house", selected: "house.fill" }} />
         <Label>Today</Label>
       </NativeTabs.Trigger>
-      <NativeTabs.Trigger name="voice">
-        <Icon sf={{ default: "mic", selected: "mic.fill" }} />
-        <Label>Voice</Label>
+      <NativeTabs.Trigger name="checkin">
+        <Icon sf={{ default: "checkmark.circle", selected: "checkmark.circle.fill" }} />
+        <Label>Check In</Label>
       </NativeTabs.Trigger>
-      <NativeTabs.Trigger name="goals">
+      <NativeTabs.Trigger name="goals_insights">
         <Icon sf={{ default: "flag", selected: "flag.fill" }} />
         <Label>Goals</Label>
       </NativeTabs.Trigger>
-      <NativeTabs.Trigger name="insights">
-        <Icon sf={{ default: "chart.bar", selected: "chart.bar.fill" }} />
-        <Label>Insights</Label>
+      <NativeTabs.Trigger name="calendar">
+        <Icon sf={{ default: "calendar", selected: "calendar" }} />
+        <Label>Calendar</Label>
       </NativeTabs.Trigger>
-      <NativeTabs.Trigger name="log">
-        <Icon sf={{ default: "plus.circle", selected: "plus.circle.fill" }} />
-        <Label>Log</Label>
+      <NativeTabs.Trigger name="profile">
+        <Icon sf={{ default: "person", selected: "person.fill" }} />
+        <Label>Profile</Label>
       </NativeTabs.Trigger>
     </NativeTabs>
   );
@@ -77,15 +77,15 @@ function ClassicTabLayout() {
         }}
       />
       <Tabs.Screen
-        name="voice"
+        name="checkin"
         options={{
-          title: "Voice",
+          title: "Check In",
           tabBarIcon: ({ color }) =>
-            isIOS ? <SymbolView name="mic" tintColor={color} size={24} /> : <Feather name="mic" size={22} color={color} />,
+            isIOS ? <SymbolView name="checkmark.circle" tintColor={color} size={24} /> : <Feather name="check-circle" size={22} color={color} />,
         }}
       />
       <Tabs.Screen
-        name="goals"
+        name="goals_insights"
         options={{
           title: "Goals",
           tabBarIcon: ({ color }) =>
@@ -93,21 +93,26 @@ function ClassicTabLayout() {
         }}
       />
       <Tabs.Screen
-        name="insights"
+        name="calendar"
         options={{
-          title: "Insights",
+          title: "Calendar",
           tabBarIcon: ({ color }) =>
-            isIOS ? <SymbolView name="chart.bar" tintColor={color} size={24} /> : <Feather name="bar-chart-2" size={22} color={color} />,
+            isIOS ? <SymbolView name="calendar" tintColor={color} size={24} /> : <Feather name="calendar" size={22} color={color} />,
         }}
       />
       <Tabs.Screen
-        name="log"
+        name="profile"
         options={{
-          title: "Log",
+          title: "Profile",
           tabBarIcon: ({ color }) =>
-            isIOS ? <SymbolView name="plus.circle" tintColor={color} size={24} /> : <Feather name="plus-circle" size={22} color={color} />,
+            isIOS ? <SymbolView name="person" tintColor={color} size={24} /> : <Feather name="user" size={22} color={color} />,
         }}
       />
+      {/* Hidden screens — files still exist but are not tab entries */}
+      <Tabs.Screen name="voice" options={{ href: null }} />
+      <Tabs.Screen name="goals" options={{ href: null }} />
+      <Tabs.Screen name="insights" options={{ href: null }} />
+      <Tabs.Screen name="log" options={{ href: null }} />
     </Tabs>
   );
 }
