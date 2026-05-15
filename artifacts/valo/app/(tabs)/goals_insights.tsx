@@ -20,6 +20,7 @@ import {
   useListGoals,
   useListHabits,
   useCreateGoal,
+  useCreateCalendarEvent,
   useCreateHabit,
   useUpdateHabit,
   useDeleteGoal,
@@ -46,6 +47,7 @@ interface GoalForm {
   goalType: GoalType | "";
   // milestone
   subtasks: string[];
+  subtaskDates: string[];
   // readiness
   eventDate: string;
   readinessSessions: number;
@@ -70,6 +72,7 @@ const DEFAULT_FORM: GoalForm = {
   title: "",
   goalType: "",
   subtasks: [""],
+  subtaskDates: [""],
   eventDate: "",
   readinessSessions: 3,
   currentValue: "",
@@ -116,6 +119,7 @@ function GoalCreationModal({
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const createGoal = useCreateGoal();
+  const createCalendarEvent = useCreateCalendarEvent();
 
   const [step, setStep] = useState(1);
   const [form, setForm] = useState<GoalForm>(DEFAULT_FORM);
@@ -140,12 +144,20 @@ function GoalCreationModal({
   const handleCreate = useCallback(async () => {
     setIsSaving(true);
     try {
+      const goalTitle = form.title.trim();
+
+      const activeSubtasks = form.subtasks
+        .map((s, i) => ({ name: s.trim(), date: (form.subtaskDates[i] ?? "").trim() }))
+        .filter((s) => s.name.length > 0);
+
       const milestonePayload =
         form.goalType === "milestone"
           ? JSON.stringify(
-              form.subtasks
-                .filter((s) => s.trim())
-                .map((title, i) => ({ id: i + 1, title, completed: false }))
+              activeSubtasks.map((s, i) => ({
+                id: i + 1,
+                title: `${goalTitle} - ${s.name}`,
+                completed: false,
+              }))
             )
           : null;
 
@@ -168,7 +180,7 @@ function GoalCreationModal({
 
       await createGoal.mutateAsync({
         data: {
-          title: form.title.trim(),
+          title: goalTitle,
           goalType: form.goalType || "milestone",
           category: form.category,
           targetDate: form.targetDate.trim() || null,
@@ -184,6 +196,42 @@ function GoalCreationModal({
         },
       });
 
+      // Fire calendar events for main deadline
+      const calendarJobs: Promise<unknown>[] = [];
+      if (form.targetDate.trim()) {
+        calendarJobs.push(
+          createCalendarEvent.mutateAsync({
+            data: {
+              title: goalTitle,
+              date: form.targetDate.trim(),
+              type: "goal-deadline",
+              notes: `Goal deadline: ${goalTitle}`,
+            },
+          })
+        );
+      }
+
+      // Fire calendar events for each milestone sub-task deadline
+      if (form.goalType === "milestone") {
+        for (const s of activeSubtasks) {
+          if (s.date) {
+            const combinedTitle = `${goalTitle} - ${s.name}`;
+            calendarJobs.push(
+              createCalendarEvent.mutateAsync({
+                data: {
+                  title: combinedTitle,
+                  date: s.date,
+                  type: "goal-deadline",
+                  notes: `Goal deadline: ${combinedTitle}`,
+                },
+              })
+            );
+          }
+        }
+      }
+
+      await Promise.all(calendarJobs);
+
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       onSuccess();
       resetAndClose();
@@ -192,7 +240,7 @@ function GoalCreationModal({
     } finally {
       setIsSaving(false);
     }
-  }, [form, createGoal, onSuccess, resetAndClose]);
+  }, [form, createGoal, createCalendarEvent, onSuccess, resetAndClose]);
 
   // ── Step renderers ──────────────────────────────────────────────────────────
 
@@ -397,11 +445,23 @@ function GoalCreationModal({
                   placeholder={`Step ${i + 1}`}
                   placeholderTextColor={colors.mutedForeground}
                 />
+                <TextInput
+                  style={[inputStyle, styles.subtaskDateInput]}
+                  value={form.subtaskDates[i] ?? ""}
+                  onChangeText={(v) => {
+                    const next = [...form.subtaskDates];
+                    next[i] = v;
+                    patch({ subtaskDates: next });
+                  }}
+                  placeholder="Due date"
+                  placeholderTextColor={colors.mutedForeground}
+                />
                 {form.subtasks.length > 1 && (
                   <TouchableOpacity
                     onPress={() => {
-                      const next = form.subtasks.filter((_, idx) => idx !== i);
-                      patch({ subtasks: next });
+                      const nextTasks = form.subtasks.filter((_, idx) => idx !== i);
+                      const nextDates = form.subtaskDates.filter((_, idx) => idx !== i);
+                      patch({ subtasks: nextTasks, subtaskDates: nextDates });
                     }}
                     style={styles.subtaskRemove}
                   >
@@ -412,7 +472,7 @@ function GoalCreationModal({
             ))}
             {form.subtasks.length < 10 && (
               <TouchableOpacity
-                onPress={() => patch({ subtasks: [...form.subtasks, ""] })}
+                onPress={() => patch({ subtasks: [...form.subtasks, ""], subtaskDates: [...form.subtaskDates, ""] })}
                 style={[styles.addRowBtn, { borderColor: colors.border }]}
               >
                 <Feather name="plus" size={15} color={colors.primary} />
@@ -624,7 +684,10 @@ function GoalCreationModal({
         <Text style={[styles.stepHeading, { color: colors.foreground, fontFamily: "Inter_700Bold" }]}>
           Final details
         </Text>
-        <Text style={labelStyle}>Target date (optional)</Text>
+        <Text style={labelStyle}>Deadline</Text>
+        <Text style={[styles.fieldHint, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
+          This will appear on your calendar as a reminder.
+        </Text>
         <TextInput
           style={inputStyle}
           value={form.targetDate}
@@ -1100,6 +1163,8 @@ const styles = StyleSheet.create({
 
   // Fields
   fieldLabel: { fontSize: 12, letterSpacing: 0.5, textTransform: "uppercase", marginTop: 4 },
+  fieldHint: { fontSize: 12, lineHeight: 17, marginTop: 2, marginBottom: 4 },
+  subtaskDateInput: { width: 100, flexShrink: 0 },
   fieldInput: {
     borderWidth: 1,
     borderRadius: 10,

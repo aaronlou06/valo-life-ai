@@ -23,6 +23,8 @@ tags:
     description: Activity log entries
   - name: dashboard
     description: Dashboard data
+  - name: calendar-events
+    description: Calendar events and goal deadlines
 paths:
   /healthz:
     get:
@@ -163,6 +165,53 @@ paths:
       operationId: deleteGoal
       tags: [goals]
       summary: Delete a goal
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+
+  /calendar-events:
+    get:
+      operationId: listCalendarEvents
+      tags: [calendar-events]
+      summary: List calendar events
+      responses:
+        "200":
+          description: List of calendar events
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/CalendarEvent"
+    post:
+      operationId: createCalendarEvent
+      tags: [calendar-events]
+      summary: Create a calendar event
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CalendarEventInput"
+      responses:
+        "201":
+          description: Created calendar event
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CalendarEvent"
+
+  /calendar-events/{id}:
+    delete:
+      operationId: deleteCalendarEvent
+      tags: [calendar-events]
+      summary: Delete a calendar event
       parameters:
         - name: id
           in: path
@@ -473,6 +522,36 @@ components:
         avoidanceLimit:
           type: ["integer", "null"]
         linkedHabitIds:
+          type: ["string", "null"]
+        notes:
+          type: ["string", "null"]
+
+    CalendarEvent:
+      type: object
+      required: [id, userId, date, title]
+      properties:
+        id:
+          type: integer
+        userId:
+          type: string
+        date:
+          type: string
+        title:
+          type: string
+        type:
+          type: ["string", "null"]
+        notes:
+          type: ["string", "null"]
+
+    CalendarEventInput:
+      type: object
+      required: [title, date]
+      properties:
+        title:
+          type: string
+        date:
+          type: string
+        type:
           type: ["string", "null"]
         notes:
           type: ["string", "null"]

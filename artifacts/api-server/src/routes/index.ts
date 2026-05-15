@@ -12,6 +12,7 @@ import vapiContextRouter from "./vapi-context";
 import debriefRouter from "./debrief";
 import settingsRouter from "./settings";
 import vapiWebhookRouter from "./vapi-webhook";
+import calendarEventsRouter from "./calendar-events";
 
 const router: IRouter = Router();
 
@@ -28,5 +29,6 @@ router.use(vapiContextRouter);
 router.use(debriefRouter);
 router.use(settingsRouter);
 router.use(vapiWebhookRouter);
+router.use(calendarEventsRouter);
 
 export default router;

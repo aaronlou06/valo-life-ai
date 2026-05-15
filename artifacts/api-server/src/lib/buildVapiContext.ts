@@ -160,10 +160,12 @@ export async function buildVapiContext(userId: string): Promise<Record<string, u
   if (calendarToday.length > 0) {
     const first = calendarToday[0]!;
     const last = calendarToday[calendarToday.length - 1]!;
-    workday_hours =
-      Math.round(
-        ((last.endTime.getTime() - first.startTime.getTime()) / 3_600_000) * 10
-      ) / 10;
+    if (first.startTime && last.endTime) {
+      workday_hours =
+        Math.round(
+          ((last.endTime.getTime() - first.startTime.getTime()) / 3_600_000) * 10
+        ) / 10;
+    }
     if (meeting_count > 5 || workday_hours > 10) calendar_stress = "yes";
   }
 

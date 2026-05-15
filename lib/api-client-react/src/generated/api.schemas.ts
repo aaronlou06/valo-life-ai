@@ -135,6 +135,26 @@ export interface GoalUpdate {
   notes?: string | null;
 }
 
+export interface CalendarEvent {
+  id: number;
+  userId: string;
+  date: string;
+  title: string;
+  /** @nullable */
+  type?: string | null;
+  /** @nullable */
+  notes?: string | null;
+}
+
+export interface CalendarEventInput {
+  title: string;
+  date: string;
+  /** @nullable */
+  type?: string | null;
+  /** @nullable */
+  notes?: string | null;
+}
+
 export interface Habit {
   id: number;
   userId: string;

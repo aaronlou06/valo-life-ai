@@ -7,9 +7,11 @@ export const calendarEventsTable = pgTable("calendar_events", {
   userId: text("user_id").notNull(),
   date: text("date").notNull(),
   title: text("title").notNull(),
-  startTime: timestamp("start_time", { withTimezone: true }).notNull(),
-  endTime: timestamp("end_time", { withTimezone: true }).notNull(),
+  startTime: timestamp("start_time", { withTimezone: true }),
+  endTime: timestamp("end_time", { withTimezone: true }),
   location: text("location"),
+  type: text("type"),
+  notes: text("notes"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 

@@ -157,6 +157,38 @@ export const DeleteGoalParams = zod.object({
 });
 
 /**
+ * @summary List calendar events
+ */
+export const ListCalendarEventsResponseItem = zod.object({
+  id: zod.number(),
+  userId: zod.string(),
+  date: zod.string(),
+  title: zod.string(),
+  type: zod.string().nullish(),
+  notes: zod.string().nullish(),
+});
+export const ListCalendarEventsResponse = zod.array(
+  ListCalendarEventsResponseItem,
+);
+
+/**
+ * @summary Create a calendar event
+ */
+export const CreateCalendarEventBody = zod.object({
+  title: zod.string(),
+  date: zod.string(),
+  type: zod.string().nullish(),
+  notes: zod.string().nullish(),
+});
+
+/**
+ * @summary Delete a calendar event
+ */
+export const DeleteCalendarEventParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+/**
  * @summary List habits
  */
 export const ListHabitsResponseItem = zod.object({
