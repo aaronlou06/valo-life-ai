@@ -50,6 +50,7 @@ interface GoalForm {
   subtaskDates: string[];
   // readiness
   prepStartDate: string;
+  prepEndDate: string;
   eventDate: string;
   readinessSessions: number;
   // measurement / performance / quota
@@ -75,6 +76,7 @@ const DEFAULT_FORM: GoalForm = {
   subtasks: [""],
   subtaskDates: [""],
   prepStartDate: "",
+  prepEndDate: "",
   eventDate: "",
   readinessSessions: 3,
   currentValue: "",
@@ -122,15 +124,27 @@ const PICKER_MONTHS_SHORT = [
 const _BASE_YEAR = new Date().getFullYear();
 const PICKER_YEAR_STRS = Array.from({ length: 7 }, (_, i) => String(_BASE_YEAR + i));
 const PICKER_YEAR_NUMS = Array.from({ length: 7 }, (_, i) => _BASE_YEAR + i);
+const PICKER_HOURS = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12"];
+const PICKER_MINUTES = ["00", "05", "10", "15", "20", "25", "30", "35", "40", "45", "50", "55"];
+const PICKER_AMPM = ["AM", "PM"];
 
 function formatDateDisplay(iso: string): string {
   if (!iso) return "";
-  const parts = iso.split("-");
+  const hasTime = iso.includes("T");
+  const datePart = hasTime ? iso.split("T")[0]! : iso;
+  const parts = datePart.split("-");
   const y = Number(parts[0]);
   const m = Number(parts[1]);
   const d = Number(parts[2]);
   if (isNaN(y) || isNaN(m) || isNaN(d)) return iso;
-  return `${PICKER_MONTHS_SHORT[m - 1]} ${d}, ${y}`;
+  const dateStr = `${PICKER_MONTHS_SHORT[m - 1]} ${d}, ${y}`;
+  if (!hasTime) return dateStr;
+  const timePart = iso.split("T")[1]!;
+  const [hStr, mStr] = timePart.split(":");
+  const h24 = Number(hStr);
+  const ampm = h24 < 12 ? "AM" : "PM";
+  const h12 = h24 % 12 || 12;
+  return `${dateStr} at ${h12}:${mStr} ${ampm}`;
 }
 
 type PickerColors = ReturnType<typeof useColors>;
@@ -208,33 +222,57 @@ function DatePickerField({
   onChange,
   placeholder = "Set deadline",
   compact = false,
+  showTime = false,
   colors,
 }: {
   value: string;
   onChange: (v: string) => void;
   placeholder?: string;
   compact?: boolean;
+  showTime?: boolean;
   colors: PickerColors;
 }) {
   const [open, setOpen] = useState(false);
 
-  const parseIso = (iso: string) => {
-    const parts = iso.split("-").map(Number);
-    return {
-      month: (parts[1] ?? new Date().getMonth() + 1) - 1,
-      day: (parts[2] ?? new Date().getDate()) - 1,
-      year: parts[0] ?? new Date().getFullYear(),
+  const parseIsoFull = (iso: string) => {
+    const hasTime = iso.includes("T");
+    const datePart = hasTime ? iso.split("T")[0]! : iso;
+    const parts = datePart.split("-").map(Number);
+    const now = new Date();
+    const base = {
+      month: (parts[1] ?? now.getMonth() + 1) - 1,
+      day: (parts[2] ?? now.getDate()) - 1,
+      year: parts[0] ?? now.getFullYear(),
+      hour: 6,   // default: index 6 = "7" AM
+      minute: 0,
+      ampm: 0,
     };
+    if (hasTime) {
+      const timePart = iso.split("T")[1]!;
+      const [hStr, mStr] = timePart.split(":");
+      const h24 = Number(hStr);
+      base.ampm = h24 < 12 ? 0 : 1;
+      const h12 = h24 % 12; // 0 for midnight/noon
+      // index: h12=0 → "12" (index 11), h12=1-11 → "1"-"11" (index 0-10)
+      base.hour = h12 === 0 ? 11 : h12 - 1;
+      const rounded = String(Math.round(Number(mStr) / 5) * 5).padStart(2, "0");
+      const mIdx = PICKER_MINUTES.indexOf(rounded);
+      base.minute = mIdx >= 0 ? mIdx : 0;
+    }
+    return base;
   };
 
   const todayBase = new Date();
   const initial = value
-    ? parseIso(value)
-    : { month: todayBase.getMonth(), day: todayBase.getDate() - 1, year: todayBase.getFullYear() };
+    ? parseIsoFull(value)
+    : { month: todayBase.getMonth(), day: todayBase.getDate() - 1, year: todayBase.getFullYear(), hour: 6, minute: 0, ampm: 0 };
 
   const [selMonth, setSelMonth] = useState(initial.month);
   const [selDay, setSelDay] = useState(initial.day);
   const [selYear, setSelYear] = useState(initial.year);
+  const [selHour, setSelHour] = useState(initial.hour);
+  const [selMinute, setSelMinute] = useState(initial.minute);
+  const [selAmPm, setSelAmPm] = useState(initial.ampm);
 
   const daysInMonth = new Date(selYear, selMonth + 1, 0).getDate();
   const dayItems = useMemo(
@@ -245,22 +283,40 @@ function DatePickerField({
   const yearIdx = Math.max(0, PICKER_YEAR_NUMS.indexOf(selYear));
 
   const handleOpen = () => {
-    const today = new Date();
+    const now = new Date();
     const parsed = value
-      ? parseIso(value)
-      : { month: today.getMonth(), day: today.getDate() - 1, year: today.getFullYear() };
+      ? parseIsoFull(value)
+      : { month: now.getMonth(), day: now.getDate() - 1, year: now.getFullYear(), hour: 6, minute: 0, ampm: 0 };
     setSelMonth(parsed.month);
     setSelDay(parsed.day);
     setSelYear(parsed.year);
+    setSelHour(parsed.hour);
+    setSelMinute(parsed.minute);
+    setSelAmPm(parsed.ampm);
     setOpen(true);
   };
 
   const handleConfirm = () => {
-    const m = String(selMonth + 1).padStart(2, "0");
-    const d = String(clampedDay + 1).padStart(2, "0");
-    onChange(`${selYear}-${m}-${d}`);
+    const mm = String(selMonth + 1).padStart(2, "0");
+    const dd = String(clampedDay + 1).padStart(2, "0");
+    if (!showTime) {
+      onChange(`${selYear}-${mm}-${dd}`);
+    } else {
+      const hourVal = selHour + 1; // 1-12
+      let h24: number;
+      if (selAmPm === 0) {
+        h24 = hourVal === 12 ? 0 : hourVal;
+      } else {
+        h24 = hourVal === 12 ? 12 : hourVal + 12;
+      }
+      onChange(`${selYear}-${mm}-${dd}T${String(h24).padStart(2, "0")}:${PICKER_MINUTES[selMinute]!}`);
+    }
     setOpen(false);
   };
+
+  const colLabels = showTime
+    ? ["MON", "DAY", "YEAR", "HOUR", "MIN", "AM/PM"]
+    : ["MONTH", "DAY", "YEAR"];
 
   return (
     <>
@@ -338,7 +394,7 @@ function DatePickerField({
                 </Text>
               </TouchableOpacity>
               <Text style={{ fontSize: 16, color: colors.foreground, fontFamily: "Inter_600SemiBold" }}>
-                Pick a date
+                {showTime ? "Pick date & time" : "Pick a date"}
               </Text>
               <TouchableOpacity onPress={handleConfirm}>
                 <Text style={{ fontSize: 15, color: colors.primary, fontFamily: "Inter_600SemiBold" }}>
@@ -348,14 +404,14 @@ function DatePickerField({
             </View>
 
             <View style={{ flexDirection: "row", paddingHorizontal: 20, paddingTop: 10, paddingBottom: 2 }}>
-              {["MONTH", "DAY", "YEAR"].map((label) => (
+              {colLabels.map((label) => (
                 <Text
                   key={label}
                   style={{
                     flex: 1,
                     textAlign: "center",
-                    fontSize: 11,
-                    letterSpacing: 0.6,
+                    fontSize: 10,
+                    letterSpacing: 0.5,
                     color: colors.mutedForeground,
                     fontFamily: "Inter_500Medium",
                   }}
@@ -397,6 +453,28 @@ function DatePickerField({
                 onSelect={(i) => setSelYear(PICKER_YEAR_NUMS[i]!)}
                 colors={colors}
               />
+              {showTime && (
+                <>
+                  <PickerColumn
+                    items={PICKER_HOURS}
+                    selectedIndex={selHour}
+                    onSelect={setSelHour}
+                    colors={colors}
+                  />
+                  <PickerColumn
+                    items={PICKER_MINUTES}
+                    selectedIndex={selMinute}
+                    onSelect={setSelMinute}
+                    colors={colors}
+                  />
+                  <PickerColumn
+                    items={PICKER_AMPM}
+                    selectedIndex={selAmPm}
+                    onSelect={setSelAmPm}
+                    colors={colors}
+                  />
+                </>
+              )}
             </View>
           </View>
         </View>
@@ -484,7 +562,7 @@ function GoalCreationModal({
           goalType: form.goalType || "milestone",
           category: form.category,
           targetDate: form.goalType === "readiness"
-            ? JSON.stringify({ prepStart: form.prepStartDate.trim(), eventDate: form.eventDate.trim() })
+            ? JSON.stringify({ prepStart: form.prepStartDate.trim(), prepEnd: form.prepEndDate.trim(), eventDate: form.eventDate.trim() })
             : form.targetDate.trim() || null,
           notes: form.notes.trim() || null,
           unit: form.unit.trim() || null,
@@ -498,6 +576,9 @@ function GoalCreationModal({
         },
       });
 
+      // Strip time portion for calendar event date field (YYYY-MM-DD only)
+      const dateOnly = (dt: string) => dt.split("T")[0] ?? dt;
+
       // Fire calendar events for main deadline
       const calendarJobs: Promise<unknown>[] = [];
       if (form.targetDate.trim()) {
@@ -505,7 +586,7 @@ function GoalCreationModal({
           createCalendarEvent.mutateAsync({
             data: {
               title: goalTitle,
-              date: form.targetDate.trim(),
+              date: dateOnly(form.targetDate.trim()),
               type: "goal-deadline",
               notes: `Goal deadline: ${goalTitle}`,
             },
@@ -513,16 +594,28 @@ function GoalCreationModal({
         );
       }
 
-      // Fire calendar events for readiness prep start and event day
+      // Fire calendar events for readiness prep start, prep end, and event day
       if (form.goalType === "readiness") {
         if (form.prepStartDate.trim()) {
           calendarJobs.push(
             createCalendarEvent.mutateAsync({
               data: {
                 title: `${goalTitle} - Prep begins`,
-                date: form.prepStartDate.trim(),
+                date: dateOnly(form.prepStartDate.trim()),
                 type: "goal-deadline",
                 notes: `Goal deadline: ${goalTitle} - Prep begins`,
+              },
+            })
+          );
+        }
+        if (form.prepEndDate.trim()) {
+          calendarJobs.push(
+            createCalendarEvent.mutateAsync({
+              data: {
+                title: `${goalTitle} - Prep ends`,
+                date: dateOnly(form.prepEndDate.trim()),
+                type: "goal-deadline",
+                notes: `Goal deadline: ${goalTitle} - Prep ends`,
               },
             })
           );
@@ -532,7 +625,7 @@ function GoalCreationModal({
             createCalendarEvent.mutateAsync({
               data: {
                 title: `${goalTitle} - Event day`,
-                date: form.eventDate.trim(),
+                date: dateOnly(form.eventDate.trim()),
                 type: "goal-deadline",
                 notes: `Goal deadline: ${goalTitle} - Event day`,
               },
@@ -826,14 +919,22 @@ function GoalCreationModal({
             <DatePickerField
               value={form.prepStartDate}
               onChange={(v) => patch({ prepStartDate: v })}
-              placeholder="Set prep start date"
+              placeholder="Set prep start date (optional)"
+              colors={colors}
+            />
+            <Text style={[labelStyle, { marginTop: 16 }]}>When does prep end?</Text>
+            <DatePickerField
+              value={form.prepEndDate}
+              onChange={(v) => patch({ prepEndDate: v })}
+              placeholder="Set prep end date (optional)"
               colors={colors}
             />
             <Text style={[labelStyle, { marginTop: 16 }]}>When is the event?</Text>
             <DatePickerField
               value={form.eventDate}
               onChange={(v) => patch({ eventDate: v })}
-              placeholder="Set event date"
+              placeholder="Set event date (optional)"
+              showTime
               colors={colors}
             />
             <Text style={[labelStyle, { marginTop: 16 }]}>Prep sessions per week</Text>
@@ -1028,6 +1129,7 @@ function GoalCreationModal({
           value={form.targetDate}
           onChange={(v) => patch({ targetDate: v })}
           placeholder="Set deadline"
+          showTime
           colors={colors}
         />
         <Text style={[labelStyle, { marginTop: 16 }]}>Category</Text>
