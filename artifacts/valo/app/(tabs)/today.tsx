@@ -112,7 +112,7 @@ export default function TodayScreen() {
           </Text>
         </View>
         <TouchableOpacity
-          onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); router.push("/settings"); }}
+          onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); router.push("/(tabs)/profile"); }}
           style={[styles.gearBtn, { backgroundColor: colors.card, borderColor: colors.border }]}
           hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
         >
@@ -162,7 +162,7 @@ export default function TodayScreen() {
 
           <TouchableOpacity
             style={[styles.debriefBtn, { backgroundColor: colors.primary }]}
-            onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); router.push("/(tabs)/voice"); }}
+            onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); router.push("/(tabs)/checkin"); }}
           >
             <Feather name="sun" size={20} color={colors.primaryForeground} />
             <Text style={[styles.debriefBtnText, { color: colors.primaryForeground, fontFamily: "Inter_600SemiBold" }]}>Start evening debrief</Text>
