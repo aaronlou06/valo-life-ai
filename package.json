@@ -15,5 +15,10 @@
   },
   "dependencies": {
     "@replit/connectors-sdk": "^0.4.0"
+  },
+  "pnpm": {
+    "overrides": {
+      "@expo/config-plugins": "54.0.4"
+    }
   }
 }

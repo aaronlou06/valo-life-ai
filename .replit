@@ -52,3 +52,4 @@ EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY = "pk_test_ZGVzaXJlZC1haXJlZGFsZS0zNy5jbGVyay5
 
 [nix]
 channel = "stable-25_05"
+packages = ["eas-cli"]
