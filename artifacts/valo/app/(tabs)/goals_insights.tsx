@@ -85,14 +85,14 @@ const DEFAULT_FORM: GoalForm = {
 };
 
 const GOAL_TYPES: { type: GoalType; icon: string; label: string; description: string }[] = [
-  { type: "milestone", icon: "flag", label: "Milestone", description: "Big goal broken into steps" },
-  { type: "readiness", icon: "calendar", label: "Readiness", description: "Preparing for an event or date" },
-  { type: "measurement", icon: "bar-chart-2", label: "Measurement", description: "A number moving toward a target" },
-  { type: "performance", icon: "zap", label: "Performance", description: "Beat a personal record" },
-  { type: "consistency", icon: "repeat", label: "Consistency", description: "Show up regularly" },
-  { type: "quota", icon: "archive", label: "Quota", description: "Accumulate a total amount" },
-  { type: "leveling", icon: "trending-up", label: "Leveling", description: "Progress through skill tiers" },
-  { type: "avoidance", icon: "shield", label: "Avoidance", description: "Reduce or eliminate something" },
+  { type: "milestone", icon: "list", label: "Multi-Step Goal", description: "A big goal broken into smaller steps" },
+  { type: "readiness", icon: "calendar", label: "Event Prep", description: "Training or preparing for a specific date" },
+  { type: "measurement", icon: "trending-up", label: "Track a Number", description: "Move a metric toward a target" },
+  { type: "performance", icon: "award", label: "Beat My Best", description: "Crush a personal record" },
+  { type: "consistency", icon: "repeat", label: "Show Up", description: "Build a streak or hit a frequency" },
+  { type: "quota", icon: "package", label: "Hit a Total", description: "Accumulate an amount over time" },
+  { type: "leveling", icon: "bar-chart-2", label: "Level Up", description: "Progress through skill stages" },
+  { type: "avoidance", icon: "slash", label: "Cut It Out", description: "Reduce or eliminate something" },
 ];
 
 const CATEGORIES = [
