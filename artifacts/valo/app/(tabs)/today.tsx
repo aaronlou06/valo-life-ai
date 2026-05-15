@@ -120,6 +120,14 @@ export default function TodayScreen() {
         </TouchableOpacity>
       </View>
 
+      <TouchableOpacity
+        style={[styles.debriefBtn, { backgroundColor: colors.primary }]}
+        onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); router.push("/(tabs)/checkin"); }}
+      >
+        <Feather name="sun" size={20} color={colors.primaryForeground} />
+        <Text style={[styles.debriefBtnText, { color: colors.primaryForeground, fontFamily: "Inter_600SemiBold" }]}>Start evening debrief</Text>
+      </TouchableOpacity>
+
       {isLoading ? (
         <ActivityIndicator color={colors.primary} style={{ marginTop: 40 }} />
       ) : (
@@ -159,14 +167,6 @@ export default function TodayScreen() {
           <PillarCard title="Health" score={dashboard?.healthScore ?? 0} status={dashboard?.healthStatus ?? "No data yet"} color={colors.primary} />
           <PillarCard title="Work & Mission" score={dashboard?.workScore ?? 0} status={dashboard?.workStatus ?? "No data yet"} color="#5B8CDE" />
           <PillarCard title="Relationships" score={dashboard?.relationshipScore ?? 0} status={dashboard?.relationshipStatus ?? "No data yet"} color="#7DCB8F" />
-
-          <TouchableOpacity
-            style={[styles.debriefBtn, { backgroundColor: colors.primary }]}
-            onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); router.push("/(tabs)/checkin"); }}
-          >
-            <Feather name="sun" size={20} color={colors.primaryForeground} />
-            <Text style={[styles.debriefBtnText, { color: colors.primaryForeground, fontFamily: "Inter_600SemiBold" }]}>Start evening debrief</Text>
-          </TouchableOpacity>
         </>
       )}
     </ScrollView>
