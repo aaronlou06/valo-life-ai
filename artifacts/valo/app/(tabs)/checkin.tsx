@@ -16,6 +16,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
+import { useUpsertDailyLog, useCreateMood } from "@workspace/api-client-react";
 import { useColors } from "@/hooks/useColors";
 import { useVapiDebrief, type DebriefExtraction } from "@/hooks/useVapiDebrief";
 import { useVoiceContext, type VoiceContextData } from "@/hooks/useVoiceContext";
@@ -294,13 +295,19 @@ function ModeToggle({ mode, onSelect }: { mode: CheckInMode; onSelect: (m: Check
 function GuidedCheckin({
   answers,
   onAnswer,
+  isSaving,
+  saved,
+  onSave,
 }: {
   answers: Record<string, string>;
   onAnswer: (id: string, value: string) => void;
+  isSaving: boolean;
+  saved: boolean;
+  onSave: () => void;
 }) {
   const colors = useColors();
   const answerCount = Object.values(answers).filter((v) => v.trim().length > 0).length;
-  const canSave = answerCount >= 3;
+  const canSave = answerCount >= 3 && !isSaving && !saved;
 
   return (
     <View style={{ gap: 12 }}>
@@ -379,31 +386,42 @@ function GuidedCheckin({
         );
       })}
 
-      <TouchableOpacity
-        style={[
-          styles.saveBtn,
-          { backgroundColor: canSave ? colors.primary : colors.muted },
-        ]}
-        onPress={() => {
-          if (!canSave) return;
-          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-          Alert.alert("Saved!");
-        }}
-        disabled={!canSave}
-        activeOpacity={0.8}
-      >
-        <Text
+      {saved ? (
+        <View style={[styles.saveBtn, { backgroundColor: "#22C55E" }]}>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+            <Feather name="check-circle" size={20} color="#fff" />
+            <Text style={[styles.saveBtnText, { color: "#fff", fontFamily: "Inter_600SemiBold" }]}>
+              Check-in saved!
+            </Text>
+          </View>
+        </View>
+      ) : (
+        <TouchableOpacity
           style={[
-            styles.saveBtnText,
-            {
-              color: canSave ? colors.primaryForeground : colors.mutedForeground,
-              fontFamily: "Inter_600SemiBold",
-            },
+            styles.saveBtn,
+            { backgroundColor: canSave ? colors.primary : colors.muted },
           ]}
+          onPress={onSave}
+          disabled={!canSave}
+          activeOpacity={0.8}
         >
-          Save check-in
-        </Text>
-      </TouchableOpacity>
+          {isSaving ? (
+            <ActivityIndicator color={colors.primaryForeground} />
+          ) : (
+            <Text
+              style={[
+                styles.saveBtnText,
+                {
+                  color: canSave ? colors.primaryForeground : colors.mutedForeground,
+                  fontFamily: "Inter_600SemiBold",
+                },
+              ]}
+            >
+              Save check-in
+            </Text>
+          )}
+        </TouchableOpacity>
+      )}
     </View>
   );
 }
@@ -430,6 +448,52 @@ export default function VoiceScreen() {
 
   const [mode, setMode] = useState<CheckInMode>("voice");
   const [answers, setAnswers] = useState<Record<string, string>>({});
+  const [isSaving, setIsSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+
+  const upsertLog = useUpsertDailyLog();
+  const createMood = useCreateMood();
+
+  const MOOD_SCORE: Record<string, number> = { Great: 10, Good: 7, Okay: 5, Rough: 3 };
+  const SLEEP_HOURS: Record<string, number> = { Great: 8, Good: 7, Fair: 6, Poor: 5 };
+  const WORKOUT_TYPE: Record<string, string | null> = { Yes: "logged", No: null, "Rest day": "rest" };
+  const STRESS_EFFORT: Record<string, number> = { Low: 1, Moderate: 4, High: 7, "Very high": 10 };
+
+  const handleGuidedSave = useCallback(async () => {
+    setIsSaving(true);
+    try {
+      const moodScore = answers.mood ? MOOD_SCORE[answers.mood] : undefined;
+      const sleepHours = answers.sleep ? SLEEP_HOURS[answers.sleep] : undefined;
+      const workoutTypeVal = answers.workout !== undefined ? WORKOUT_TYPE[answers.workout] : undefined;
+      const stressEffort = answers.stress ? STRESS_EFFORT[answers.stress] : undefined;
+
+      await Promise.all([
+        moodScore !== undefined
+          ? createMood.mutateAsync({
+              data: { score: moodScore, note: answers.win?.trim() || null },
+            })
+          : Promise.resolve(),
+        upsertLog.mutateAsync({
+          data: {
+            sleepHours: sleepHours ?? null,
+            workoutType: workoutTypeVal !== undefined ? workoutTypeVal : null,
+            workoutEffort: stressEffort ?? null,
+          },
+        }),
+      ]);
+
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      setSaved(true);
+      setTimeout(() => {
+        setSaved(false);
+        setAnswers({});
+      }, 2000);
+    } catch {
+      Alert.alert("Could not save. Please try again.");
+    } finally {
+      setIsSaving(false);
+    }
+  }, [answers, upsertLog, createMood]);
 
   const isActive = callState === "active";
   const isLoading = callState === "loading";
@@ -853,6 +917,9 @@ export default function VoiceScreen() {
         <GuidedCheckin
           answers={answers}
           onAnswer={(id, val) => setAnswers((prev) => ({ ...prev, [id]: val }))}
+          isSaving={isSaving}
+          saved={saved}
+          onSave={handleGuidedSave}
         />
       )}
 
