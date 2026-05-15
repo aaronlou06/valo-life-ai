@@ -1,0 +1,21 @@
+"In app/(tabs)/checkin.tsx, add a mode toggle at the top of the screen with three options: Voice, Guided, and Manual.
+The toggle should be a row of three pill buttons just below the header. The selected mode is highlighted with the primary color.
+Voice mode = everything that currently exists in the screen (keep exactly as is).
+Guided mode = replace the content area with a scrollable list of quick-tap cards. Each card has a question and tappable answer options. Build these cards in this order (only show all of them, no skipping):
+
+Sleep — 'How did you sleep last night?' — options: Great, Good, Fair, Poor
+Energy — 'How's your energy today?' — options: High, Good, Low, Drained
+Mood — 'How are you feeling overall?' — options: Great, Good, Okay, Rough
+Workout — 'Did you work out today?' — options: Yes, No, Rest day
+Nutrition — 'How did you eat today?' — options: Clean, Pretty good, Could be better, Off track
+Water — 'How's your water intake?' — options: On track, Behind
+Habits — 'Did you complete your habits?' — options: All of them, Most of them, A few, None
+Stress — 'How was your stress today?' — options: Low, Moderate, High, Very high
+Connections — 'Did you have any meaningful conversations today?' — options: Yes, No
+Productivity — 'How productive were you today?' — options: Very, Somewhat, Not really, Not at all
+Win — 'What was one win today?' — free text input
+Tomorrow — 'What's your intention for tomorrow?' — free text input
+
+Each card should show the selected answer highlighted in the primary color. At the bottom, a 'Save check-in' button that is enabled once at least 3 cards are answered. For now the button just shows an alert saying 'Saved!' — we will wire it to the API separately.
+Manual mode = a simple placeholder for now: centered text saying 'Manual logging coming soon.'
+Use the existing color system (useColors), Inter fonts, and match the visual style of the rest of the screen. Add a useState for the current mode ('voice' | 'guided' | 'manual') defaulting to 'voice'."

@@ -85,15 +85,22 @@ function ClassicTabLayout() {
           title: "Check In",
           tabBarIcon: ({ color }) =>
             isIOS ? <SymbolView name="checkmark.circle" tintColor={color} size={24} /> : <Feather name="check-circle" size={22} color={color} />,
-          tabBarButton: (props) => (
+          tabBarButton: ({ onPress, style, children, accessibilityState, accessibilityLabel, testID }) => (
             <TouchableOpacity
-              {...props}
+              onPress={onPress ?? undefined}
+              style={style}
+              accessibilityState={accessibilityState ?? undefined}
+              accessibilityLabel={accessibilityLabel ?? undefined}
+              testID={testID}
+              activeOpacity={0.7}
               onLongPress={() => {
                 Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
                 triggerVoiceStart();
                 router.push("/(tabs)/checkin");
               }}
-            />
+            >
+              {children}
+            </TouchableOpacity>
           ),
         }}
       />

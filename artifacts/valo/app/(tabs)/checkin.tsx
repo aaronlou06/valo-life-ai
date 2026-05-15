@@ -1,4 +1,4 @@
-import React, { useRef, useEffect, useCallback } from "react";
+import React, { useRef, useEffect, useCallback, useState } from "react";
 import { useFocusEffect } from "expo-router";
 import { consumeVoiceTrigger } from "@/lib/voiceTrigger";
 import {
@@ -10,6 +10,8 @@ import {
   Platform,
   ActivityIndicator,
   Animated,
+  TextInput,
+  Alert,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Feather } from "@expo/vector-icons";
@@ -232,6 +234,180 @@ function PromptCards({ ctx }: { ctx: VoiceContextData }) {
   );
 }
 
+type CheckInMode = "voice" | "guided" | "manual";
+
+type GuidedCardDef =
+  | { id: string; question: string; type: "choice"; options: string[] }
+  | { id: string; question: string; type: "text" };
+
+const GUIDED_CARDS: GuidedCardDef[] = [
+  { id: "sleep", question: "How did you sleep last night?", type: "choice", options: ["Great", "Good", "Fair", "Poor"] },
+  { id: "energy", question: "How's your energy today?", type: "choice", options: ["High", "Good", "Low", "Drained"] },
+  { id: "mood", question: "How are you feeling overall?", type: "choice", options: ["Great", "Good", "Okay", "Rough"] },
+  { id: "workout", question: "Did you work out today?", type: "choice", options: ["Yes", "No", "Rest day"] },
+  { id: "nutrition", question: "How did you eat today?", type: "choice", options: ["Clean", "Pretty good", "Could be better", "Off track"] },
+  { id: "water", question: "How's your water intake?", type: "choice", options: ["On track", "Behind"] },
+  { id: "habits", question: "Did you complete your habits?", type: "choice", options: ["All of them", "Most of them", "A few", "None"] },
+  { id: "stress", question: "How was your stress today?", type: "choice", options: ["Low", "Moderate", "High", "Very high"] },
+  { id: "connections", question: "Did you have any meaningful conversations today?", type: "choice", options: ["Yes", "No"] },
+  { id: "productivity", question: "How productive were you today?", type: "choice", options: ["Very", "Somewhat", "Not really", "Not at all"] },
+  { id: "win", question: "What was one win today?", type: "text" },
+  { id: "tomorrow", question: "What's your intention for tomorrow?", type: "text" },
+];
+
+function ModeToggle({ mode, onSelect }: { mode: CheckInMode; onSelect: (m: CheckInMode) => void }) {
+  const colors = useColors();
+  const MODES: { key: CheckInMode; label: string }[] = [
+    { key: "voice", label: "Voice" },
+    { key: "guided", label: "Guided" },
+    { key: "manual", label: "Manual" },
+  ];
+  return (
+    <View style={[styles.modeToggle, { backgroundColor: colors.muted }]}>
+      {MODES.map(({ key, label }) => {
+        const active = mode === key;
+        return (
+          <TouchableOpacity
+            key={key}
+            onPress={() => onSelect(key)}
+            style={[styles.modePill, active && { backgroundColor: colors.primary }]}
+            activeOpacity={0.8}
+          >
+            <Text
+              style={[
+                styles.modePillText,
+                {
+                  color: active ? colors.primaryForeground : colors.mutedForeground,
+                  fontFamily: active ? "Inter_600SemiBold" : "Inter_400Regular",
+                },
+              ]}
+            >
+              {label}
+            </Text>
+          </TouchableOpacity>
+        );
+      })}
+    </View>
+  );
+}
+
+function GuidedCheckin({
+  answers,
+  onAnswer,
+}: {
+  answers: Record<string, string>;
+  onAnswer: (id: string, value: string) => void;
+}) {
+  const colors = useColors();
+  const answerCount = Object.values(answers).filter((v) => v.trim().length > 0).length;
+  const canSave = answerCount >= 3;
+
+  return (
+    <View style={{ gap: 12 }}>
+      {GUIDED_CARDS.map((card) => {
+        if (card.type === "choice") {
+          return (
+            <View
+              key={card.id}
+              style={[styles.guidedCard, { backgroundColor: colors.card, borderColor: colors.border }]}
+            >
+              <Text style={[styles.guidedQuestion, { color: colors.foreground, fontFamily: "Inter_500Medium" }]}>
+                {card.question}
+              </Text>
+              <View style={styles.guidedOptions}>
+                {card.options.map((opt) => {
+                  const selected = answers[card.id] === opt;
+                  return (
+                    <TouchableOpacity
+                      key={opt}
+                      onPress={() => {
+                        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                        onAnswer(card.id, opt);
+                      }}
+                      style={[
+                        styles.guidedOption,
+                        {
+                          backgroundColor: selected ? colors.primary : colors.muted,
+                          borderColor: selected ? colors.primary : colors.border,
+                        },
+                      ]}
+                      activeOpacity={0.75}
+                    >
+                      <Text
+                        style={[
+                          styles.guidedOptionText,
+                          {
+                            color: selected ? colors.primaryForeground : colors.foreground,
+                            fontFamily: selected ? "Inter_600SemiBold" : "Inter_400Regular",
+                          },
+                        ]}
+                      >
+                        {opt}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            </View>
+          );
+        }
+        return (
+          <View
+            key={card.id}
+            style={[styles.guidedCard, { backgroundColor: colors.card, borderColor: colors.border }]}
+          >
+            <Text style={[styles.guidedQuestion, { color: colors.foreground, fontFamily: "Inter_500Medium" }]}>
+              {card.question}
+            </Text>
+            <TextInput
+              style={[
+                styles.guidedTextInput,
+                {
+                  color: colors.foreground,
+                  borderColor: answers[card.id]?.trim() ? colors.primary : colors.border,
+                  backgroundColor: colors.background,
+                  fontFamily: "Inter_400Regular",
+                },
+              ]}
+              placeholder="Type here…"
+              placeholderTextColor={colors.mutedForeground}
+              value={answers[card.id] ?? ""}
+              onChangeText={(text) => onAnswer(card.id, text)}
+              multiline
+            />
+          </View>
+        );
+      })}
+
+      <TouchableOpacity
+        style={[
+          styles.saveBtn,
+          { backgroundColor: canSave ? colors.primary : colors.muted },
+        ]}
+        onPress={() => {
+          if (!canSave) return;
+          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+          Alert.alert("Saved!");
+        }}
+        disabled={!canSave}
+        activeOpacity={0.8}
+      >
+        <Text
+          style={[
+            styles.saveBtnText,
+            {
+              color: canSave ? colors.primaryForeground : colors.mutedForeground,
+              fontFamily: "Inter_600SemiBold",
+            },
+          ]}
+        >
+          Save check-in
+        </Text>
+      </TouchableOpacity>
+    </View>
+  );
+}
+
 export default function VoiceScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
@@ -251,6 +427,9 @@ export default function VoiceScreen() {
   const topPad = Platform.OS === "web" ? Math.max(insets.top, 67) : insets.top;
   const bottomPad = Platform.OS === "web" ? 34 : insets.bottom;
   const tabBarH = Platform.OS === "web" ? 84 : 83;
+
+  const [mode, setMode] = useState<CheckInMode>("voice");
+  const [answers, setAnswers] = useState<Record<string, string>>({});
 
   const isActive = callState === "active";
   const isLoading = callState === "loading";
@@ -358,9 +537,13 @@ export default function VoiceScreen() {
     >
       {/* ── Header ─────────────────────────────────────────────────────── */}
       <Text style={[styles.header, { color: colors.foreground, fontFamily: "Inter_700Bold" }]}>
-        Voice debrief
+        Check in
       </Text>
 
+      <ModeToggle mode={mode} onSelect={setMode} />
+
+      {mode === "voice" && (
+      <>
       {/* ── MIC BUTTON (idle + active + loading) ────────────────────────── */}
       {!isEnding && !showSummary && (
         <View style={styles.micSection}>
@@ -663,6 +846,23 @@ export default function VoiceScreen() {
             ))}
           </View>
         )}
+      </>
+      )}
+
+      {mode === "guided" && (
+        <GuidedCheckin
+          answers={answers}
+          onAnswer={(id, val) => setAnswers((prev) => ({ ...prev, [id]: val }))}
+        />
+      )}
+
+      {mode === "manual" && (
+        <View style={styles.manualPlaceholder}>
+          <Text style={[styles.manualText, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
+            Manual logging coming soon.
+          </Text>
+        </View>
+      )}
     </ScrollView>
   );
 }
@@ -810,4 +1010,63 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   newDebriefText: { fontSize: 14 },
+
+  // Mode toggle
+  modeToggle: {
+    flexDirection: "row",
+    borderRadius: 12,
+    padding: 4,
+    marginBottom: 24,
+    gap: 2,
+  },
+  modePill: {
+    flex: 1,
+    paddingVertical: 8,
+    borderRadius: 9,
+    alignItems: "center",
+  },
+  modePillText: { fontSize: 14 },
+
+  // Guided check-in cards
+  guidedCard: {
+    borderRadius: 14,
+    borderWidth: 1,
+    padding: 16,
+    gap: 12,
+  },
+  guidedQuestion: { fontSize: 15, lineHeight: 21 },
+  guidedOptions: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
+  guidedOption: {
+    paddingHorizontal: 14,
+    paddingVertical: 7,
+    borderRadius: 20,
+    borderWidth: 1,
+  },
+  guidedOptionText: { fontSize: 14 },
+  guidedTextInput: {
+    borderWidth: 1,
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    fontSize: 14,
+    lineHeight: 20,
+    minHeight: 72,
+    textAlignVertical: "top",
+  },
+
+  // Save button
+  saveBtn: {
+    borderRadius: 14,
+    paddingVertical: 16,
+    alignItems: "center",
+    marginTop: 4,
+  },
+  saveBtnText: { fontSize: 16 },
+
+  // Manual placeholder
+  manualPlaceholder: {
+    paddingVertical: 60,
+    alignItems: "center",
+  },
+  manualText: { fontSize: 15 },
 });
