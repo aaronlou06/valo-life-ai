@@ -1,0 +1,61 @@
+"In app/(tabs)/today.tsx, make these changes:
+1. Fix the check-in button label based on time of day:
+The button currently always says 'Start evening debrief'. Change it to be time-aware:
+
+Before noon: 'Start morning check-in' with icon sun
+Noon to 6pm: 'Check in with Valo' with icon mic
+After 6pm: 'Start evening debrief' with icon moon
+
+2. Add a Tomorrow Prep section at the bottom of the screen, after the Pillar scores. It should be a visually distinct card with a slightly different background (use colors.card) and a dashed or highlighted border.
+The Tomorrow Prep section contains:
+Header row:
+
+Moon icon + 'Tomorrow' label (bold)
+Date of tomorrow formatted as 'Tuesday, May 20'
+
+Tomorrow's calendar events:
+
+Fetch from GET /api/calendar-events using useListCalendarEvents
+Filter to only show events where date equals tomorrow's date (YYYY-MM-DD)
+Show each event as a row with a colored dot, event title, and time if set
+If no events: show muted text 'Nothing scheduled yet'
+Show a small '+ Add to calendar' link that navigates to /(tabs)/calendar
+
+Intention for tomorrow:
+
+A text input with placeholder 'Set your intention for tomorrow...'
+Multiline, saves to AsyncStorage under key @valo/tomorrow-intention on blur
+Pre-fills from AsyncStorage on load
+Shows a subtle 'Saved' indicator after saving
+
+Top goals due soon:
+
+Fetch goals from useListGoals
+Show any goals where targetDate is within the next 7 days
+Each shown as a small row with goal title and days remaining ('2 days left')
+If none: don't show this sub-section
+
+Plan tomorrow with Valo button:
+
+Outlined button (not filled) at the bottom of the card
+Icon: mic
+Text: 'Plan tomorrow with Valo'
+On press: navigate to /(tabs)/checkin with haptic feedback
+
+3. Make the greeting time-aware:
+
+Before noon: 'Good morning'
+Noon to 5pm: 'Good afternoon'
+After 5pm: 'Good evening'
+(This already exists — just make sure it's working correctly)
+
+4. Add morning mode content:
+When the hour is before noon, after the check-in button add a 'Your morning snapshot' section showing:
+
+Last night's sleep hours (from dashboard)
+HRV (from dashboard)
+Recovery score (from dashboard)
+Top habit to complete today (first incomplete habit from useListHabits)
+One motivational line: 'Make today count, [name].' in muted italic text
+
+Use the existing color system, Inter fonts, and match the visual style of the rest of the app. Add all necessary imports. Don't remove any existing functionality."
