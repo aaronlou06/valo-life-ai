@@ -397,7 +397,7 @@ function DebriefCard({
         onPress={onPress}
         activeOpacity={0.85}
       >
-        <Feather name="moon" size={18} color={colors.primaryForeground} />
+        <Feather name="mic" size={20} color={colors.primaryForeground} />
         <Text style={[styles.checkInBtnText, { color: colors.primaryForeground, fontFamily: "Inter_600SemiBold" }]}>
           Check in with Valo
         </Text>
@@ -1048,8 +1048,8 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     gap: 10,
-    height: 56,
-    borderRadius: 16,
+    height: 54,
+    borderRadius: 14,
     marginBottom: 24,
   },
   checkInBtnText: { fontSize: 16 },
