@@ -22,45 +22,41 @@ import {
   useListCalendarEvents,
   useListHabits,
   useListGoals,
+  useListMoods,
 } from "@workspace/api-client-react";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 const INTENTION_KEY = "@valo/tomorrow-intention";
 
-function greeting(): string {
-  const hour = new Date().getHours();
-  if (hour < 12) return "Good morning";
-  if (hour < 17) return "Good afternoon";
-  return "Good evening";
+function getApiBase(): string {
+  const domain = process.env.EXPO_PUBLIC_DOMAIN;
+  return domain ? `https://${domain}` : "";
 }
 
-function todayLabel(): string {
-  return new Date().toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" });
+function toISODate(d: Date): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 
-function getDebriefConfig(hour: number): { label: string; icon: string } {
-  if (hour < 12) return { label: "Start morning check-in", icon: "sun" };
-  if (hour < 18) return { label: "Check in with Valo", icon: "mic" };
-  return { label: "Start evening debrief", icon: "moon" };
-}
-
-function getTomorrowDate(): Date {
-  const d = new Date();
-  d.setDate(d.getDate() + 1);
-  return d;
-}
+function getTodayISO(): string { return toISODate(new Date()); }
 
 function getTomorrowISO(): string {
-  const d = getTomorrowDate();
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, "0");
-  const day = String(d.getDate()).padStart(2, "0");
-  return `${y}-${m}-${day}`;
+  const d = new Date();
+  d.setDate(d.getDate() + 1);
+  return toISODate(d);
 }
 
 function formatTomorrowLabel(): string {
-  return getTomorrowDate().toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" });
+  const d = new Date();
+  d.setDate(d.getDate() + 1);
+  return d.toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" });
+}
+
+function formatTime(hhmm: string): string {
+  const parts = hhmm.split(":");
+  const h = parseInt(parts[0] ?? "20", 10);
+  const m = parseInt(parts[1] ?? "0", 10);
+  return `${h % 12 || 12}:${String(m).padStart(2, "0")} ${h >= 12 ? "PM" : "AM"}`;
 }
 
 function daysUntil(dateStr: string): number {
@@ -71,164 +67,501 @@ function daysUntil(dateStr: string): number {
   return Math.round((target.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
 }
 
-// ─── Shared sub-components ────────────────────────────────────────────────────
-
-interface MetricTileProps {
-  label: string;
-  value: string | null;
-  unit?: string;
-  icon: string;
-  onLogIt: () => void;
+function greeting(hour: number): string {
+  if (hour < 12) return "Good morning";
+  if (hour < 17) return "Good afternoon";
+  return "Good evening";
 }
 
-function MetricTile({ label, value, unit, icon, onLogIt }: MetricTileProps) {
-  const colors = useColors();
+function todayLabel(): string {
+  return new Date().toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" });
+}
+
+// ─── Data-derived logic ───────────────────────────────────────────────────────
+
+type DashData = { sleepHours?: number | null; hrv?: number | null; steps?: number | null; healthScore: number };
+type GoalItem = { id: number; title: string; targetDate?: string | null; progressPercent: number };
+type HabitItem = { id: number; name: string; streak: number; completedToday: boolean };
+
+function getReadinessConfig(sleep?: number | null, hrv?: number | null) {
+  if (sleep == null && hrv == null) {
+    return { text: "Connect your wearable to see your readiness.", icon: "zap", good: false };
+  }
+  const goodSleep = sleep != null && sleep > 7;
+  const badSleep = sleep != null && sleep < 6;
+  const goodHrv = hrv != null && hrv > 55;
+  const badHrv = hrv != null && hrv < 40;
+  if (goodSleep || goodHrv) {
+    return { text: "Your body is well-recovered today. Make the most of it.", icon: "sun", good: true };
+  }
+  if (badSleep || badHrv) {
+    return { text: "Your recovery is low today. Protect your energy.", icon: "moon", good: false };
+  }
+  return { text: "Your body is well-recovered today. Make the most of it.", icon: "sun", good: true };
+}
+
+function formatSleepSummary(sleep?: number | null, hrv?: number | null): string | null {
+  if (sleep == null) return null;
+  const h = Math.floor(sleep);
+  const m = Math.round((sleep - h) * 60);
+  const sleepStr = m > 0 ? `${h}h ${m}m` : `${h}h`;
+  if (hrv == null) return `You slept ${sleepStr} last night.`;
+  const comp = hrv > 55 ? `${hrv - 50} above average` : hrv < 40 ? `${50 - hrv} below your average` : "around average";
+  return `You slept ${sleepStr} last night. HRV ${hrv} — ${comp}.`;
+}
+
+function getFocusSentence(
+  goals: GoalItem[] | undefined,
+  habits: HabitItem[] | undefined,
+  intention: string
+): string {
+  const urgentGoal = goals?.find(
+    (g) => g.targetDate && daysUntil(g.targetDate) >= 0 && daysUntil(g.targetDate) <= 7
+  );
+  if (urgentGoal) {
+    const days = daysUntil(urgentGoal.targetDate!);
+    return `Your focus today: push toward ${urgentGoal.title} — ${days} day${days !== 1 ? "s" : ""} left.`;
+  }
+  const incomplete = habits?.find((h) => !h.completedToday);
+  if (incomplete) return `Your focus today: complete ${incomplete.name}.`;
+  if (intention.trim()) return `Your focus today: ${intention.trim()}`;
+  return "Your focus today: show up fully.";
+}
+
+interface DynCardData {
+  key: string;
+  icon: string;
+  label: string;
+  body: string;
+  accent?: boolean;
+}
+
+function getDynamicCards(
+  dash: DashData | undefined,
+  goals: GoalItem[] | undefined,
+  habits: HabitItem[] | undefined,
+  isEvening: boolean
+): DynCardData[] {
+  const cards: DynCardData[] = [];
+
+  if (!isEvening && dash) {
+    const goodRecovery = (dash.hrv ?? 0) > 55 || (dash.sleepHours ?? 0) > 7;
+    const hasRecoveryData = dash.hrv != null || dash.sleepHours != null;
+    if (hasRecoveryData) {
+      cards.push({
+        key: "recovery",
+        icon: goodRecovery ? "battery-charging" : "battery",
+        label: goodRecovery ? "Strong recovery" : "Low recovery",
+        body: goodRecovery
+          ? "Strong recovery today — your body is ready."
+          : "Low recovery today — consider lighter effort.",
+        accent: goodRecovery,
+      });
+    }
+  }
+
+  const goalDue = goals
+    ?.filter((g) => g.targetDate && daysUntil(g.targetDate) >= 0 && daysUntil(g.targetDate) <= 14)
+    .sort((a, b) => daysUntil(a.targetDate!) - daysUntil(b.targetDate!))[0];
+  if (goalDue) {
+    const days = daysUntil(goalDue.targetDate!);
+    cards.push({
+      key: "goal",
+      icon: "target",
+      label: "Goal progress",
+      body: `${goalDue.title} — ${goalDue.progressPercent}% complete. ${days} day${days !== 1 ? "s" : ""} left.`,
+    });
+  }
+
+  const bestStreak = habits
+    ?.filter((h) => h.streak > 1)
+    .sort((a, b) => b.streak - a.streak)[0];
+  if (bestStreak) {
+    if (bestStreak.streak > 3) {
+      cards.push({
+        key: "win",
+        icon: "zap",
+        label: "On a roll",
+        body: `You're on a ${bestStreak.streak}-day streak with ${bestStreak.name}. Strong work.`,
+        accent: true,
+      });
+    } else {
+      cards.push({
+        key: "streak",
+        icon: "check-circle",
+        label: "Streak",
+        body: `${bestStreak.name} — ${bestStreak.streak} days straight. Keep it going.`,
+      });
+    }
+  }
+
+  return cards.slice(0, isEvening ? 2 : 3);
+}
+
+function getDebriefPrompt(callTime: string | null, todayEventCount: number): string {
+  if (todayEventCount > 3) return "Today looked heavy. Let's start there.";
+  if (callTime) return `Your check-in is at ${formatTime(callTime)}. Ready when you are.`;
+  return "How did today go? Let's talk through it.";
+}
+
+// ─── Sub-components ───────────────────────────────────────────────────────────
+
+type Colors = ReturnType<typeof useColors>;
+
+function ModeToggle({
+  mode,
+  onToggle,
+  colors,
+}: {
+  mode: "morning" | "evening";
+  onToggle: () => void;
+  colors: Colors;
+}) {
   return (
-    <View style={[styles.metricTile, { backgroundColor: colors.card, borderColor: colors.border }]}>
-      <Feather name={icon as any} size={16} color={colors.primary} style={{ marginBottom: 8 }} />
-      <Text style={[styles.metricLabel, { color: colors.mutedForeground, fontFamily: "Inter_500Medium" }]}>{label}</Text>
-      {value !== null ? (
-        <Text style={[styles.metricValue, { color: colors.foreground, fontFamily: "Inter_700Bold" }]}>
-          {value}
-          <Text style={[styles.metricUnit, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
-            {unit ? ` ${unit}` : ""}
+    <TouchableOpacity
+      onPress={onToggle}
+      style={[styles.modeToggle, { backgroundColor: colors.muted, borderColor: colors.border }]}
+      activeOpacity={0.8}
+    >
+      <View style={[styles.modePill, mode === "morning" && { backgroundColor: colors.card }]}>
+        <Feather name="sun" size={11} color={mode === "morning" ? colors.primary : colors.mutedForeground} />
+        <Text
+          style={[
+            styles.modePillText,
+            { color: mode === "morning" ? colors.foreground : colors.mutedForeground, fontFamily: "Inter_500Medium" },
+          ]}
+        >
+          Morning
+        </Text>
+      </View>
+      <View style={[styles.modePill, mode === "evening" && { backgroundColor: colors.card }]}>
+        <Feather name="moon" size={11} color={mode === "evening" ? colors.primary : colors.mutedForeground} />
+        <Text
+          style={[
+            styles.modePillText,
+            { color: mode === "evening" ? colors.foreground : colors.mutedForeground, fontFamily: "Inter_500Medium" },
+          ]}
+        >
+          Evening
+        </Text>
+      </View>
+    </TouchableOpacity>
+  );
+}
+
+function ReadinessCard({
+  readiness,
+  colors,
+}: {
+  readiness: ReturnType<typeof getReadinessConfig>;
+  colors: Colors;
+}) {
+  return (
+    <View
+      style={[
+        styles.readinessCard,
+        {
+          backgroundColor: readiness.good ? colors.muted : colors.card,
+          borderColor: readiness.good ? colors.primary : colors.border,
+          borderWidth: readiness.good ? 1.5 : 1,
+        },
+      ]}
+    >
+      <Feather
+        name={readiness.icon as any}
+        size={22}
+        color={readiness.good ? colors.primary : colors.mutedForeground}
+        style={{ marginBottom: 10 }}
+      />
+      <Text
+        style={[
+          styles.readinessText,
+          { color: colors.foreground, fontFamily: "Inter_500Medium" },
+        ]}
+      >
+        {readiness.text}
+      </Text>
+    </View>
+  );
+}
+
+function CalendarStrip({
+  events,
+  colors,
+  isBusy,
+}: {
+  events: { id: number; title: string; type?: string | null }[];
+  colors: Colors;
+  isBusy: boolean;
+}) {
+  return (
+    <View style={styles.calendarBlock}>
+      <Text style={[styles.sectionLabel, { color: colors.mutedForeground, fontFamily: "Inter_500Medium" }]}>
+        Today
+      </Text>
+      {isBusy && (
+        <View style={[styles.busyFlag, { backgroundColor: colors.muted }]}>
+          <Feather name="alert-circle" size={12} color={colors.primary} />
+          <Text style={[styles.busyFlagText, { color: colors.primary, fontFamily: "Inter_500Medium" }]}>
+            Heads up — busy block ahead.
           </Text>
+        </View>
+      )}
+      {events.length === 0 ? (
+        <Text style={[styles.emptyText, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
+          Nothing scheduled yet
         </Text>
       ) : (
-        <View style={{ alignItems: "center" }}>
-          <Text style={[styles.metricDash, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>—</Text>
-          <TouchableOpacity onPress={onLogIt}>
-            <Text style={[styles.logItText, { color: colors.primary, fontFamily: "Inter_500Medium" }]}>Log it</Text>
-          </TouchableOpacity>
-        </View>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.stripScroll}>
+          {events.map((ev) => (
+            <View key={ev.id} style={[styles.eventPill, { backgroundColor: colors.card, borderColor: colors.border }]}>
+              <View style={[styles.eventDot, { backgroundColor: colors.primary }]} />
+              <Text
+                style={[styles.eventPillText, { color: colors.foreground, fontFamily: "Inter_400Regular" }]}
+                numberOfLines={1}
+              >
+                {ev.title}
+              </Text>
+            </View>
+          ))}
+        </ScrollView>
       )}
     </View>
   );
 }
 
-interface PillarCardProps {
-  title: string;
-  score: number;
-  status: string;
-  color: string;
-}
-
-function PillarCard({ title, score, status, color }: PillarCardProps) {
-  const colors = useColors();
+function FocusCard({ sentence, colors }: { sentence: string; colors: Colors }) {
   return (
-    <View style={[styles.pillarCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
-      <View style={styles.pillarHeader}>
-        <Text style={[styles.pillarTitle, { color: colors.foreground, fontFamily: "Inter_600SemiBold" }]}>{title}</Text>
-        <Text style={[styles.pillarScore, { color, fontFamily: "Inter_700Bold" }]}>{score}/10</Text>
-      </View>
-      <View style={[styles.progressTrack, { backgroundColor: colors.muted }]}>
-        <View style={[styles.progressFill, { backgroundColor: color, width: `${(score / 10) * 100}%` }]} />
-      </View>
-      <Text style={[styles.pillarStatus, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>{status}</Text>
+    <View style={[styles.focusCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+      <Text style={[styles.focusLabel, { color: colors.mutedForeground, fontFamily: "Inter_500Medium" }]}>
+        YOUR FOCUS TODAY
+      </Text>
+      <Text style={[styles.focusText, { color: colors.foreground, fontFamily: "Inter_500Medium" }]}>
+        {sentence}
+      </Text>
     </View>
   );
 }
 
-// ─── Morning snapshot ─────────────────────────────────────────────────────────
+function DynCard({ card, colors }: { card: DynCardData; colors: Colors }) {
+  return (
+    <View
+      style={[
+        styles.dynCard,
+        {
+          backgroundColor: colors.card,
+          borderColor: card.accent ? colors.primary : colors.border,
+          borderWidth: card.accent ? 1.5 : 1,
+        },
+      ]}
+    >
+      <View style={styles.dynCardHeader}>
+        <Feather
+          name={card.icon as any}
+          size={14}
+          color={card.accent ? colors.primary : colors.mutedForeground}
+        />
+        <Text
+          style={[
+            styles.dynCardLabel,
+            { color: card.accent ? colors.primary : colors.mutedForeground, fontFamily: "Inter_500Medium" },
+          ]}
+        >
+          {card.label}
+        </Text>
+      </View>
+      <Text style={[styles.dynCardBody, { color: colors.foreground, fontFamily: "Inter_400Regular" }]}>
+        {card.body}
+      </Text>
+    </View>
+  );
+}
 
-function MorningSnapshot({
-  dashboard,
-  topHabitName,
-  name,
+function DebriefCard({
+  prompt,
+  colors,
+  onPress,
 }: {
-  dashboard: { sleepHours?: number | null; hrv?: number | null; healthScore?: number | null } | undefined;
-  topHabitName: string | null;
-  name: string | null;
+  prompt: string;
+  colors: Colors;
+  onPress: () => void;
 }) {
-  const colors = useColors();
+  return (
+    <View style={[styles.debriefCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+      <Feather name="moon" size={28} color={colors.primary} style={{ marginBottom: 14 }} />
+      <Text style={[styles.debriefPrompt, { color: colors.foreground, fontFamily: "Inter_500Medium" }]}>
+        {prompt}
+      </Text>
+      <TouchableOpacity
+        style={[styles.checkInBtn, { backgroundColor: colors.primary }]}
+        onPress={onPress}
+        activeOpacity={0.85}
+      >
+        <Feather name="moon" size={18} color={colors.primaryForeground} />
+        <Text style={[styles.checkInBtnText, { color: colors.primaryForeground, fontFamily: "Inter_600SemiBold" }]}>
+          Check in with Valo
+        </Text>
+      </TouchableOpacity>
+    </View>
+  );
+}
 
-  const snapshotItems: { label: string; value: string; icon: string }[] = [];
-  if (dashboard?.sleepHours != null) {
-    snapshotItems.push({ label: "Sleep", value: `${dashboard.sleepHours} hrs`, icon: "moon" });
-  }
-  if (dashboard?.hrv != null) {
-    snapshotItems.push({ label: "HRV", value: `${dashboard.hrv} ms`, icon: "heart" });
-  }
-  if (dashboard?.healthScore != null) {
-    snapshotItems.push({ label: "Health score", value: `${dashboard.healthScore}/10`, icon: "activity" });
-  }
+function DayAtAGlance({
+  dashboard,
+  habits,
+  moodCount,
+  colors,
+}: {
+  dashboard: DashData | undefined;
+  habits: HabitItem[] | undefined;
+  moodCount: number;
+  colors: Colors;
+}) {
+  const completedHabits = habits?.filter((h) => h.completedToday).length ?? 0;
+  const totalHabits = habits?.length ?? 0;
+  const steps = dashboard?.steps;
+  const stepsStr = steps != null ? steps.toLocaleString() : null;
 
-  if (snapshotItems.length === 0 && !topHabitName) return null;
+  const rows: { icon: string; label: string; value: string }[] = [
+    { icon: "activity", label: "Workout", value: "Not logged" },
+    { icon: "wind", label: "Steps", value: stepsStr ?? "—" },
+    { icon: "check-circle", label: "Habits", value: totalHabits > 0 ? `${completedHabits}/${totalHabits} completed` : "—" },
+    { icon: "smile", label: "Mood check-ins", value: moodCount > 0 ? `${moodCount} logged` : "None" },
+  ];
 
   return (
     <View style={styles.sectionBlock}>
       <Text style={[styles.sectionLabel, { color: colors.mutedForeground, fontFamily: "Inter_500Medium" }]}>
-        Your morning snapshot
+        Day at a glance
       </Text>
-      <View style={[styles.snapshotCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
-        {snapshotItems.length > 0 && (
-          <View style={styles.snapshotMetrics}>
-            {snapshotItems.map((item) => (
-              <View key={item.label} style={[styles.snapshotMetricItem, { borderColor: colors.border }]}>
-                <Feather name={item.icon as any} size={14} color={colors.primary} />
-                <Text style={[styles.snapshotMetricLabel, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
-                  {item.label}
-                </Text>
-                <Text style={[styles.snapshotMetricValue, { color: colors.foreground, fontFamily: "Inter_600SemiBold" }]}>
-                  {item.value}
-                </Text>
-              </View>
-            ))}
-          </View>
-        )}
-
-        {topHabitName && (
-          <View style={[styles.snapshotHabitRow, { borderTopColor: colors.border, borderTopWidth: snapshotItems.length > 0 ? StyleSheet.hairlineWidth : 0 }]}>
-            <View style={[styles.habitDot, { backgroundColor: colors.primary }]} />
-            <Text style={[styles.snapshotHabitText, { color: colors.foreground, fontFamily: "Inter_400Regular" }]}>
-              {"Top habit today: "}
-              <Text style={{ fontFamily: "Inter_600SemiBold" }}>{topHabitName}</Text>
+      <View style={[styles.glanceCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+        {rows.map((row, idx) => (
+          <View
+            key={row.label}
+            style={[
+              styles.glanceRow,
+              idx < rows.length - 1 && {
+                borderBottomWidth: StyleSheet.hairlineWidth,
+                borderBottomColor: colors.border,
+              },
+            ]}
+          >
+            <View style={styles.glanceLeft}>
+              <Feather name={row.icon as any} size={15} color={colors.mutedForeground} />
+              <Text style={[styles.glanceLabel, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
+                {row.label}
+              </Text>
+            </View>
+            <Text style={[styles.glanceValue, { color: colors.foreground, fontFamily: "Inter_500Medium" }]}>
+              {row.value}
             </Text>
           </View>
-        )}
-
-        <Text style={[styles.morningMotivation, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
-          {`Make today count${name ? `, ${name}` : ""}.`}
-        </Text>
+        ))}
       </View>
     </View>
   );
 }
 
-// ─── Tomorrow prep ────────────────────────────────────────────────────────────
+function MoodArc({
+  moods,
+  colors,
+  onAdd,
+}: {
+  moods: { id: number; score: number; note?: string | null }[];
+  colors: Colors;
+  onAdd: () => void;
+}) {
+  const DOT_SIZE = 36;
+
+  function dotColor(score: number): string {
+    if (score >= 8) return "#7DCB8F";
+    if (score >= 5) return colors.primary;
+    return "#D4473E";
+  }
+
+  if (moods.length === 0) {
+    return (
+      <TouchableOpacity
+        style={[styles.moodPromptCard, { backgroundColor: colors.card, borderColor: colors.border }]}
+        onPress={onAdd}
+        activeOpacity={0.8}
+      >
+        <Feather name="smile" size={18} color={colors.mutedForeground} />
+        <Text style={[styles.moodPromptText, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
+          How are you feeling tonight?
+        </Text>
+        <Feather name="chevron-right" size={16} color={colors.mutedForeground} />
+      </TouchableOpacity>
+    );
+  }
+
+  const labels = ["Morning", "Afternoon", "Evening"];
+
+  return (
+    <View style={styles.sectionBlock}>
+      <Text style={[styles.sectionLabel, { color: colors.mutedForeground, fontFamily: "Inter_500Medium" }]}>
+        Mood arc
+      </Text>
+      <View style={[styles.moodArcCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+        <View style={styles.moodDotsRow}>
+          {moods.slice(0, 3).map((m, idx) => (
+            <View key={m.id} style={styles.moodDotColumn}>
+              <View style={[styles.moodDot, { backgroundColor: dotColor(m.score), width: DOT_SIZE, height: DOT_SIZE, borderRadius: DOT_SIZE / 2 }]}>
+                <Text style={[styles.moodDotScore, { color: "#FFFFFF", fontFamily: "Inter_700Bold" }]}>
+                  {m.score}
+                </Text>
+              </View>
+              <Text style={[styles.moodDotLabel, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
+                {labels[idx] ?? `#${idx + 1}`}
+              </Text>
+            </View>
+          ))}
+        </View>
+      </View>
+    </View>
+  );
+}
 
 function TomorrowPrep({
   tomorrowEvents,
   urgentGoals,
   intention,
   intentionSaved,
+  prominent,
+  colors,
   onIntentionChange,
   onIntentionBlur,
   onPlanTomorrow,
-  onAddToCalendar,
 }: {
   tomorrowEvents: { id: number; title: string; type?: string | null }[];
-  urgentGoals: { id: number; title: string; targetDate?: string | null }[];
+  urgentGoals: GoalItem[];
   intention: string;
   intentionSaved: boolean;
-  onIntentionChange: (text: string) => void;
+  prominent: boolean;
+  colors: Colors;
+  onIntentionChange: (t: string) => void;
   onIntentionBlur: () => void;
   onPlanTomorrow: () => void;
-  onAddToCalendar: () => void;
 }) {
-  const colors = useColors();
-
   return (
     <View style={styles.sectionBlock}>
       <Text style={[styles.sectionLabel, { color: colors.mutedForeground, fontFamily: "Inter_500Medium" }]}>
         Tomorrow
       </Text>
-      <View style={[styles.tomorrowCard, { backgroundColor: colors.card, borderColor: colors.accent }]}>
-
+      <View
+        style={[
+          styles.tomorrowCard,
+          {
+            backgroundColor: colors.card,
+            borderColor: prominent ? colors.accent : colors.border,
+            borderWidth: prominent ? 1.5 : 1,
+          },
+        ]}
+      >
         {/* Header */}
         <View style={styles.tomorrowHeader}>
           <View style={styles.tomorrowHeaderLeft}>
-            <Feather name="moon" size={16} color={colors.primary} />
+            <Feather name="moon" size={14} color={colors.primary} />
             <Text style={[styles.tomorrowTitle, { color: colors.foreground, fontFamily: "Inter_700Bold" }]}>
               Tomorrow
             </Text>
@@ -240,76 +573,55 @@ function TomorrowPrep({
 
         <View style={[styles.tomorrowDivider, { backgroundColor: colors.border }]} />
 
-        {/* Calendar events */}
-        <View style={styles.tomorrowSubSection}>
+        {/* Events */}
+        <View style={styles.tomorrowSection}>
           <View style={styles.tomorrowSubHeader}>
-            <Feather name="calendar" size={13} color={colors.mutedForeground} />
+            <Feather name="calendar" size={12} color={colors.mutedForeground} />
             <Text style={[styles.tomorrowSubLabel, { color: colors.mutedForeground, fontFamily: "Inter_500Medium" }]}>
               Scheduled
             </Text>
-            <TouchableOpacity onPress={onAddToCalendar} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-              <Text style={[styles.addCalendarLink, { color: colors.primary, fontFamily: "Inter_500Medium" }]}>
-                + Add
-              </Text>
-            </TouchableOpacity>
           </View>
           {tomorrowEvents.length === 0 ? (
-            <Text style={[styles.tomorrowEmpty, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
+            <Text style={[styles.emptyText, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
               Nothing scheduled yet
             </Text>
           ) : (
             tomorrowEvents.map((ev) => (
-              <View key={ev.id} style={styles.eventRow}>
+              <View key={ev.id} style={styles.tomorrowEventRow}>
                 <View style={[styles.eventDot, { backgroundColor: colors.primary }]} />
-                <Text style={[styles.eventTitle, { color: colors.foreground, fontFamily: "Inter_400Regular" }]}>
+                <Text style={[styles.tomorrowEventText, { color: colors.foreground, fontFamily: "Inter_400Regular" }]}>
                   {ev.title}
                 </Text>
-                {ev.type ? (
-                  <Text style={[styles.eventType, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
-                    {ev.type}
-                  </Text>
-                ) : null}
               </View>
             ))
           )}
         </View>
 
-        {/* Urgent goals */}
         {urgentGoals.length > 0 && (
           <>
             <View style={[styles.tomorrowDivider, { backgroundColor: colors.border }]} />
-            <View style={styles.tomorrowSubSection}>
+            <View style={styles.tomorrowSection}>
               <View style={styles.tomorrowSubHeader}>
-                <Feather name="target" size={13} color={colors.mutedForeground} />
+                <Feather name="target" size={12} color={colors.mutedForeground} />
                 <Text style={[styles.tomorrowSubLabel, { color: colors.mutedForeground, fontFamily: "Inter_500Medium" }]}>
                   Goals due soon
                 </Text>
               </View>
-              {urgentGoals.map((goal) => {
-                const days = goal.targetDate ? daysUntil(goal.targetDate) : null;
+              {urgentGoals.map((g) => {
+                const days = g.targetDate ? daysUntil(g.targetDate) : null;
                 return (
-                  <View key={goal.id} style={styles.urgentGoalRow}>
+                  <View key={g.id} style={styles.tomorrowEventRow}>
                     <View style={[styles.eventDot, { backgroundColor: "#5B8CDE" }]} />
                     <Text
-                      style={[styles.urgentGoalTitle, { color: colors.foreground, fontFamily: "Inter_400Regular" }]}
+                      style={[styles.tomorrowEventText, { color: colors.foreground, fontFamily: "Inter_400Regular" }]}
                       numberOfLines={1}
                     >
-                      {goal.title}
+                      {g.title}
                     </Text>
                     {days !== null && (
-                      <View style={[styles.daysBadge, { backgroundColor: days <= 1 ? "#FEE2E2" : colors.muted }]}>
-                        <Text
-                          style={[
-                            styles.daysText,
-                            {
-                              color: days <= 1 ? "#D4473E" : colors.mutedForeground,
-                              fontFamily: "Inter_500Medium",
-                            },
-                          ]}
-                        >
-                          {days === 0 ? "Today" : days === 1 ? "1 day left" : `${days} days left`}
-                        </Text>
-                      </View>
+                      <Text style={[styles.daysTag, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
+                        {days === 0 ? "today" : `${days}d`}
+                      </Text>
                     )}
                   </View>
                 );
@@ -321,14 +633,14 @@ function TomorrowPrep({
         <View style={[styles.tomorrowDivider, { backgroundColor: colors.border }]} />
 
         {/* Intention */}
-        <View style={styles.tomorrowSubSection}>
+        <View style={styles.tomorrowSection}>
           <View style={styles.tomorrowSubHeader}>
-            <Feather name="edit-3" size={13} color={colors.mutedForeground} />
+            <Feather name="edit-3" size={12} color={colors.mutedForeground} />
             <Text style={[styles.tomorrowSubLabel, { color: colors.mutedForeground, fontFamily: "Inter_500Medium" }]}>
               Intention
             </Text>
             {intentionSaved && (
-              <Text style={[styles.savedBadge, { color: colors.primary, fontFamily: "Inter_400Regular" }]}>
+              <Text style={[styles.savedTag, { color: colors.primary, fontFamily: "Inter_400Regular" }]}>
                 Saved
               </Text>
             )}
@@ -354,13 +666,12 @@ function TomorrowPrep({
 
         <View style={[styles.tomorrowDivider, { backgroundColor: colors.border }]} />
 
-        {/* Plan tomorrow button */}
         <TouchableOpacity
           style={[styles.planBtn, { borderColor: colors.primary }]}
           onPress={onPlanTomorrow}
           activeOpacity={0.8}
         >
-          <Feather name="mic" size={16} color={colors.primary} />
+          <Feather name="mic" size={15} color={colors.primary} />
           <Text style={[styles.planBtnText, { color: colors.primary, fontFamily: "Inter_600SemiBold" }]}>
             Plan tomorrow with Valo
           </Text>
@@ -375,37 +686,59 @@ function TomorrowPrep({
 export default function TodayScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
-  const { name } = useValoAuth();
+  const { name, getToken } = useValoAuth();
   const router = useRouter();
 
   const { data: dashboard, isLoading, refetch, isRefetching } = useGetDashboard();
   const { data: habits } = useListHabits();
   const { data: goals } = useListGoals();
   const { data: calendarEvents } = useListCalendarEvents();
+  const { data: moods } = useListMoods();
 
+  const [modeOverride, setModeOverride] = useState<"morning" | "evening" | null>(null);
   const [intention, setIntention] = useState("");
   const [intentionSaved, setIntentionSaved] = useState(false);
+  const [callTime, setCallTime] = useState<string | null>(null);
 
   const hour = new Date().getHours();
-  const isMorning = hour < 12;
-  const debriefConfig = getDebriefConfig(hour);
+  const isMorning = modeOverride != null ? modeOverride === "morning" : hour < 18;
+  const currentMode: "morning" | "evening" = isMorning ? "morning" : "evening";
+
+  const todayISO = getTodayISO();
   const tomorrowISO = getTomorrowISO();
+
+  const todayEvents = calendarEvents?.filter((e) => e.date === todayISO) ?? [];
+  const tomorrowEvents = calendarEvents?.filter((e) => e.date === tomorrowISO) ?? [];
+  const todayMoods = moods?.filter((m) => m.date === todayISO) ?? [];
+  const urgentGoals =
+    goals?.filter(
+      (g) => g.targetDate && daysUntil(g.targetDate) >= 0 && daysUntil(g.targetDate) <= 7
+    ) ?? [];
 
   const topPad = Platform.OS === "web" ? Math.max(insets.top, 67) : insets.top;
   const bottomPad = Platform.OS === "web" ? 34 : insets.bottom;
   const tabBarH = Platform.OS === "web" ? 84 : 83;
 
-  // Load tomorrow's intention from AsyncStorage on mount
   useEffect(() => {
     AsyncStorage.getItem(INTENTION_KEY)
-      .then((val) => { if (val) setIntention(val); })
+      .then((v) => { if (v) setIntention(v); })
       .catch(() => {});
+    void loadCallTime();
   }, []);
 
-  const goToLog = () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    router.push("/(tabs)/log");
-  };
+  async function loadCallTime() {
+    const token = await getToken();
+    if (!token) return;
+    try {
+      const res = await fetch(`${getApiBase()}/api/settings`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) {
+        const s = await res.json();
+        if (s.preferredCallTime) setCallTime(s.preferredCallTime);
+      }
+    } catch {}
+  }
 
   async function handleIntentionBlur() {
     try {
@@ -415,19 +748,16 @@ export default function TodayScreen() {
     } catch {}
   }
 
-  // Filter calendar events to tomorrow only
-  const tomorrowEvents = calendarEvents?.filter((e) => e.date === tomorrowISO) ?? [];
+  const readiness = getReadinessConfig(dashboard?.sleepHours, dashboard?.hrv);
+  const sleepSummary = formatSleepSummary(dashboard?.sleepHours, dashboard?.hrv);
+  const focusSentence = getFocusSentence(goals, habits, intention);
+  const dynamicCards = getDynamicCards(dashboard, goals, habits, !isMorning);
+  const debriefPrompt = getDebriefPrompt(callTime, todayEvents.length);
 
-  // Goals due within the next 7 days
-  const urgentGoals =
-    goals?.filter((g) => {
-      if (!g.targetDate) return false;
-      const days = daysUntil(g.targetDate);
-      return days >= 0 && days <= 7;
-    }) ?? [];
-
-  // Top incomplete habit for morning snapshot
-  const topHabit = habits?.find((h) => !h.completedToday) ?? null;
+  const goToCheckIn = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    router.push("/(tabs)/checkin");
+  };
 
   return (
     <ScrollView
@@ -441,14 +771,14 @@ export default function TodayScreen() {
         <RefreshControl refreshing={!!isRefetching} onRefresh={refetch} tintColor={colors.primary} />
       }
     >
-      {/* ── Greeting ──────────────────────────────────────────────────────── */}
+      {/* ── Greeting row ───────────────────────────────────────────────────── */}
       <View style={styles.topRow}>
         <View style={{ flex: 1 }}>
-          <Text style={[styles.greeting, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
+          <Text style={[styles.dateLabel, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
             {todayLabel()}
           </Text>
-          <Text style={[styles.greetingName, { color: colors.foreground, fontFamily: "Inter_700Bold" }]}>
-            {greeting()}{name ? `, ${name}` : ""}.
+          <Text style={[styles.greetingText, { color: colors.foreground, fontFamily: "Inter_700Bold" }]}>
+            {greeting(hour)}{name ? `, ${name}` : ""}.
           </Text>
         </View>
         <TouchableOpacity
@@ -463,110 +793,141 @@ export default function TodayScreen() {
         </TouchableOpacity>
       </View>
 
-      {/* ── Check-in button (time-aware) ───────────────────────────────────── */}
-      <TouchableOpacity
-        style={[styles.debriefBtn, { backgroundColor: colors.primary }]}
-        onPress={() => {
-          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-          router.push("/(tabs)/checkin");
-        }}
-      >
-        <Feather name={debriefConfig.icon as any} size={20} color={colors.primaryForeground} />
-        <Text style={[styles.debriefBtnText, { color: colors.primaryForeground, fontFamily: "Inter_600SemiBold" }]}>
-          {debriefConfig.label}
-        </Text>
-      </TouchableOpacity>
-
-      {/* ── Morning snapshot (before noon only) ───────────────────────────── */}
-      {isMorning && !isLoading && (
-        <MorningSnapshot
-          dashboard={dashboard}
-          topHabitName={topHabit?.name ?? null}
-          name={name}
+      {/* ── Dev mode toggle ─────────────────────────────────────────────────── */}
+      <View style={styles.toggleRow}>
+        <ModeToggle
+          mode={currentMode}
+          onToggle={() =>
+            setModeOverride((prev) => {
+              if (prev === null) return isMorning ? "evening" : "morning";
+              return prev === "morning" ? "evening" : "morning";
+            })
+          }
+          colors={colors}
         />
-      )}
+      </View>
 
-      {/* ── Main data sections ─────────────────────────────────────────────── */}
       {isLoading ? (
-        <ActivityIndicator color={colors.primary} style={{ marginTop: 40 }} />
-      ) : (
+        <ActivityIndicator color={colors.primary} style={{ marginTop: 48 }} />
+      ) : isMorning ? (
+        /* ════════════════════════════════════════════════════════════════════
+           MORNING MODE
+        ════════════════════════════════════════════════════════════════════ */
         <>
-          <Text style={[styles.sectionLabel, { color: colors.mutedForeground, fontFamily: "Inter_500Medium" }]}>
-            Today's metrics
-          </Text>
-          <View style={styles.metricsRow}>
-            <MetricTile
-              label="Sleep"
-              value={dashboard?.sleepHours != null ? String(dashboard.sleepHours) : null}
-              unit="hrs"
-              icon="moon"
-              onLogIt={goToLog}
-            />
-            <MetricTile
-              label="HRV"
-              value={dashboard?.hrv != null ? String(dashboard.hrv) : null}
-              unit="ms"
-              icon="heart"
-              onLogIt={goToLog}
-            />
-            <MetricTile
-              label="Steps"
-              value={
-                dashboard?.steps != null
-                  ? dashboard.steps >= 1000
-                    ? `${(dashboard.steps / 1000).toFixed(1)}k`
-                    : String(dashboard.steps)
-                  : null
-              }
-              icon="activity"
-              onLogIt={goToLog}
-            />
-            <MetricTile
-              label="RHR"
-              value={dashboard?.restingHeartRate != null ? String(dashboard.restingHeartRate) : null}
-              unit="bpm"
-              icon="radio"
-              onLogIt={goToLog}
-            />
-          </View>
+          {/* 1. Readiness card */}
+          <ReadinessCard readiness={readiness} colors={colors} />
 
-          <Text style={[styles.sectionLabel, { color: colors.mutedForeground, fontFamily: "Inter_500Medium" }]}>
-            Pillar scores
-          </Text>
-          <PillarCard
-            title="Health"
-            score={dashboard?.healthScore ?? 0}
-            status={dashboard?.healthStatus ?? "No data yet"}
-            color={colors.primary}
-          />
-          <PillarCard
-            title="Work & Mission"
-            score={dashboard?.workScore ?? 0}
-            status={dashboard?.workStatus ?? "No data yet"}
-            color="#5B8CDE"
-          />
-          <PillarCard
-            title="Relationships"
-            score={dashboard?.relationshipScore ?? 0}
-            status={dashboard?.relationshipStatus ?? "No data yet"}
-            color="#7DCB8F"
+          {/* 2. Sleep summary */}
+          {sleepSummary ? (
+            <Text
+              style={[styles.sleepSummary, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}
+            >
+              {sleepSummary}
+            </Text>
+          ) : null}
+
+          {/* 3. Today's calendar strip */}
+          <CalendarStrip
+            events={todayEvents}
+            colors={colors}
+            isBusy={todayEvents.length > 3}
           />
 
-          {/* ── Tomorrow prep ────────────────────────────────────────────── */}
+          {/* 4. Focus card */}
+          <FocusCard sentence={focusSentence} colors={colors} />
+
+          {/* 5. Dynamic cards */}
+          {dynamicCards.length > 0 && (
+            <View style={styles.sectionBlock}>
+              <Text
+                style={[styles.sectionLabel, { color: colors.mutedForeground, fontFamily: "Inter_500Medium" }]}
+              >
+                Valo's picks
+              </Text>
+              {dynamicCards.map((card) => (
+                <DynCard key={card.key} card={card} colors={colors} />
+              ))}
+            </View>
+          )}
+
+          {/* 6. Check-in button */}
+          <TouchableOpacity
+            style={[styles.checkInBtn, { backgroundColor: colors.primary }]}
+            onPress={goToCheckIn}
+            activeOpacity={0.85}
+          >
+            <Feather name="sun" size={19} color={colors.primaryForeground} />
+            <Text
+              style={[styles.checkInBtnText, { color: colors.primaryForeground, fontFamily: "Inter_600SemiBold" }]}
+            >
+              Start morning check-in
+            </Text>
+          </TouchableOpacity>
+
+          {/* 7. Tomorrow prep (compact) */}
           <TomorrowPrep
             tomorrowEvents={tomorrowEvents}
             urgentGoals={urgentGoals}
             intention={intention}
             intentionSaved={intentionSaved}
+            prominent={false}
+            colors={colors}
             onIntentionChange={setIntention}
             onIntentionBlur={handleIntentionBlur}
-            onPlanTomorrow={() => {
-              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-              router.push("/(tabs)/checkin");
-            }}
-            onAddToCalendar={() => {
-              router.push("/(tabs)/calendar" as any);
-            }}
+            onPlanTomorrow={goToCheckIn}
+          />
+        </>
+      ) : (
+        /* ════════════════════════════════════════════════════════════════════
+           EVENING MODE
+        ════════════════════════════════════════════════════════════════════ */
+        <>
+          {/* 1. Debrief card (most prominent) */}
+          <DebriefCard prompt={debriefPrompt} colors={colors} onPress={goToCheckIn} />
+
+          {/* 2. Day at a glance */}
+          <DayAtAGlance
+            dashboard={dashboard}
+            habits={habits}
+            moodCount={todayMoods.length}
+            colors={colors}
+          />
+
+          {/* 3. Mood arc */}
+          <View style={styles.sectionBlock}>
+            <Text
+              style={[styles.sectionLabel, { color: colors.mutedForeground, fontFamily: "Inter_500Medium" }]}
+            >
+              Mood
+            </Text>
+            <MoodArc moods={todayMoods} colors={colors} onAdd={goToCheckIn} />
+          </View>
+
+          {/* 4. Dynamic cards */}
+          {dynamicCards.length > 0 && (
+            <View style={styles.sectionBlock}>
+              <Text
+                style={[styles.sectionLabel, { color: colors.mutedForeground, fontFamily: "Inter_500Medium" }]}
+              >
+                Valo's picks
+              </Text>
+              {dynamicCards.map((card) => (
+                <DynCard key={card.key} card={card} colors={colors} />
+              ))}
+            </View>
+          )}
+
+          {/* 5. Tomorrow prep (prominent in evening) */}
+          <TomorrowPrep
+            tomorrowEvents={tomorrowEvents}
+            urgentGoals={urgentGoals}
+            intention={intention}
+            intentionSaved={intentionSaved}
+            prominent
+            colors={colors}
+            onIntentionChange={setIntention}
+            onIntentionBlur={handleIntentionBlur}
+            onPlanTomorrow={goToCheckIn}
           />
         </>
       )}
@@ -577,7 +938,13 @@ export default function TodayScreen() {
 // ─── Styles ───────────────────────────────────────────────────────────────────
 
 const styles = StyleSheet.create({
-  topRow: { flexDirection: "row", alignItems: "flex-start", marginBottom: 28 },
+  topRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    marginBottom: 16,
+  },
+  dateLabel: { fontSize: 13, marginBottom: 4 },
+  greetingText: { fontSize: 26, lineHeight: 32 },
   gearBtn: {
     width: 38,
     height: 38,
@@ -585,91 +952,165 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     justifyContent: "center",
     alignItems: "center",
-    marginTop: 6,
-  },
-  greeting: { fontSize: 14, marginBottom: 4 },
-  greetingName: { fontSize: 28, lineHeight: 34 },
-  sectionLabel: {
-    fontSize: 12,
-    letterSpacing: 0.8,
-    textTransform: "uppercase",
-    marginBottom: 12,
     marginTop: 4,
   },
-  metricsRow: { flexDirection: "row", flexWrap: "wrap", gap: 10, marginBottom: 24 },
-  metricTile: { flex: 1, minWidth: "44%", padding: 16, borderRadius: 14, borderWidth: 1, alignItems: "center" },
-  metricLabel: { fontSize: 12, marginBottom: 4 },
-  metricValue: { fontSize: 22, marginTop: 2 },
-  metricUnit: { fontSize: 13 },
-  metricDash: { fontSize: 22, marginTop: 2, marginBottom: 2 },
-  logItText: { fontSize: 12, marginTop: 2 },
-  pillarCard: { borderRadius: 14, borderWidth: 1, padding: 16, marginBottom: 12 },
-  pillarHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 10 },
-  pillarTitle: { fontSize: 15 },
-  pillarScore: { fontSize: 15 },
-  progressTrack: { height: 6, borderRadius: 3, overflow: "hidden", marginBottom: 8 },
-  progressFill: { height: 6, borderRadius: 3 },
-  pillarStatus: { fontSize: 13 },
-  debriefBtn: {
+  // Mode toggle
+  toggleRow: {
+    alignItems: "flex-start",
+    marginBottom: 20,
+  },
+  modeToggle: {
+    flexDirection: "row",
+    borderRadius: 100,
+    borderWidth: 1,
+    padding: 3,
+    gap: 2,
+  },
+  modePill: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 100,
+  },
+  modePillText: { fontSize: 12 },
+  // Section layout
+  sectionBlock: { marginBottom: 20 },
+  sectionLabel: {
+    fontSize: 11,
+    letterSpacing: 0.8,
+    marginBottom: 10,
+  },
+  emptyText: { fontSize: 14 },
+  // Readiness card
+  readinessCard: {
+    borderRadius: 16,
+    padding: 22,
+    marginBottom: 12,
+    alignItems: "flex-start",
+  },
+  readinessText: { fontSize: 17, lineHeight: 26 },
+  sleepSummary: {
+    fontSize: 14,
+    lineHeight: 20,
+    marginBottom: 20,
+  },
+  // Calendar strip
+  calendarBlock: { marginBottom: 20 },
+  busyFlag: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: 100,
+    alignSelf: "flex-start",
+    marginBottom: 10,
+  },
+  busyFlagText: { fontSize: 12 },
+  stripScroll: { gap: 8, paddingBottom: 4 },
+  eventPill: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 7,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 100,
+    borderWidth: 1,
+    maxWidth: 200,
+  },
+  eventDot: { width: 6, height: 6, borderRadius: 3 },
+  eventPillText: { fontSize: 13 },
+  // Focus card
+  focusCard: {
+    borderRadius: 14,
+    borderWidth: 1,
+    padding: 18,
+    marginBottom: 20,
+    gap: 8,
+  },
+  focusLabel: { fontSize: 11, letterSpacing: 0.8 },
+  focusText: { fontSize: 16, lineHeight: 24 },
+  // Dynamic cards
+  dynCard: {
+    borderRadius: 14,
+    padding: 16,
+    marginBottom: 10,
+    gap: 6,
+  },
+  dynCardHeader: { flexDirection: "row", alignItems: "center", gap: 7 },
+  dynCardLabel: { fontSize: 12, letterSpacing: 0.3 },
+  dynCardBody: { fontSize: 15, lineHeight: 22 },
+  // Check-in button
+  checkInBtn: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
     gap: 10,
-    height: 54,
-    borderRadius: 14,
-    marginTop: 12,
-    marginBottom: 28,
+    height: 56,
+    borderRadius: 16,
+    marginBottom: 24,
   },
-  debriefBtnText: { fontSize: 16 },
-  // Section block wrapper
-  sectionBlock: {
-    marginBottom: 8,
+  checkInBtnText: { fontSize: 16 },
+  // Debrief card (evening)
+  debriefCard: {
+    borderRadius: 20,
+    borderWidth: 1,
+    padding: 28,
+    marginBottom: 20,
+    alignItems: "flex-start",
+    gap: 0,
   },
-  // Morning snapshot
-  snapshotCard: {
+  debriefPrompt: {
+    fontSize: 20,
+    lineHeight: 29,
+    marginBottom: 22,
+  },
+  // Day at a glance
+  glanceCard: {
     borderRadius: 14,
     borderWidth: 1,
     overflow: "hidden",
-    marginBottom: 24,
   },
-  snapshotMetrics: {
+  glanceRow: {
     flexDirection: "row",
-  },
-  snapshotMetricItem: {
-    flex: 1,
     alignItems: "center",
-    paddingVertical: 16,
-    gap: 4,
-    borderRightWidth: StyleSheet.hairlineWidth,
+    justifyContent: "space-between",
+    paddingHorizontal: 16,
+    paddingVertical: 13,
   },
-  snapshotMetricLabel: { fontSize: 11 },
-  snapshotMetricValue: { fontSize: 15 },
-  snapshotHabitRow: {
+  glanceLeft: { flexDirection: "row", alignItems: "center", gap: 10 },
+  glanceLabel: { fontSize: 14 },
+  glanceValue: { fontSize: 14 },
+  // Mood arc
+  moodPromptCard: {
     flexDirection: "row",
     alignItems: "center",
     gap: 10,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
+    padding: 16,
+    borderRadius: 14,
+    borderWidth: 1,
   },
-  habitDot: {
-    width: 7,
-    height: 7,
-    borderRadius: 4,
+  moodPromptText: { flex: 1, fontSize: 15 },
+  moodArcCard: {
+    borderRadius: 14,
+    borderWidth: 1,
+    padding: 20,
   },
-  snapshotHabitText: { fontSize: 14, flex: 1 },
-  morningMotivation: {
-    fontSize: 13,
-    fontStyle: "italic",
-    paddingHorizontal: 16,
-    paddingBottom: 16,
-    paddingTop: 4,
+  moodDotsRow: {
+    flexDirection: "row",
+    justifyContent: "space-around",
+    alignItems: "center",
   },
+  moodDotColumn: { alignItems: "center", gap: 8 },
+  moodDot: { justifyContent: "center", alignItems: "center" },
+  moodDotScore: { fontSize: 14 },
+  moodDotLabel: { fontSize: 11 },
   // Tomorrow prep
   tomorrowCard: {
     borderRadius: 16,
-    borderWidth: 1.5,
     overflow: "hidden",
-    marginBottom: 16,
   },
   tomorrowHeader: {
     flexDirection: "row",
@@ -677,70 +1118,32 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     padding: 16,
   },
-  tomorrowHeaderLeft: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-  },
-  tomorrowTitle: { fontSize: 16 },
+  tomorrowHeaderLeft: { flexDirection: "row", alignItems: "center", gap: 8 },
+  tomorrowTitle: { fontSize: 15 },
   tomorrowDate: { fontSize: 13 },
   tomorrowDivider: { height: StyleSheet.hairlineWidth },
-  tomorrowSubSection: {
-    padding: 16,
-    gap: 10,
-  },
-  tomorrowSubHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-  },
-  tomorrowSubLabel: {
-    fontSize: 12,
-    letterSpacing: 0.4,
-    flex: 1,
-  },
-  addCalendarLink: { fontSize: 13 },
-  tomorrowEmpty: { fontSize: 14 },
-  eventRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
-  },
-  eventDot: {
-    width: 7,
-    height: 7,
-    borderRadius: 4,
-  },
-  eventTitle: { fontSize: 14, flex: 1 },
-  eventType: { fontSize: 12 },
-  urgentGoalRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
-  },
-  urgentGoalTitle: { fontSize: 14, flex: 1 },
-  daysBadge: {
-    paddingHorizontal: 9,
-    paddingVertical: 3,
-    borderRadius: 100,
-  },
-  daysText: { fontSize: 11 },
+  tomorrowSection: { padding: 16, gap: 10 },
+  tomorrowSubHeader: { flexDirection: "row", alignItems: "center", gap: 6 },
+  tomorrowSubLabel: { fontSize: 11, letterSpacing: 0.4, flex: 1 },
+  tomorrowEventRow: { flexDirection: "row", alignItems: "center", gap: 9 },
+  tomorrowEventText: { fontSize: 14, flex: 1 },
+  daysTag: { fontSize: 12 },
   intentionInput: {
     borderWidth: 1,
     borderRadius: 10,
     padding: 12,
     fontSize: 14,
     lineHeight: 20,
-    minHeight: 72,
+    minHeight: 68,
     textAlignVertical: "top",
   },
-  savedBadge: { fontSize: 12 },
+  savedTag: { fontSize: 12 },
   planBtn: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    gap: 10,
-    height: 50,
+    gap: 9,
+    height: 48,
     borderWidth: 1.5,
     margin: 16,
     marginTop: 0,

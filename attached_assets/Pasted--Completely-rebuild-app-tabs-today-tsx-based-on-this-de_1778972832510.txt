@@ -1,0 +1,101 @@
+"Completely rebuild app/(tabs)/today.tsx based on this design philosophy:
+Core principle: The home screen has one job — in 10 seconds, show the user what they need to know right now and what they should do next.
+Remove entirely: All pillar score cards and progress bars. Replace with dynamic cards picked by Valo.
+Add a morning/evening toggle at the top of the screen for testing (small pill toggle: 'Morning' / 'Evening') that overrides the time-of-day detection. In production this won't show but it lets us preview both modes during development.
+
+MORNING MODE (before noon):
+1. Readiness card (top, prominent):
+A single sentence generated from dashboard data. Logic:
+
+If hrv is above average or sleep > 7hrs: 'Your body is well-recovered today. Make the most of it.'
+If hrv is below average or sleep < 6hrs: 'Your recovery is low today. Protect your energy.'
+If no data: 'Connect your wearable to see your readiness.'
+Show as a large card with a warm background tint, subtle icon (sun for good, moon for low), and the sentence in medium-sized readable text. No numbers on this card — just the sentence.
+
+2. Sleep summary — one sentence below the readiness card:
+
+If data exists: 'You slept [X]h [Xm] last night. HRV [X] — [X] above/below your average.'
+If no data: don't show this line
+
+3. Today's calendar strip — horizontal scrollable strip showing next 4-6 events from useListCalendarEvents filtered to today. Each event is a small pill showing time and title. If back-to-back events exist (events within 30 min of each other), show a small amber flag: 'Heads up — busy block ahead.' If no events: 'Nothing scheduled yet.'
+4. One focus card — a card with label 'YOUR FOCUS TODAY' and a single sentence. Logic:
+
+If there's a goal with targetDate within 7 days: 'Your focus today: push toward [goal title] — [X] days left.'
+If there's a habit not yet completed today: 'Your focus today: complete [first incomplete habit name].'
+If tomorrow's intention was set: 'Your focus today: [tomorrow intention from AsyncStorage].'
+Fallback: 'Your focus today: show up fully.'
+
+5. Dynamic cards (show 2-3 max, Valo picks the most relevant):
+Recovery card — show when HRV or sleep is notable:
+
+Good: 'Strong recovery today — your body is ready.'
+Poor: 'Low recovery today — consider lighter effort.'
+
+Goal progress card — show when a goal has recent activity or deadline within 14 days:
+
+'[Goal title] — [X]% complete. [X] days left.'
+
+Streak card — show the single most impressive active habit streak:
+
+'[Habit name] — [X] days straight. Keep it going.'
+
+Win card — show when habits were all completed yesterday (check yesterday's date vs completedToday logic — for now just show if streak > 3 on any habit):
+
+'You're on a [X]-day streak with [habit]. Strong work.'
+
+Pattern card — hardcode for now, will wire to insight engine later:
+
+Don't show until insight engine is built.
+
+6. Check-in button — 'Start morning check-in' with sun icon, primary color, prominent.
+7. Tomorrow prep — small card at bottom showing tomorrow's intention input and any upcoming events.
+
+EVENING MODE (after 6pm):
+1. Debrief prompt card (most prominent element, largest card on screen):
+A card that feels like Valo is already paying attention. Logic:
+
+If check-in time is set in profile: 'Your check-in is at [time]. Ready when you are.'
+If lots of calendar events today (>3): 'Today looked heavy. Let's start there.'
+Default: 'How did today go? Let's talk through it.'
+Large 'Check in with Valo' button inside this card. Moon icon. This is the most important element on the evening screen.
+
+2. Day at a glance — a simple receipt-style log of what happened today:
+
+Workout: ✓ [type] or — Not logged
+Steps: [X,XXX] or —
+Habits: [X]/[total] completed
+Mood check-ins: [X] logged
+Show as a compact card with simple rows — no charts, no bars. Just clean rows with icons and values.
+
+3. Mood arc — only show if mood entries exist today:
+Show morning / afternoon / evening mood scores as three dots connected by a subtle line. Label each dot with the time. If only one entry exists, just show that one dot with no line. If no entries: show 'How are you feeling tonight?' as a tappable prompt that navigates to check-in.
+4. Dynamic cards (same library as morning, Valo picks 2 most relevant):
+Same card types as morning mode. In evening, prioritize relationship card and pattern card over streak and recovery.
+5. Tomorrow prep section — more prominent in evening than morning:
+
+Tomorrow's date as header
+Calendar events for tomorrow
+Intention input field
+Goals due soon
+'Plan tomorrow with Valo' outlined button
+
+
+Visual language:
+
+No progress bars anywhere
+Sentence-based summaries throughout
+Card-based layout with variable sizing — debrief card is largest in evening
+Dynamic cards are slightly smaller than feature cards
+Warm amber tones for positive states, cool muted tones for low recovery states
+Section labels as small uppercase muted text
+
+Data sources:
+
+useGetDashboard for sleep, HRV, steps, scores
+useListCalendarEvents for today and tomorrow events
+useListGoals for goal progress cards
+useListHabits for streak and habit completion cards
+AsyncStorage key @valo/tomorrow-intention for focus card and tomorrow prep
+useValoAuth for name and profile
+
+Use existing color system and Inter fonts throughout. Keep pull-to-refresh. Keep the settings gear icon in top right navigating to profile."
