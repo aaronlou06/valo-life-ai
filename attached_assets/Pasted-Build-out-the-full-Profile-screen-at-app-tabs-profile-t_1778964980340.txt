@@ -1,0 +1,80 @@
+Build out the full Profile screen at app/(tabs)/profile.tsx. Replace the current placeholder with a complete scrollable profile page.
+Data to fetch:
+
+User info from useValoAuth (name, email)
+User profile from GET /api/settings (name, lifePriorities, preferredCallTime, phoneNumber)
+Goals from useListGoals
+Habits from useListHabits
+
+Section 1 — Your Valo (top of screen):
+
+Large circular avatar with user's initials (no photo upload yet, just initials in a colored circle)
+User's name (large, bold) — tappable to edit inline
+Email address (muted, smaller)
+'Member since' date (pulled from user createdAt if available, otherwise omit)
+Current check-in streak (number of consecutive days with a check-in — hardcode to 0 for now, we'll wire it later)
+
+Section 2 — Life Trends (not scores):
+Show trend indicators for each active domain — not a number out of 100, just whether they're improving, steady, or needs attention. Display as a row of domain cards, each with:
+
+Domain icon and name
+A trend arrow: ↑ (green, improving), → (amber, steady), ↓ (red, needs attention)
+A one-line label: 'Improving', 'Steady', 'Needs attention'
+
+For now hardcode all trends as 'Steady' with the → indicator — we'll wire real trend calculation later. Show these domains: Physical, Mental, Career, Relationships, Habits. Each card is small, fits 2-3 per row in a wrap layout.
+Section 3 — Identity:
+A card with label 'IDENTITY' containing these editable fields:
+
+'Who I am becoming' — multiline text input, placeholder 'I am becoming...' saves to profile notes field
+'My biggest motivator' — text input, placeholder 'What drives you?'
+'My core values' — horizontal chip selector, options: Faith, Family, Health, Excellence, Growth, Service, Integrity, Freedom, Creativity, Leadership. User can select multiple. Tapping toggles selection. Highlighted chips in primary color.
+'My intentions' — shows the lifePriorities from the user profile, tappable to edit
+
+All fields auto-save via PATCH /api/settings on blur. Show subtle 'Saved ✓' indicator after each save.
+Section 4 — Account:
+Simple list rows with chevron icons:
+
+Email (shows current email, not editable for now)
+Change password (shows alert 'Coming soon')
+Check-in time (shows current preferredCallTime, tappable to open a simple time picker — hour and AM/PM selector — saves via PATCH /api/settings)
+Notifications (shows alert 'Coming soon')
+
+Section 5 — Connected Data:
+List of integration rows, each with:
+
+Icon, name, and status badge ('Connected' in green or 'Not connected' in muted)
+Tapping shows alert 'Coming soon' for all except ones already connected
+
+Integrations to show:
+
+Apple Health
+Apple Calendar
+Garmin
+Whoop
+Oura
+Spotify
+Superpower
+Screen Time
+
+Section 6 — Membership:
+A card showing:
+
+Current plan: 'Free' (hardcoded for now)
+'Upgrade to Valo Pro' button in primary color (shows alert 'Coming soon')
+
+Section 7 — Admin (bottom):
+Simple list rows:
+
+Export my data (alert 'Coming soon')
+Privacy settings (alert 'Coming soon')
+What Valo knows about me (alert 'Coming soon')
+Log out — calls signOut() from useValoAuth, no confirmation needed
+Delete account — red text, shows confirmation alert before calling signOut (we'll wire real deletion later)
+
+Styling:
+
+Section headers as small uppercase muted labels (like the rest of the app)
+Cards with border and rounded corners matching the app style
+Use existing color system and Inter fonts throughout
+Generous spacing between sections
+Safe area padding top and bottom"
