@@ -1,0 +1,31 @@
+"Wire the onboarding data into the voice system so the first call feels personal from the first sentence. Do three things:
+PART 1 — Update buildVapiContext() to include onboarding data
+The buildVapiContext(userId) function currently pulls wearable and daily log data. Add the following fields from the user's profile to the returned payload:
+- user_name: the user's first name
+- user_identity: their "what kind of person are you trying to become" answer
+- user_priorities: their selected priorities as a readable string e.g. "health & fitness, faith & spirituality, mental clarity"
+- user_wants_more: their "more of" selections as a readable string
+- user_wants_less: their "less of" selections as a readable string
+- user_motivation: their "what keeps you going" answer
+- user_first_goal: the title of their first created goal, or "not set yet" if none exists
+- user_call_time: their preferred call time formatted as "8:30 PM"
+- first_call_completed: boolean
+PART 2 — Create a separate Vapi assistant for the first call
+In the outbound call scheduler, before making the API call to Vapi, check the first_call_completed field on the user's profile. If first_call_completed is false, use the first call assistant ID from environment variable VAPI_FIRST_CALL_ASSISTANT_ID. If true, use the regular VAPI_ASSISTANT_ID. After a call ends and the webhook fires, if first_call_completed was false, set it to true on the user's profile via a database update.
+Add VAPI_FIRST_CALL_ASSISTANT_ID as a placeholder to the .env file and to the list of required secrets.
+PART 3 — Create a first call context endpoint
+Create a GET endpoint at /api/vapi/first-call-context/:userId that returns only the onboarding fields needed for the first call — not the full wearable data payload. This is a lighter payload used specifically for the first call assistant:
+{
+
+user_name,*
+user_identity,*
+user_priorities,*
+user_wants_more,*
+user_wants_less,*
+user_motivation,*
+user_first_goal,*
+user_call_time*
+}
+
+The in-app voice trigger (the microphone button on the Voice tab) should also check first_call_completed. If false, use VAPI_FIRST_CALL_ASSISTANT_ID and fetch context from /api/vapi/first-call-context/:userId. If true, use the regular assistant and fetch from /api/vapi/context/:userId.
+Do not change anything about the existing debrief processing pipeline — transcripts from the first call should be processed and stored exactly the same way as regular debriefs."

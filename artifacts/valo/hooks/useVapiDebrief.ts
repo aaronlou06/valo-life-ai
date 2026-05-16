@@ -29,13 +29,17 @@ export type DebriefExtraction = {
   flags: string[];
 };
 
-const ASSISTANT_ID =
+const REGULAR_ASSISTANT_ID =
   process.env.EXPO_PUBLIC_VAPI_ASSISTANT_ID ??
   "1f6a73ec-abef-4181-ac53-31b6a037a613";
 
+const FIRST_CALL_ASSISTANT_ID =
+  process.env.EXPO_PUBLIC_VAPI_FIRST_CALL_ASSISTANT_ID ?? REGULAR_ASSISTANT_ID;
+
 export function useVapiDebrief(
   userId: string,
-  getToken: () => Promise<string | null>
+  getToken: () => Promise<string | null>,
+  firstCallCompleted: boolean
 ) {
   const [callState, setCallState] = useState<CallState>("idle");
   const [transcript, setTranscript] = useState<TranscriptEntry[]>([]);
@@ -154,15 +158,23 @@ export function useVapiDebrief(
     setDebriefExtraction(null);
     setIsMuted(false);
 
+    const assistantId = firstCallCompleted
+      ? REGULAR_ASSISTANT_ID
+      : FIRST_CALL_ASSISTANT_ID;
+
+    const contextPath = firstCallCompleted
+      ? `/api/vapi/context/${userId}`
+      : `/api/vapi/first-call-context/${userId}`;
+
     try {
       const token = await getToken();
       const res = await fetch(
-        `https://${process.env.EXPO_PUBLIC_DOMAIN}/api/vapi/context/${userId}`,
+        `https://${process.env.EXPO_PUBLIC_DOMAIN}${contextPath}`,
         { headers: token ? { Authorization: `Bearer ${token}` } : {} }
       );
       if (!res.ok) throw new Error(`Context fetch failed: ${res.status}`);
       const contextPayload = await res.json();
-      await vapi.start(ASSISTANT_ID, { variableValues: contextPayload });
+      await vapi.start(assistantId, { variableValues: contextPayload });
     } catch (err: any) {
       console.error("Vapi start error:", err);
       setCallState("idle");
@@ -172,7 +184,7 @@ export function useVapiDebrief(
         [{ text: "OK" }]
       );
     }
-  }, [userId, getToken]);
+  }, [userId, getToken, firstCallCompleted]);
 
   const endCall = useCallback(() => vapi.stop(), []);
 

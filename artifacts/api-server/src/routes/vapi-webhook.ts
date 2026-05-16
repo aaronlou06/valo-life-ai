@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import { eq } from "drizzle-orm";
-import { db, callsTable } from "@workspace/db";
+import { db, callsTable, userProfilesTable } from "@workspace/db";
 import { processDebriefTranscript, type TranscriptEntry } from "../lib/processDebrief";
 
 const router: IRouter = Router();
@@ -72,6 +72,20 @@ router.post("/vapi/webhook", async (req, res): Promise<void> => {
           durationSeconds: typeof durationSeconds === "number" ? durationSeconds : undefined,
         })
         .where(eq(callsTable.vapiCallId, vapiCallId));
+
+      const profileRows = await db
+        .select({ firstCallCompleted: userProfilesTable.firstCallCompleted })
+        .from(userProfilesTable)
+        .where(eq(userProfilesTable.userId, callRecord.userId))
+        .limit(1);
+
+      if (profileRows[0] && !profileRows[0].firstCallCompleted) {
+        await db
+          .update(userProfilesTable)
+          .set({ firstCallCompleted: true })
+          .where(eq(userProfilesTable.userId, callRecord.userId));
+        req.log.info({ userId: callRecord.userId }, "firstCallCompleted marked true");
+      }
     }
 
     const transcript = extractTranscript(payload);

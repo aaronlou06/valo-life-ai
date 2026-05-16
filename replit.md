@@ -12,6 +12,8 @@ A full-stack personal AI life companion — a mobile app that helps users unders
 - `pnpm --filter @workspace/db run push` — push DB schema changes (dev only)
 - Required env: `DATABASE_URL` — Postgres connection string
 - Required env: `CLERK_PUBLISHABLE_KEY`, `CLERK_SECRET_KEY` — provisioned via Replit Clerk integration
+- Required env: `VAPI_FIRST_CALL_ASSISTANT_ID` — Vapi assistant ID used for the user's very first call (server-side)
+- Optional env: `EXPO_PUBLIC_VAPI_FIRST_CALL_ASSISTANT_ID` — same assistant ID exposed to the mobile app (in-app mic trigger)
 
 ## Stack
 

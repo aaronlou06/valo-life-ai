@@ -239,7 +239,7 @@ export default function VoiceScreen() {
   const { data: ctx, isLoading: ctxLoading } = useVoiceContext(safeUserId);
 
   const { callState, transcript, startCall, endCall, isMuted, toggleMute, isValoSpeaking, debriefExtraction, clearExtraction } =
-    useVapiDebrief(safeUserId, getToken as () => Promise<string | null>);
+    useVapiDebrief(safeUserId, getToken as () => Promise<string | null>, ctx?.first_call_completed ?? true);
 
   const scrollRef = useRef<ScrollView>(null);
   const pulseScale = useRef(new Animated.Value(1)).current;

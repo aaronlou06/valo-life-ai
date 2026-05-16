@@ -24,6 +24,7 @@ router.get("/settings", requireAuth, async (req, res): Promise<void> => {
     name: profile?.name ?? null,
     lifePriorities: profile?.lifePriorities ?? null,
     onboardingCompleted: profile?.onboardingCompleted ?? false,
+    firstCallCompleted: profile?.firstCallCompleted ?? false,
   });
 });
 

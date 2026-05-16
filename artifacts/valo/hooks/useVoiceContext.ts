@@ -4,7 +4,14 @@ import { useValoAuth } from "@/contexts/AuthContext";
 export type VoiceContextData = {
   user_id: string;
   user_name: string;
+  user_identity: string | null;
   user_priorities: string | null;
+  user_wants_more: string | null;
+  user_wants_less: string | null;
+  user_motivation: string | null;
+  user_first_goal: string;
+  user_call_time: string;
+  first_call_completed: boolean;
   date_today: string;
   sleep_hours: number | null;
   sleep_score: number | null;

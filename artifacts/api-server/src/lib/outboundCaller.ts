@@ -3,8 +3,6 @@ import { db, userProfilesTable, callsTable } from "@workspace/db";
 import { buildVapiContext } from "./buildVapiContext";
 import { logger } from "./logger";
 
-const ASSISTANT_ID = "1f6a73ec-abef-4181-ac53-31b6a037a613";
-
 function getCurrentTimeInTz(timezone: string): string {
   const now = new Date();
   const parts = new Intl.DateTimeFormat("en-US", {
@@ -33,19 +31,31 @@ async function hasRecentCall(userId: string): Promise<boolean> {
   return rows.length > 0;
 }
 
-async function initiateCall(userId: string, phoneNumber: string): Promise<void> {
+async function initiateCall(
+  userId: string,
+  phoneNumber: string,
+  firstCallCompleted: boolean
+): Promise<void> {
   const vapiApiKey = process.env["VAPI_API_KEY"];
   const phoneNumberId = process.env["VAPI_PHONE_NUMBER_ID"];
+  const regularAssistantId =
+    process.env["VAPI_ASSISTANT_ID"] ?? "1f6a73ec-abef-4181-ac53-31b6a037a613";
+  const firstCallAssistantId = process.env["VAPI_FIRST_CALL_ASSISTANT_ID"];
 
   if (!vapiApiKey || !phoneNumberId) {
     logger.warn("VAPI_API_KEY or VAPI_PHONE_NUMBER_ID not set — skipping outbound call");
     return;
   }
 
+  const assistantId =
+    !firstCallCompleted && firstCallAssistantId
+      ? firstCallAssistantId
+      : regularAssistantId;
+
   const context = await buildVapiContext(userId);
 
   const vapiBody = {
-    assistantId: ASSISTANT_ID,
+    assistantId,
     customer: { number: phoneNumber },
     phoneNumberId,
     assistantOverrides: { variableValues: context },
@@ -73,7 +83,10 @@ async function initiateCall(userId: string, phoneNumber: string): Promise<void> 
     status: "initiated",
   });
 
-  logger.info({ userId, vapiCallId: data.id }, "Outbound call initiated");
+  logger.info(
+    { userId, vapiCallId: data.id, firstCallCompleted, assistantId },
+    "Outbound call initiated"
+  );
 }
 
 async function runSchedulerTick(): Promise<void> {
@@ -103,7 +116,7 @@ async function runSchedulerTick(): Promise<void> {
       if (recent) continue;
 
       try {
-        await initiateCall(user.userId, user.phoneNumber);
+        await initiateCall(user.userId, user.phoneNumber, user.firstCallCompleted);
       } catch (err) {
         logger.error({ err, userId: user.userId }, "Failed to initiate outbound call");
         await db

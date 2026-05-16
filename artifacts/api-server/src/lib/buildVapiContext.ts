@@ -11,6 +11,14 @@ import {
   userProfilesTable,
 } from "@workspace/db";
 
+function formatCallTime(hhmm: string | null | undefined): string {
+  if (!hhmm) return "not set";
+  const [h, m] = hhmm.split(":").map(Number);
+  const period = (h ?? 0) >= 12 ? "PM" : "AM";
+  const hour = (h ?? 0) % 12 || 12;
+  return `${hour}:${String(m ?? 0).padStart(2, "0")} ${period}`;
+}
+
 function dateAgo(days: number): string {
   const d = new Date();
   d.setDate(d.getDate() - days);
@@ -184,8 +192,15 @@ export async function buildVapiContext(userId: string): Promise<Record<string, u
   return {
     // ── Identity ────────────────────────────────────────────────────────
     user_id: userId,
-    user_name: profile?.name ?? "friend",
-    user_priorities: profile?.lifePriorities ?? null,
+    user_name: (profile?.name ?? "").split(" ")[0] || "friend",
+    user_identity: profile?.userIdentity ?? null,
+    user_priorities: profile?.userPriorities ?? null,
+    user_wants_more: profile?.userWantsMore ?? null,
+    user_wants_less: profile?.userWantsLess ?? null,
+    user_motivation: profile?.userMotivation ?? null,
+    user_first_goal: goals[0]?.title ?? "not set yet",
+    user_call_time: formatCallTime(profile?.preferredCallTime),
+    first_call_completed: profile?.firstCallCompleted ?? false,
     date_today: today,
 
     // ── Wearables (today) ────────────────────────────────────────────────
