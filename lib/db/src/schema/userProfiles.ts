@@ -1,4 +1,4 @@
-import { pgTable, serial, text, timestamp, boolean } from "drizzle-orm/pg-core";
+import { pgTable, serial, text, timestamp, boolean, integer } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 
@@ -11,6 +11,21 @@ export const userProfilesTable = pgTable("user_profiles", {
   preferredCallTime: text("preferred_call_time"),
   callTimezone: text("call_timezone"),
   callsEnabled: boolean("calls_enabled").notNull().default(false),
+  onboardingCompleted: boolean("onboarding_completed").notNull().default(false),
+  firstCallCompleted: boolean("first_call_completed").notNull().default(false),
+  userIdentity: text("user_identity"),
+  userPriorities: text("user_priorities"),
+  userWantsMore: text("user_wants_more"),
+  userWantsLess: text("user_wants_less"),
+  userMotivation: text("user_motivation"),
+  biologicalSex: text("biological_sex"),
+  age: integer("age"),
+  wearableDevice: text("wearable_device"),
+  workoutDaysPerWeek: integer("workout_days_per_week"),
+  dietType: text("diet_type"),
+  wakeTime: text("wake_time"),
+  bedTime: text("bed_time"),
+  workSchedule: text("work_schedule"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 });

@@ -35,7 +35,7 @@ function RootLayoutNav() {
       <Stack.Screen name="(tabs)" />
       <Stack.Screen name="onboarding" options={{ gestureEnabled: false }} />
       <Stack.Screen name="settings" />
-      <Stack.Screen name="goal" />
+      <Stack.Screen name="goal/[id]" />
     </Stack>
   );
 }

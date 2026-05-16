@@ -25,6 +25,8 @@ tags:
     description: Dashboard data
   - name: calendar-events
     description: Calendar events and goal deadlines
+  - name: onboarding
+    description: Onboarding flow status and progressive field save
 paths:
   /healthz:
     get:
@@ -354,6 +356,42 @@ paths:
               schema:
                 $ref: "#/components/schemas/Dashboard"
 
+  /onboarding/status:
+    get:
+      operationId: getOnboardingStatus
+      tags: [onboarding]
+      summary: Get the current user's onboarding and first-call completion flags
+      responses:
+        "200":
+          description: Onboarding status flags
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OnboardingStatus"
+
+  /onboarding/save:
+    patch:
+      operationId: saveOnboarding
+      tags: [onboarding]
+      summary: Save any subset of onboarding fields (called progressively per step)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/OnboardingSaveInput"
+      responses:
+        "200":
+          description: Saved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [ok]
+                properties:
+                  ok:
+                    type: boolean
+
 components:
   schemas:
     HealthStatus:
@@ -667,3 +705,56 @@ components:
           type: string
         relationshipStatus:
           type: string
+
+    OnboardingStatus:
+      type: object
+      required: [onboardingCompleted, firstCallCompleted]
+      properties:
+        onboardingCompleted:
+          type: boolean
+        firstCallCompleted:
+          type: boolean
+
+    OnboardingSaveInput:
+      type: object
+      properties:
+        name:
+          type: string
+        onboardingCompleted:
+          type: boolean
+        firstCallCompleted:
+          type: boolean
+        userIdentity:
+          type: string
+        userPriorities:
+          type: string
+        userWantsMore:
+          type: string
+        userWantsLess:
+          type: string
+        userMotivation:
+          type: string
+        biologicalSex:
+          type: string
+        age:
+          type: ["integer", "null"]
+        wearableDevice:
+          type: string
+        workoutDaysPerWeek:
+          type: ["integer", "null"]
+        dietType:
+          type: string
+        wakeTime:
+          type: string
+        bedTime:
+          type: string
+        workSchedule:
+          type: string
+        phoneNumber:
+          type: ["string", "null"]
+        preferredCallTime:
+          type: string
+        callTimezone:
+          type: string
+        callsEnabled:
+          type: boolean

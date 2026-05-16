@@ -23,6 +23,7 @@ router.get("/settings", requireAuth, async (req, res): Promise<void> => {
     callsEnabled: profile?.callsEnabled ?? false,
     name: profile?.name ?? null,
     lifePriorities: profile?.lifePriorities ?? null,
+    onboardingCompleted: profile?.onboardingCompleted ?? false,
   });
 });
 

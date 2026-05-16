@@ -291,3 +291,41 @@ export const GetDashboardResponse = zod.object({
   workStatus: zod.string(),
   relationshipStatus: zod.string(),
 });
+
+/**
+ * @summary Get the current user's onboarding and first-call completion flags
+ */
+export const GetOnboardingStatusResponse = zod.object({
+  onboardingCompleted: zod.boolean(),
+  firstCallCompleted: zod.boolean(),
+});
+
+/**
+ * @summary Save any subset of onboarding fields (called progressively per step)
+ */
+export const SaveOnboardingBody = zod.object({
+  name: zod.string().optional(),
+  onboardingCompleted: zod.boolean().optional(),
+  firstCallCompleted: zod.boolean().optional(),
+  userIdentity: zod.string().optional(),
+  userPriorities: zod.string().optional(),
+  userWantsMore: zod.string().optional(),
+  userWantsLess: zod.string().optional(),
+  userMotivation: zod.string().optional(),
+  biologicalSex: zod.string().optional(),
+  age: zod.number().nullish(),
+  wearableDevice: zod.string().optional(),
+  workoutDaysPerWeek: zod.number().nullish(),
+  dietType: zod.string().optional(),
+  wakeTime: zod.string().optional(),
+  bedTime: zod.string().optional(),
+  workSchedule: zod.string().optional(),
+  phoneNumber: zod.string().nullish(),
+  preferredCallTime: zod.string().optional(),
+  callTimezone: zod.string().optional(),
+  callsEnabled: zod.boolean().optional(),
+});
+
+export const SaveOnboardingResponse = zod.object({
+  ok: zod.boolean(),
+});

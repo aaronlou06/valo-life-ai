@@ -223,3 +223,38 @@ export interface Dashboard {
   workStatus: string;
   relationshipStatus: string;
 }
+
+export interface OnboardingStatus {
+  onboardingCompleted: boolean;
+  firstCallCompleted: boolean;
+}
+
+export interface OnboardingSaveInput {
+  name?: string;
+  onboardingCompleted?: boolean;
+  firstCallCompleted?: boolean;
+  userIdentity?: string;
+  userPriorities?: string;
+  userWantsMore?: string;
+  userWantsLess?: string;
+  userMotivation?: string;
+  biologicalSex?: string;
+  /** @nullable */
+  age?: number | null;
+  wearableDevice?: string;
+  /** @nullable */
+  workoutDaysPerWeek?: number | null;
+  dietType?: string;
+  wakeTime?: string;
+  bedTime?: string;
+  workSchedule?: string;
+  /** @nullable */
+  phoneNumber?: string | null;
+  preferredCallTime?: string;
+  callTimezone?: string;
+  callsEnabled?: boolean;
+}
+
+export type SaveOnboarding200 = {
+  ok: boolean;
+};

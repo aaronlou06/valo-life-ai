@@ -35,6 +35,9 @@ import type {
   LogEntryInput,
   MoodEntry,
   MoodInput,
+  OnboardingSaveInput,
+  OnboardingStatus,
+  SaveOnboarding200,
 } from "./api.schemas";
 
 import { customFetch } from "../custom-fetch";
@@ -1642,3 +1645,164 @@ export function useGetDashboard<
 
   return { ...query, queryKey: queryOptions.queryKey };
 }
+
+/**
+ * @summary Get the current user's onboarding and first-call completion flags
+ */
+export const getGetOnboardingStatusUrl = () => {
+  return `/api/onboarding/status`;
+};
+
+export const getOnboardingStatus = async (
+  options?: RequestInit,
+): Promise<OnboardingStatus> => {
+  return customFetch<OnboardingStatus>(getGetOnboardingStatusUrl(), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetOnboardingStatusQueryKey = () => {
+  return [`/api/onboarding/status`] as const;
+};
+
+export const getGetOnboardingStatusQueryOptions = <
+  TData = Awaited<ReturnType<typeof getOnboardingStatus>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getOnboardingStatus>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetOnboardingStatusQueryKey();
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getOnboardingStatus>>
+  > = ({ signal }) => getOnboardingStatus({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getOnboardingStatus>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetOnboardingStatusQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getOnboardingStatus>>
+>;
+export type GetOnboardingStatusQueryError = ErrorType<unknown>;
+
+/**
+ * @summary Get the current user's onboarding and first-call completion flags
+ */
+
+export function useGetOnboardingStatus<
+  TData = Awaited<ReturnType<typeof getOnboardingStatus>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getOnboardingStatus>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetOnboardingStatusQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Save any subset of onboarding fields (called progressively per step)
+ */
+export const getSaveOnboardingUrl = () => {
+  return `/api/onboarding/save`;
+};
+
+export const saveOnboarding = async (
+  onboardingSaveInput: OnboardingSaveInput,
+  options?: RequestInit,
+): Promise<SaveOnboarding200> => {
+  return customFetch<SaveOnboarding200>(getSaveOnboardingUrl(), {
+    ...options,
+    method: "PATCH",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(onboardingSaveInput),
+  });
+};
+
+export const getSaveOnboardingMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof saveOnboarding>>,
+    TError,
+    { data: BodyType<OnboardingSaveInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof saveOnboarding>>,
+  TError,
+  { data: BodyType<OnboardingSaveInput> },
+  TContext
+> => {
+  const mutationKey = ["saveOnboarding"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof saveOnboarding>>,
+    { data: BodyType<OnboardingSaveInput> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return saveOnboarding(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type SaveOnboardingMutationResult = NonNullable<
+  Awaited<ReturnType<typeof saveOnboarding>>
+>;
+export type SaveOnboardingMutationBody = BodyType<OnboardingSaveInput>;
+export type SaveOnboardingMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Save any subset of onboarding fields (called progressively per step)
+ */
+export const useSaveOnboarding = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof saveOnboarding>>,
+    TError,
+    { data: BodyType<OnboardingSaveInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof saveOnboarding>>,
+  TError,
+  { data: BodyType<OnboardingSaveInput> },
+  TContext
+> => {
+  return useMutation(getSaveOnboardingMutationOptions(options));
+};
