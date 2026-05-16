@@ -13,6 +13,7 @@ import {
   Alert,
   Switch,
 } from "react-native";
+import { router } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
@@ -1469,13 +1470,11 @@ function GoalMenuSheet({
   visible,
   goalTitle,
   onClose,
-  onEdit,
   onDelete,
 }: {
   visible: boolean;
   goalTitle: string;
   onClose: () => void;
-  onEdit: () => void;
   onDelete: () => void;
 }) {
   const colors = useColors();
@@ -1489,235 +1488,9 @@ function GoalMenuSheet({
           <Text numberOfLines={1} style={{ fontSize: 13, color: colors.mutedForeground, fontFamily: "Inter_400Regular", paddingHorizontal: 20, paddingBottom: 12, borderBottomWidth: 1, borderColor: colors.border }}>
             {goalTitle}
           </Text>
-          <TouchableOpacity onPress={onEdit} style={{ flexDirection: "row", alignItems: "center", gap: 14, paddingHorizontal: 20, paddingVertical: 16, borderBottomWidth: 1, borderColor: colors.border }}>
-            <Feather name="edit-2" size={18} color={colors.foreground} />
-            <Text style={{ fontSize: 16, color: colors.foreground, fontFamily: "Inter_500Medium" }}>Edit goal</Text>
-          </TouchableOpacity>
           <TouchableOpacity onPress={onDelete} style={{ flexDirection: "row", alignItems: "center", gap: 14, paddingHorizontal: 20, paddingVertical: 16 }}>
             <Feather name="trash-2" size={18} color="#EF4444" />
             <Text style={{ fontSize: 16, color: "#EF4444", fontFamily: "Inter_500Medium" }}>Delete goal</Text>
-          </TouchableOpacity>
-        </View>
-      </View>
-    </Modal>
-  );
-}
-
-// ─── GoalDetailModal ──────────────────────────────────────────────────────────
-
-type MilestoneItem = { id: number; title: string; completed: boolean };
-
-function GoalDetailModal({
-  goal,
-  visible,
-  onClose,
-  onEdit,
-}: {
-  goal: Goal | null;
-  visible: boolean;
-  onClose: () => void;
-  onEdit: () => void;
-}) {
-  const colors = useColors();
-  const insets = useSafeAreaInsets();
-  const queryClient = useQueryClient();
-  const updateGoal = useUpdateGoal();
-
-  const [milestones, setMilestones] = useState<MilestoneItem[]>([]);
-  const [localProgress, setLocalProgress] = useState(0);
-
-  useEffect(() => {
-    if (!goal) return;
-    const g = goal as any;
-    setLocalProgress(goal.progressPercent);
-    if (g.goalType === "milestone" && g.milestones) {
-      try { setMilestones(JSON.parse(g.milestones)); } catch { setMilestones([]); }
-    } else {
-      setMilestones([]);
-    }
-  }, [goal]);
-
-  const toggleMilestone = async (itemId: number) => {
-    if (!goal) return;
-    const updated = milestones.map((m) => m.id === itemId ? { ...m, completed: !m.completed } : m);
-    const pct = updated.length > 0 ? Math.round(updated.filter((m) => m.completed).length / updated.length * 100) : 0;
-    setMilestones(updated);
-    setLocalProgress(pct);
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    try {
-      await updateGoal.mutateAsync({ id: goal.id, data: { milestones: JSON.stringify(updated), progressPercent: pct } });
-      queryClient.invalidateQueries({ queryKey: getListGoalsQueryKey() });
-    } catch { /* revert on error */ }
-  };
-
-  if (!goal) return null;
-
-  const g = goal as any;
-  const typeInfo = GOAL_TYPES.find((t) => t.type === g.goalType);
-
-  let readinessDates: { prepStart?: string; prepEnd?: string; eventDate?: string } | null = null;
-  if (g.goalType === "readiness" && goal.targetDate) {
-    try { readinessDates = JSON.parse(goal.targetDate); } catch { /* ignore */ }
-  }
-
-  const deadline = g.goalType !== "readiness" ? goal.targetDate ?? null : null;
-
-  const CAT_COLORS: Record<string, string> = {
-    health: "#10B981", work: "#3B82F6", relationships: "#EC4899",
-    learning: "#F59E0B", finance: "#8B5CF6", personal: "#6B7280",
-    fitness: "#EF4444", creative: "#14B8A6",
-  };
-  const catColor = CAT_COLORS[goal.category ?? "personal"] ?? "#6B7280";
-
-  return (
-    <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
-      <View style={{ flex: 1, backgroundColor: colors.background }}>
-        <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 20, paddingTop: insets.top + 16, paddingBottom: 12, borderBottomWidth: 1, borderColor: colors.border }}>
-          <TouchableOpacity onPress={onClose} style={{ width: 36, height: 36, justifyContent: "center", alignItems: "center" }}>
-            <Feather name="x" size={20} color={colors.mutedForeground} />
-          </TouchableOpacity>
-          <Text style={{ fontSize: 16, color: colors.foreground, fontFamily: "Inter_600SemiBold" }}>Goal</Text>
-          <View style={{ width: 36 }} />
-        </View>
-
-        <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 20, paddingBottom: insets.bottom + 120 }}>
-          <Text style={{ fontSize: 26, lineHeight: 34, color: colors.foreground, fontFamily: "Inter_700Bold", marginBottom: 14 }}>
-            {goal.title}
-          </Text>
-
-          <View style={{ flexDirection: "row", gap: 8, flexWrap: "wrap", marginBottom: 20 }}>
-            {typeInfo && (
-              <View style={{ flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 20, backgroundColor: colors.primary }}>
-                <Feather name={typeInfo.icon as any} size={12} color={colors.primaryForeground} />
-                <Text style={{ fontSize: 12, color: colors.primaryForeground, fontFamily: "Inter_600SemiBold" }}>{typeInfo.label}</Text>
-              </View>
-            )}
-            {goal.category && (
-              <View style={{ paddingHorizontal: 10, paddingVertical: 5, borderRadius: 20, backgroundColor: catColor + "22", borderWidth: 1, borderColor: catColor + "44" }}>
-                <Text style={{ fontSize: 12, color: catColor, fontFamily: "Inter_600SemiBold" }}>{goal.category.charAt(0).toUpperCase() + goal.category.slice(1)}</Text>
-              </View>
-            )}
-          </View>
-
-          <View style={{ marginBottom: 20 }}>
-            <View style={{ flexDirection: "row", justifyContent: "space-between", marginBottom: 8 }}>
-              <Text style={{ fontSize: 13, color: colors.mutedForeground, fontFamily: "Inter_500Medium" }}>Progress</Text>
-              <Text style={{ fontSize: 13, color: colors.primary, fontFamily: "Inter_600SemiBold" }}>{localProgress}%</Text>
-            </View>
-            <View style={{ height: 8, borderRadius: 4, backgroundColor: colors.muted, overflow: "hidden" }}>
-              <View style={{ width: `${localProgress}%` as any, height: 8, backgroundColor: colors.primary, borderRadius: 4 }} />
-            </View>
-          </View>
-
-          {deadline ? (
-            <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 16, padding: 12, borderRadius: 10, backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border }}>
-              <Feather name="calendar" size={14} color={colors.mutedForeground} />
-              <Text style={{ fontSize: 14, color: colors.mutedForeground, fontFamily: "Inter_400Regular" }}>
-                Deadline: {formatDateDisplay(deadline)}
-              </Text>
-            </View>
-          ) : null}
-
-          {g.notes ? (
-            <View style={{ marginBottom: 20, padding: 14, borderRadius: 10, backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border }}>
-              <Text style={{ fontSize: 11, color: colors.mutedForeground, fontFamily: "Inter_500Medium", letterSpacing: 0.6, textTransform: "uppercase", marginBottom: 6 }}>Notes</Text>
-              <Text style={{ fontSize: 14, color: colors.foreground, fontFamily: "Inter_400Regular", lineHeight: 21 }}>{g.notes}</Text>
-            </View>
-          ) : null}
-
-          {g.goalType === "milestone" && milestones.length > 0 && (
-            <View style={{ marginBottom: 20 }}>
-              <Text style={{ fontSize: 11, color: colors.mutedForeground, fontFamily: "Inter_500Medium", letterSpacing: 0.6, textTransform: "uppercase", marginBottom: 10 }}>Steps</Text>
-              <View style={{ gap: 4 }}>
-                {milestones.map((m) => {
-                  const prefix = `${goal.title} - `;
-                  const label = m.title.startsWith(prefix) ? m.title.slice(prefix.length) : m.title;
-                  return (
-                    <TouchableOpacity key={m.id} onPress={() => toggleMilestone(m.id)} style={{ flexDirection: "row", alignItems: "center", gap: 12, paddingVertical: 11, paddingHorizontal: 14, borderRadius: 10, backgroundColor: colors.card, borderWidth: 1, borderColor: m.completed ? colors.primary + "40" : colors.border }}>
-                      <View style={{ width: 22, height: 22, borderRadius: 6, borderWidth: 1.5, borderColor: m.completed ? colors.primary : colors.border, backgroundColor: m.completed ? colors.primary : "transparent", justifyContent: "center", alignItems: "center" }}>
-                        {m.completed && <Feather name="check" size={13} color={colors.primaryForeground} />}
-                      </View>
-                      <Text style={{ flex: 1, fontSize: 14, color: m.completed ? colors.mutedForeground : colors.foreground, fontFamily: m.completed ? "Inter_400Regular" : "Inter_500Medium", textDecorationLine: m.completed ? "line-through" : "none" }}>
-                        {label}
-                      </Text>
-                    </TouchableOpacity>
-                  );
-                })}
-              </View>
-            </View>
-          )}
-
-          {["measurement", "performance", "quota"].includes(g.goalType) && (
-            <View style={{ marginBottom: 20, padding: 14, borderRadius: 10, backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border }}>
-              <Text style={{ fontSize: 11, color: colors.mutedForeground, fontFamily: "Inter_500Medium", letterSpacing: 0.6, textTransform: "uppercase", marginBottom: 8 }}>Progress</Text>
-              <Text style={{ fontSize: 15, color: colors.foreground, fontFamily: "Inter_600SemiBold", marginBottom: 10 }}>
-                {g.currentValue ?? "?"} → {g.targetValue ?? "?"}{g.unit ? ` ${g.unit}` : ""}
-              </Text>
-              <View style={{ height: 8, borderRadius: 4, backgroundColor: colors.muted, overflow: "hidden" }}>
-                <View style={{ width: `${localProgress}%` as any, height: 8, backgroundColor: colors.primary, borderRadius: 4 }} />
-              </View>
-            </View>
-          )}
-
-          {g.goalType === "consistency" && (
-            <View style={{ marginBottom: 20, padding: 14, borderRadius: 10, backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border }}>
-              <Text style={{ fontSize: 11, color: colors.mutedForeground, fontFamily: "Inter_500Medium", letterSpacing: 0.6, textTransform: "uppercase", marginBottom: 6 }}>Frequency</Text>
-              <Text style={{ fontSize: 20, color: colors.foreground, fontFamily: "Inter_700Bold" }}>{g.targetValue}x per week</Text>
-            </View>
-          )}
-
-          {g.goalType === "readiness" && readinessDates && (
-            <View style={{ marginBottom: 20, padding: 14, borderRadius: 10, backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border, gap: 10 }}>
-              <Text style={{ fontSize: 11, color: colors.mutedForeground, fontFamily: "Inter_500Medium", letterSpacing: 0.6, textTransform: "uppercase" }}>Event Timeline</Text>
-              {readinessDates.prepStart ? (
-                <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-                  <Feather name="calendar" size={13} color={colors.mutedForeground} />
-                  <Text style={{ fontSize: 14, color: colors.mutedForeground, fontFamily: "Inter_400Regular" }}>Prep starts: {formatDateDisplay(readinessDates.prepStart)}</Text>
-                </View>
-              ) : null}
-              {readinessDates.prepEnd ? (
-                <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-                  <Feather name="calendar" size={13} color={colors.mutedForeground} />
-                  <Text style={{ fontSize: 14, color: colors.mutedForeground, fontFamily: "Inter_400Regular" }}>Prep ends: {formatDateDisplay(readinessDates.prepEnd)}</Text>
-                </View>
-              ) : null}
-              {readinessDates.eventDate ? (
-                <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-                  <Feather name="flag" size={13} color={colors.primary} />
-                  <Text style={{ fontSize: 14, color: colors.foreground, fontFamily: "Inter_500Medium" }}>Event: {formatDateDisplay(readinessDates.eventDate)}</Text>
-                </View>
-              ) : null}
-            </View>
-          )}
-
-          {g.goalType === "leveling" && g.tiers ? (
-            <View style={{ marginBottom: 20 }}>
-              <Text style={{ fontSize: 11, color: colors.mutedForeground, fontFamily: "Inter_500Medium", letterSpacing: 0.6, textTransform: "uppercase", marginBottom: 10 }}>Tiers</Text>
-              <View style={{ gap: 6 }}>
-                {(() => { try { return JSON.parse(g.tiers) as string[]; } catch { return [] as string[]; } })().map((tier: string, i: number) => (
-                  <View key={i} style={{ flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 9, paddingHorizontal: 14, borderRadius: 10, backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border }}>
-                    <Text style={{ fontSize: 12, color: colors.mutedForeground, fontFamily: "Inter_400Regular", width: 20 }}>{i + 1}.</Text>
-                    <Text style={{ fontSize: 14, color: colors.foreground, fontFamily: "Inter_500Medium" }}>{tier}</Text>
-                  </View>
-                ))}
-              </View>
-            </View>
-          ) : null}
-
-          {g.goalType === "avoidance" ? (
-            <View style={{ marginBottom: 20, padding: 14, borderRadius: 10, backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border }}>
-              <Text style={{ fontSize: 11, color: colors.mutedForeground, fontFamily: "Inter_500Medium", letterSpacing: 0.6, textTransform: "uppercase", marginBottom: 6 }}>Limit</Text>
-              <Text style={{ fontSize: 20, color: colors.foreground, fontFamily: "Inter_700Bold" }}>
-                {g.avoidanceLimit === 0 ? "Full elimination" : `Max ${g.avoidanceLimit}/week`}
-              </Text>
-            </View>
-          ) : null}
-        </ScrollView>
-
-        <View style={{ position: "absolute", bottom: 0, left: 0, right: 0, padding: 20, paddingBottom: insets.bottom + 20, backgroundColor: colors.background, borderTopWidth: 1, borderColor: colors.border }}>
-          <TouchableOpacity onPress={onEdit} style={{ flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, backgroundColor: colors.primary, borderRadius: 14, paddingVertical: 14 }} activeOpacity={0.8}>
-            <Feather name="edit-2" size={16} color={colors.primaryForeground} />
-            <Text style={{ fontSize: 16, color: colors.primaryForeground, fontFamily: "Inter_600SemiBold" }}>Edit goal</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -1743,8 +1516,6 @@ export default function GoalsScreen() {
   const [newHabitName, setNewHabitName] = useState("");
   const [showHabitInput, setShowHabitInput] = useState(false);
   const [menuGoal, setMenuGoal] = useState<Goal | null>(null);
-  const [detailGoal, setDetailGoal] = useState<Goal | null>(null);
-  const [editingGoal, setEditingGoal] = useState<Goal | null>(null);
 
   const topPad = Platform.OS === "web" ? Math.max(insets.top, 67) : insets.top;
   const bottomPad = Platform.OS === "web" ? 34 : insets.bottom;
@@ -1769,13 +1540,6 @@ export default function GoalsScreen() {
     queryClient.invalidateQueries({ queryKey: getListGoalsQueryKey() });
   }, [queryClient]);
 
-  const handleGoalMenuEdit = useCallback(() => {
-    const target = menuGoal;
-    setMenuGoal(null);
-    if (!target) return;
-    setTimeout(() => { setEditingGoal(target); setShowModal(true); }, 350);
-  }, [menuGoal]);
-
   const handleGoalMenuDelete = useCallback(() => {
     const target = menuGoal;
     setMenuGoal(null);
@@ -1795,33 +1559,18 @@ export default function GoalsScreen() {
     }, 350);
   }, [menuGoal, deleteGoal, queryClient]);
 
-  const handleDetailEdit = useCallback(() => {
-    const target = detailGoal;
-    setDetailGoal(null);
-    if (!target) return;
-    setTimeout(() => { setEditingGoal(target); setShowModal(true); }, 350);
-  }, [detailGoal]);
-
   return (
     <>
       <GoalCreationModal
         visible={showModal}
-        onClose={() => { setShowModal(false); setEditingGoal(null); }}
+        onClose={() => setShowModal(false)}
         onSuccess={handleGoalSuccess}
-        editingGoal={editingGoal}
       />
       <GoalMenuSheet
         visible={menuGoal !== null}
         goalTitle={menuGoal?.title ?? ""}
         onClose={() => setMenuGoal(null)}
-        onEdit={handleGoalMenuEdit}
         onDelete={handleGoalMenuDelete}
-      />
-      <GoalDetailModal
-        goal={detailGoal}
-        visible={detailGoal !== null}
-        onClose={() => setDetailGoal(null)}
-        onEdit={handleDetailEdit}
       />
       <ScrollView
         style={{ flex: 1, backgroundColor: colors.background }}
@@ -1853,7 +1602,7 @@ export default function GoalsScreen() {
               <TouchableOpacity
                 key={goal.id}
                 style={[styles.goalCard, { backgroundColor: colors.card, borderColor: colors.border }]}
-                onPress={() => setDetailGoal(goal)}
+                onPress={() => router.push(`/goal/${goal.id}`)}
                 activeOpacity={0.85}
               >
                 <View style={styles.goalHeader}>

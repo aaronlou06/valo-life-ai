@@ -1,0 +1,51 @@
+"Create a new file app/goal/[id].tsx — a full goal detail screen that opens when a user taps a goal card. Everything on this screen should be editable inline.
+Navigation:
+In app/(tabs)/goals_insights.tsx, make each goal card tappable (wrap in TouchableOpacity). On tap, navigate to app/goal/[id] using router.push('/goal/' + goal.id). Keep the three dots menu for Delete only — remove the Edit option since editing now happens on the detail page.
+Goal detail screen (app/goal/[id].tsx):
+Fetch the goal by ID from GET /api/goals, filter by id from route params. Use a ScrollView. All edits auto-save via PATCH /api/goals/:id when the user finishes editing a field (onBlur or on toggle).
+Header:
+
+Back arrow top left, calls router.back()
+Goal title — tappable, opens inline text edit on tap. Shows a text input when editing, saves on blur.
+Type badge and category badge in a row — tapping category opens a horizontal chip selector to change it
+Muted subtitle showing goal type name
+
+Progress section (editable):
+
+For all types: progress bar with percentage. Percentage auto-calculates based on type where possible, or shows a manual +/- stepper to adjust it.
+Milestone: Checklist of sub-tasks parsed from milestones JSON. Each row has:
+
+Tappable checkbox to mark complete/incomplete
+Sub-task name (tappable to edit inline)
+Due date (tappable to open date picker)
+Delete button (swipe or trash icon)
+At the bottom: '+ Add step' button to add new sub-tasks
+Progress auto-calculates as completed/total * 100
+
+
+Track a Number / Beat My Best: Show current value and target value. Current value has a large tappable number — tap to edit inline with a numeric keyboard. Target value also editable. Unit editable. Direction toggle (Increase/Decrease).
+Show Up (Consistency): Show current streak (pulled from linked habit if exists, otherwise manual). Target frequency editable (1-7 per week stepper).
+Hit a Total (Quota): Current total editable (tap to edit), target total editable, unit editable.
+Level Up: Show tier list. Current tier highlighted. Tap any tier to set it as current. Tier names editable inline. Add/remove tiers with +/trash buttons.
+Cut It Out (Avoidance): Show days clean (manually editable). Weekly limit stepper (0-7). Reset button that sets days clean back to 0.
+Event Prep (Readiness): Show countdown to event date. Prep start, prep end, event date all editable via date picker tapping.
+
+Details section (all editable):
+
+Deadline — tappable, opens date picker with optional time
+Notes — tappable multiline text area, saves on blur
+Linked habits — list of linked habits with ability to unlink. '+ Link a habit' button that shows existing habits to pick from.
+
+Delete goal:
+
+Red 'Delete goal' button at the very bottom
+Confirmation alert before deleting
+On confirm: delete and navigate back
+
+Auto-save behavior:
+
+Show a subtle 'Saved' checkmark briefly after each save
+Show a subtle 'Saving...' indicator while a PATCH is in flight
+If save fails, show a small red error message
+
+Use the existing color system, Inter fonts, and match the visual style of the rest of the app. Handle loading and empty states gracefully."
