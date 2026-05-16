@@ -1,0 +1,78 @@
+"Update all 9 onboarding screens with the exact copy, chip options, and visual design below. Do not change any navigation logic, save logic, or API calls — only update the text, chip labels, input placeholders, and visual styling.
+GLOBAL DESIGN RULES for all onboarding screens:
+- Background: var(--color-background-primary)
+- Progress bar: thin, 3px, amber/gold color, animates between steps
+- The word "Valo" at the top of every screen in small uppercase amber lettering
+- All headings: font-weight 500, not bold, 22px
+- All subheadings: 14px, var(--color-text-secondary), line-height 1.6
+- Chips: 12px font, rounded pill shape, unselected = light border + muted text, selected = amber background + dark amber text
+- Continue button: full width, amber/gold background when enabled, muted when disabled
+- "Skip for now" links: centered, 13px, underlined, var(--color-text-tertiary)
+- Generous vertical spacing between elements — this should feel calm and unhurried
+SCREEN 1 — Identity
+Heading: "Let's start with you."
+Subheading: "Just the basics to get Valo set up."
+Field 1: Label "First name", placeholder "What should Valo call you?"
+Field 2: Label "What kind of person are you trying to become?", placeholder "e.g. Someone my kids can be proud of — or — Someone who's actually disciplined, not just motivated"
+Note below field 2 in small muted text: "Valo will reference this. Be honest — no one else sees it."
+Continue button: disabled until name is entered. Identity field is optional.
+SCREEN 2 — Priorities
+Heading: "What matters most to you right now?"
+Subheading: "Pick up to 3. Valo focuses here first."
+Chips (multi-select, max 3): Health & fitness, Mental clarity, Relationships, Faith & spirituality, Career & purpose, Family, Personal growth, Financial goals
+Continue: enabled after at least 1 selected
+SCREEN 3 — Feelings
+Heading: "What do you want more of? Less of?"
+Subheading: "Tap everything that resonates."
+Section label "MORE OF" above first chip group
+Chips: Energy, Clarity, Purpose, Confidence, Peace, Connection, Motivation, Presence
+Section label "LESS OF" above second chip group
+Chips: Stress, Anxiety, Distraction, Fatigue, Guilt, Overwhelm, Reactivity, Isolation
+Both sections are multi-select with no maximum. Continue always enabled.
+Remove the text area inputs entirely — replace with chip selectors for both sections.
+SCREEN 4 — Motivation
+Heading: "What keeps you going when things get hard?"
+Subheading: "Valo will use your own words to encourage you on difficult days."
+Single large text input, min-height 100px, placeholder: "e.g. My family. Or — I refuse to be the person I used to be. Or — Knowing I'll regret it if I don't."
+Small muted note below: "This goes directly to Valo — it will remember it."
+Continue: always enabled. Field is optional.
+SCREEN 5 — Bio
+Heading: "A little about your body."
+Subheading: "This helps Valo calibrate health benchmarks accurately."
+Field 1: Label "Age", number input, placeholder "Your age"
+Chips for biological sex — label "Biological sex": Male, Female, Prefer not to say
+Small muted note: "Used for HRV and sleep benchmarks only."
+Continue: always enabled.
+SCREEN 6 — Fitness
+Heading: "Tell Valo about your fitness baseline."
+Subheading: "This helps set expectations for workouts and recovery."
+Stepper for workout days: label "How many days a week do you typically work out?", 0 through 7, default 3
+Chip selector label "Do you use a wearable device?": Apple Watch, Garmin, Whoop, Oura Ring, Fitbit, None
+Continue: always enabled.
+SCREEN 7 — Diet
+Heading: "How do you eat?"
+Subheading: "Valo uses this to give better nutrition context."
+Single-select chips: No specific plan, High protein, Keto / low carb, Intermittent fasting, Plant based, Paleo, Gluten free
+Default selection: No specific plan
+Continue: always enabled.
+SCREEN 8 — Rhythm
+Heading: "What does your typical day look like?"
+Subheading: "This helps Valo know when to check in and what to expect."
+Time picker 1: label "I usually wake up around", default 6:30 AM
+Time picker 2: label "I usually go to bed around", default 10:30 PM
+Chip selector label "Work schedule": Regular hours, Shift work, Self-employed, Varies
+Continue: always enabled.
+SCREEN 9 — Evening debrief setup
+Heading: "When should Valo call you each evening?"
+Subheading: "This is the most important setting. Valo will call you at this time every day."
+Time picker: label "Daily check-in time", default 8:30 PM
+Phone number input: label "Your phone number", placeholder "+1 (555) 000-0000", note below "Valo calls this number. It is never shared."
+Toggle: label "Enable daily calls", default on
+"Skip for now" link below Continue button
+Continue / Finish button: always enabled
+WELCOME SCREEN after step 9:
+Large centered heading: "You're all set, [name]."
+Subtext: "Valo will call you tonight at [their chosen time]. Until then, your Today screen is already personalized."
+Second line of subtext: "The more you talk to Valo, the better it knows you."
+Single button: "Go to Today" — routes to the Today tab
+Remove the three feature bullets entirely — keep it clean and simple."

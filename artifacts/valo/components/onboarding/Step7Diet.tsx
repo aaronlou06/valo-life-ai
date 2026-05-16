@@ -4,14 +4,13 @@ import { useColors } from "@/hooks/useColors";
 import ChipSelector from "./ChipSelector";
 
 const DIET_OPTIONS = [
-  "Omnivore",
-  "Vegetarian",
-  "Vegan",
-  "Keto",
-  "Paleo",
-  "Gluten-free",
+  "No specific plan",
+  "High protein",
+  "Keto / low carb",
   "Intermittent fasting",
-  "Other",
+  "Plant based",
+  "Paleo",
+  "Gluten free",
 ];
 
 interface Props {
@@ -21,7 +20,9 @@ interface Props {
 
 export default function Step7Diet({ initialValue, onChange }: Props) {
   const colors = useColors();
-  const [dietType, setDietType] = useState<string>(initialValue.dietType ?? "");
+  const [dietType, setDietType] = useState<string>(
+    initialValue.dietType ?? "No specific plan"
+  );
 
   useEffect(() => {
     onChange({ dietType }, true);
@@ -33,15 +34,16 @@ export default function Step7Diet({ initialValue, onChange }: Props) {
 
   return (
     <View style={styles.container}>
-      <View style={styles.bubble}>
-        <Text style={[styles.valoLabel, { color: colors.primary, fontFamily: "Inter_600SemiBold" }]}>
-          Valo
-        </Text>
-        <Text style={[styles.question, { color: colors.foreground, fontFamily: "Inter_700Bold" }]}>
+      <Text style={[styles.valoLabel, { color: colors.primary, fontFamily: "Inter_500Medium" }]}>
+        VALO
+      </Text>
+
+      <View style={styles.headingBlock}>
+        <Text style={[styles.heading, { color: colors.foreground, fontFamily: "Inter_500Medium" }]}>
           How do you eat?
         </Text>
-        <Text style={[styles.subtext, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
-          Helps Valo read your energy and recovery patterns.
+        <Text style={[styles.subheading, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
+          Valo uses this to give better nutrition context.
         </Text>
       </View>
 
@@ -51,19 +53,14 @@ export default function Step7Diet({ initialValue, onChange }: Props) {
         onSelect={handleSelect}
         colors={colors}
       />
-
-      <Text style={[styles.optional, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
-        Optional — you can update this anytime.
-      </Text>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: { gap: 28 },
-  bubble: { gap: 10 },
-  valoLabel: { fontSize: 13, letterSpacing: 0.5 },
-  question: { fontSize: 26, lineHeight: 34 },
-  subtext: { fontSize: 15, lineHeight: 22 },
-  optional: { fontSize: 13 },
+  valoLabel: { fontSize: 11, letterSpacing: 1.5 },
+  headingBlock: { gap: 8 },
+  heading: { fontSize: 22, lineHeight: 30 },
+  subheading: { fontSize: 14, lineHeight: 22 },
 });

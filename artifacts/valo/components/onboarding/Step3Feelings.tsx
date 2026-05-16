@@ -1,6 +1,17 @@
 import React, { useState, useEffect } from "react";
-import { View, Text, TextInput, StyleSheet } from "react-native";
+import { View, Text, StyleSheet } from "react-native";
 import { useColors } from "@/hooks/useColors";
+import ChipSelector from "./ChipSelector";
+
+const MORE_OPTIONS = [
+  "Energy", "Clarity", "Purpose", "Confidence",
+  "Peace", "Connection", "Motivation", "Presence",
+];
+
+const LESS_OPTIONS = [
+  "Stress", "Anxiety", "Distraction", "Fatigue",
+  "Guilt", "Overwhelm", "Reactivity", "Isolation",
+];
 
 interface Props {
   initialValue: Record<string, any>;
@@ -9,59 +20,76 @@ interface Props {
 
 export default function Step3Feelings({ initialValue, onChange }: Props) {
   const colors = useColors();
-  const [more, setMore] = useState<string>(initialValue.userWantsMore ?? "");
-  const [less, setLess] = useState<string>(initialValue.userWantsLess ?? "");
+
+  const [moreSelected, setMoreSelected] = useState<string[]>(() => {
+    const raw = initialValue.userWantsMore ?? "";
+    return raw ? raw.split(",").map((s: string) => s.trim()).filter(Boolean) : [];
+  });
+
+  const [lessSelected, setLessSelected] = useState<string[]>(() => {
+    const raw = initialValue.userWantsLess ?? "";
+    return raw ? raw.split(",").map((s: string) => s.trim()).filter(Boolean) : [];
+  });
 
   useEffect(() => {
-    const valid = more.trim().length > 0 || less.trim().length > 0;
-    onChange({ userWantsMore: more.trim(), userWantsLess: less.trim() }, valid);
-  }, [more, less]);
+    onChange(
+      {
+        userWantsMore: moreSelected.join(", "),
+        userWantsLess: lessSelected.join(", "),
+      },
+      true
+    );
+  }, [moreSelected, lessSelected]);
+
+  const toggleMore = (opt: string) =>
+    setMoreSelected((prev) =>
+      prev.includes(opt) ? prev.filter((x) => x !== opt) : [...prev, opt]
+    );
+
+  const toggleLess = (opt: string) =>
+    setLessSelected((prev) =>
+      prev.includes(opt) ? prev.filter((x) => x !== opt) : [...prev, opt]
+    );
 
   return (
     <View style={styles.container}>
-      <View style={styles.bubble}>
-        <Text style={[styles.valoLabel, { color: colors.primary, fontFamily: "Inter_600SemiBold" }]}>
-          Valo
+      <Text style={[styles.valoLabel, { color: colors.primary, fontFamily: "Inter_500Medium" }]}>
+        VALO
+      </Text>
+
+      <View style={styles.headingBlock}>
+        <Text style={[styles.heading, { color: colors.foreground, fontFamily: "Inter_500Medium" }]}>
+          What do you want more of? Less of?
         </Text>
-        <Text style={[styles.question, { color: colors.foreground, fontFamily: "Inter_700Bold" }]}>
-          {"What do you want more of —\nand less of?"}
-        </Text>
-        <Text style={[styles.subtext, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
-          Valo will track these as you grow.
+        <Text style={[styles.subheading, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
+          Tap everything that resonates.
         </Text>
       </View>
 
-      <View style={styles.fields}>
-        <View>
-          <Text style={[styles.fieldLabel, { color: colors.mutedForeground, fontFamily: "Inter_500Medium" }]}>
-            MORE OF
-          </Text>
-          <TextInput
-            value={more}
-            onChangeText={setMore}
-            placeholder="Focus, joy, presence, connection..."
-            placeholderTextColor={colors.mutedForeground}
-            autoFocus
-            multiline
-            numberOfLines={3}
-            style={[styles.textarea, { color: colors.foreground, borderColor: colors.border, backgroundColor: colors.card, fontFamily: "Inter_400Regular" }]}
-          />
-        </View>
+      <View style={styles.section}>
+        <Text style={[styles.sectionLabel, { color: colors.mutedForeground, fontFamily: "Inter_500Medium" }]}>
+          MORE OF
+        </Text>
+        <ChipSelector
+          options={MORE_OPTIONS}
+          selected={moreSelected}
+          onSelect={toggleMore}
+          multi
+          colors={colors}
+        />
+      </View>
 
-        <View>
-          <Text style={[styles.fieldLabel, { color: colors.mutedForeground, fontFamily: "Inter_500Medium" }]}>
-            LESS OF
-          </Text>
-          <TextInput
-            value={less}
-            onChangeText={setLess}
-            placeholder="Stress, distraction, overthinking..."
-            placeholderTextColor={colors.mutedForeground}
-            multiline
-            numberOfLines={3}
-            style={[styles.textarea, { color: colors.foreground, borderColor: colors.border, backgroundColor: colors.card, fontFamily: "Inter_400Regular" }]}
-          />
-        </View>
+      <View style={styles.section}>
+        <Text style={[styles.sectionLabel, { color: colors.mutedForeground, fontFamily: "Inter_500Medium" }]}>
+          LESS OF
+        </Text>
+        <ChipSelector
+          options={LESS_OPTIONS}
+          selected={lessSelected}
+          onSelect={toggleLess}
+          multi
+          colors={colors}
+        />
       </View>
     </View>
   );
@@ -69,20 +97,10 @@ export default function Step3Feelings({ initialValue, onChange }: Props) {
 
 const styles = StyleSheet.create({
   container: { gap: 28 },
-  bubble: { gap: 10 },
-  valoLabel: { fontSize: 13, letterSpacing: 0.5 },
-  question: { fontSize: 26, lineHeight: 34 },
-  subtext: { fontSize: 15, lineHeight: 22 },
-  fields: { gap: 18 },
-  fieldLabel: { fontSize: 11, letterSpacing: 0.8, marginBottom: 8 },
-  textarea: {
-    minHeight: 80,
-    borderWidth: 1,
-    borderRadius: 14,
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    fontSize: 16,
-    lineHeight: 24,
-    textAlignVertical: "top",
-  },
+  valoLabel: { fontSize: 11, letterSpacing: 1.5 },
+  headingBlock: { gap: 8 },
+  heading: { fontSize: 22, lineHeight: 30 },
+  subheading: { fontSize: 14, lineHeight: 22 },
+  section: { gap: 12 },
+  sectionLabel: { fontSize: 11, letterSpacing: 0.8 },
 });

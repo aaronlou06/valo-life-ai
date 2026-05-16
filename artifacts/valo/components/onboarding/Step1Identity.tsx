@@ -18,50 +18,66 @@ export default function Step1Identity({ initialValue, onChange }: Props) {
 
   return (
     <View style={styles.container}>
-      <View style={styles.bubble}>
-        <Text style={[styles.valoLabel, { color: colors.primary, fontFamily: "Inter_600SemiBold" }]}>
-          Valo
+      <Text style={[styles.valoLabel, { color: colors.primary, fontFamily: "Inter_500Medium" }]}>
+        VALO
+      </Text>
+
+      <View style={styles.headingBlock}>
+        <Text style={[styles.heading, { color: colors.foreground, fontFamily: "Inter_500Medium" }]}>
+          Let's start with you.
         </Text>
-        <Text style={[styles.question, { color: colors.foreground, fontFamily: "Inter_700Bold" }]}>
-          {"Hi, I'm Valo — your personal AI companion.\n\nWhat's your name?"}
+        <Text style={[styles.subheading, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
+          Just the basics to get Valo set up.
         </Text>
       </View>
 
-      <TextInput
-        value={name}
-        onChangeText={setName}
-        placeholder="Your first name"
-        placeholderTextColor={colors.mutedForeground}
-        autoFocus
-        returnKeyType="next"
-        style={[styles.input, { color: colors.foreground, borderColor: colors.border, backgroundColor: colors.card, fontFamily: "Inter_400Regular" }]}
-      />
+      <View style={styles.fields}>
+        <View style={styles.fieldGroup}>
+          <Text style={[styles.fieldLabel, { color: colors.mutedForeground, fontFamily: "Inter_500Medium" }]}>
+            First name
+          </Text>
+          <TextInput
+            value={name}
+            onChangeText={setName}
+            placeholder="What should Valo call you?"
+            placeholderTextColor={colors.mutedForeground}
+            autoFocus
+            returnKeyType="next"
+            style={[styles.input, { color: colors.foreground, borderColor: colors.border, backgroundColor: colors.card, fontFamily: "Inter_400Regular" }]}
+          />
+        </View>
 
-      <View style={styles.secondBubble}>
-        <Text style={[styles.subQuestion, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
-          And what kind of person are you working to become?
-        </Text>
-        <TextInput
-          value={userIdentity}
-          onChangeText={setUserIdentity}
-          placeholder="Someone who shows up with intention and builds something real..."
-          placeholderTextColor={colors.mutedForeground}
-          multiline
-          numberOfLines={4}
-          style={[styles.textarea, { color: colors.foreground, borderColor: colors.border, backgroundColor: colors.card, fontFamily: "Inter_400Regular" }]}
-        />
+        <View style={styles.fieldGroup}>
+          <Text style={[styles.fieldLabel, { color: colors.mutedForeground, fontFamily: "Inter_500Medium" }]}>
+            What kind of person are you trying to become?
+          </Text>
+          <TextInput
+            value={userIdentity}
+            onChangeText={setUserIdentity}
+            placeholder={"e.g. Someone my kids can be proud of — or — Someone who's actually disciplined, not just motivated"}
+            placeholderTextColor={colors.mutedForeground}
+            multiline
+            numberOfLines={4}
+            style={[styles.textarea, { color: colors.foreground, borderColor: colors.border, backgroundColor: colors.card, fontFamily: "Inter_400Regular" }]}
+          />
+          <Text style={[styles.note, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
+            Valo will reference this. Be honest — no one else sees it.
+          </Text>
+        </View>
       </View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { gap: 24 },
-  bubble: { gap: 10 },
-  valoLabel: { fontSize: 13, letterSpacing: 0.5 },
-  question: { fontSize: 26, lineHeight: 34 },
-  secondBubble: { gap: 12 },
-  subQuestion: { fontSize: 15, lineHeight: 22 },
+  container: { gap: 28 },
+  valoLabel: { fontSize: 11, letterSpacing: 1.5 },
+  headingBlock: { gap: 8 },
+  heading: { fontSize: 22, lineHeight: 30 },
+  subheading: { fontSize: 14, lineHeight: 22 },
+  fields: { gap: 24 },
+  fieldGroup: { gap: 10 },
+  fieldLabel: { fontSize: 13, lineHeight: 18 },
   input: {
     height: 52,
     borderWidth: 1,
@@ -75,8 +91,9 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     paddingHorizontal: 16,
     paddingVertical: 14,
-    fontSize: 16,
-    lineHeight: 24,
+    fontSize: 15,
+    lineHeight: 22,
     textAlignVertical: "top",
   },
+  note: { fontSize: 12, lineHeight: 18 },
 });

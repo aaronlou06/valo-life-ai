@@ -1,13 +1,19 @@
 import React, { useRef, useEffect } from "react";
 import { View, Text, TouchableOpacity, Animated, StyleSheet } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { useColors } from "@/hooks/useColors";
 
 interface Props {
   allData: Record<string, any>;
   onBegin: () => void;
+}
+
+function formatTime(hhmm: string): string {
+  const [h, m] = hhmm.split(":").map(Number);
+  const period = (h ?? 0) >= 12 ? "PM" : "AM";
+  const hour = (h ?? 0) % 12 || 12;
+  return `${hour}:${String(m ?? 0).padStart(2, "0")} ${period}`;
 }
 
 export default function WelcomeScreen({ allData, onBegin }: Props) {
@@ -23,57 +29,35 @@ export default function WelcomeScreen({ allData, onBegin }: Props) {
     ]).start();
   }, []);
 
-  const firstName = (allData.name ?? "").split(" ")[0] || "you";
-  const hasCall = !!(allData.phoneNumber ?? "").trim();
-
-  const bullets = [
-    { icon: "sun" as const, text: "Each evening, Valo will check in on your day" },
-    { icon: "trending-up" as const, text: "Your goals, habits, and mood tracked in one place" },
-    {
-      icon: "phone" as const,
-      text: hasCall
-        ? `Daily call set for ${allData.preferredCallTime ?? "20:00"}`
-        : "Set up your daily call anytime in Settings",
-    },
-  ];
+  const firstName = ((allData.name ?? "") as string).split(" ")[0] || "there";
+  const callTime = allData.preferredCallTime ? formatTime(allData.preferredCallTime as string) : "this evening";
 
   return (
     <View
       style={[
         styles.container,
-        { backgroundColor: colors.background, paddingTop: insets.top + 40, paddingBottom: insets.bottom + 24 },
+        { backgroundColor: colors.background, paddingTop: insets.top + 60, paddingBottom: insets.bottom + 32 },
       ]}
     >
       <Animated.View
         style={[styles.content, { opacity: fadeAnim, transform: [{ translateY: slideAnim }] }]}
       >
-        <View style={[styles.orb, { backgroundColor: colors.primary + "1A" }]}>
-          <View style={[styles.orbInner, { backgroundColor: colors.primary + "33" }]}>
-            <Feather name="sun" size={28} color={colors.primary} />
-          </View>
-        </View>
-
-        <Text style={[styles.title, { color: colors.foreground, fontFamily: "Inter_700Bold" }]}>
-          Valo is ready.
-        </Text>
-        <Text style={[styles.subtitle, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
-          Good to meet you, {firstName}. Here's what comes next.
+        <Text style={[styles.heading, { color: colors.foreground, fontFamily: "Inter_500Medium" }]}>
+          You're all set, {firstName}.
         </Text>
 
-        <View style={styles.bullets}>
-          {bullets.map((item, i) => (
-            <View key={i} style={[styles.bullet, { backgroundColor: colors.card, borderColor: colors.border }]}>
-              <Feather name={item.icon} size={16} color={colors.primary} />
-              <Text style={[styles.bulletText, { color: colors.foreground, fontFamily: "Inter_400Regular" }]}>
-                {item.text}
-              </Text>
-            </View>
-          ))}
+        <View style={styles.subtextBlock}>
+          <Text style={[styles.subtext, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
+            Valo will call you tonight at {callTime}. Until then, your Today screen is already personalized.
+          </Text>
+          <Text style={[styles.subtext, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
+            The more you talk to Valo, the better it knows you.
+          </Text>
         </View>
       </Animated.View>
 
       <TouchableOpacity
-        style={[styles.beginBtn, { backgroundColor: colors.primary, marginHorizontal: 20 }]}
+        style={[styles.beginBtn, { backgroundColor: colors.primary, marginHorizontal: 24 }]}
         onPress={() => {
           Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
           onBegin();
@@ -81,56 +65,29 @@ export default function WelcomeScreen({ allData, onBegin }: Props) {
         activeOpacity={0.85}
       >
         <Text style={[styles.beginText, { color: colors.primaryForeground, fontFamily: "Inter_600SemiBold" }]}>
-          Begin
+          Go to Today
         </Text>
-        <Feather name="arrow-right" size={18} color={colors.primaryForeground} />
       </TouchableOpacity>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1 },
+  container: { flex: 1, justifyContent: "space-between" },
   content: {
     flex: 1,
-    paddingHorizontal: 24,
-    alignItems: "center",
-    gap: 16,
-  },
-  orb: {
-    width: 100,
-    height: 100,
-    borderRadius: 50,
+    paddingHorizontal: 28,
     justifyContent: "center",
-    alignItems: "center",
-    marginBottom: 8,
+    gap: 28,
   },
-  orbInner: {
-    width: 68,
-    height: 68,
-    borderRadius: 34,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  title: { fontSize: 32, textAlign: "center" },
-  subtitle: { fontSize: 16, textAlign: "center", lineHeight: 24, marginBottom: 8 },
-  bullets: { width: "100%", gap: 10 },
-  bullet: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-    padding: 16,
-    borderRadius: 14,
-    borderWidth: 1,
-  },
-  bulletText: { flex: 1, fontSize: 14, lineHeight: 20 },
+  heading: { fontSize: 28, lineHeight: 36 },
+  subtextBlock: { gap: 16 },
+  subtext: { fontSize: 16, lineHeight: 26 },
   beginBtn: {
     height: 56,
     borderRadius: 16,
-    flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    gap: 8,
   },
   beginText: { fontSize: 16 },
 });

@@ -5,7 +5,7 @@ import * as Haptics from "expo-haptics";
 import { useColors } from "@/hooks/useColors";
 import ChipSelector from "./ChipSelector";
 
-const WEARABLE_OPTIONS = ["Apple Watch", "Garmin", "Fitbit", "Oura Ring", "Whoop", "Other", "None"];
+const WEARABLE_OPTIONS = ["Apple Watch", "Garmin", "Whoop", "Oura Ring", "Fitbit", "None"];
 
 interface Props {
   initialValue: Record<string, any>;
@@ -28,24 +28,28 @@ export default function Step6Fitness({ initialValue, onChange }: Props) {
 
   return (
     <View style={styles.container}>
-      <View style={styles.bubble}>
-        <Text style={[styles.valoLabel, { color: colors.primary, fontFamily: "Inter_600SemiBold" }]}>
-          Valo
+      <Text style={[styles.valoLabel, { color: colors.primary, fontFamily: "Inter_500Medium" }]}>
+        VALO
+      </Text>
+
+      <View style={styles.headingBlock}>
+        <Text style={[styles.heading, { color: colors.foreground, fontFamily: "Inter_500Medium" }]}>
+          Tell Valo about your fitness baseline.
         </Text>
-        <Text style={[styles.question, { color: colors.foreground, fontFamily: "Inter_700Bold" }]}>
-          How active are you?
+        <Text style={[styles.subheading, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
+          This helps set expectations for workouts and recovery.
         </Text>
       </View>
 
       <View style={styles.fields}>
         <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
           <Text style={[styles.cardLabel, { color: colors.mutedForeground, fontFamily: "Inter_500Medium" }]}>
-            WORKOUTS PER WEEK
+            How many days a week do you typically work out?
           </Text>
           <View style={styles.stepper}>
             <TouchableOpacity
               onPress={() => bump(-1)}
-              style={[styles.stepBtn, { borderColor: colors.border, opacity: workouts === 0 ? 0.4 : 1 }]}
+              style={[styles.stepBtn, { borderColor: colors.border, opacity: workouts === 0 ? 0.35 : 1 }]}
               disabled={workouts === 0}
             >
               <Feather name="minus" size={18} color={colors.foreground} />
@@ -55,12 +59,12 @@ export default function Step6Fitness({ initialValue, onChange }: Props) {
                 {workouts}
               </Text>
               <Text style={[styles.stepUnit, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
-                {workouts === 1 ? "day" : "days"}
+                {workouts === 1 ? "day / week" : "days / week"}
               </Text>
             </View>
             <TouchableOpacity
               onPress={() => bump(1)}
-              style={[styles.stepBtn, { borderColor: colors.border, opacity: workouts === 7 ? 0.4 : 1 }]}
+              style={[styles.stepBtn, { borderColor: colors.border, opacity: workouts === 7 ? 0.35 : 1 }]}
               disabled={workouts === 7}
             >
               <Feather name="plus" size={18} color={colors.foreground} />
@@ -68,14 +72,14 @@ export default function Step6Fitness({ initialValue, onChange }: Props) {
           </View>
         </View>
 
-        <View>
-          <Text style={[styles.sectionLabel, { color: colors.mutedForeground, fontFamily: "Inter_500Medium" }]}>
-            WEARABLE DEVICE
+        <View style={styles.fieldGroup}>
+          <Text style={[styles.fieldLabel, { color: colors.mutedForeground, fontFamily: "Inter_500Medium" }]}>
+            Do you use a wearable device?
           </Text>
           <ChipSelector
             options={WEARABLE_OPTIONS}
             selected={wearable}
-            onSelect={(opt) => setWearable(prev => prev === opt ? "" : opt)}
+            onSelect={(opt) => setWearable((prev) => (prev === opt ? "" : opt))}
             colors={colors}
           />
         </View>
@@ -86,17 +90,18 @@ export default function Step6Fitness({ initialValue, onChange }: Props) {
 
 const styles = StyleSheet.create({
   container: { gap: 28 },
-  bubble: { gap: 10 },
-  valoLabel: { fontSize: 13, letterSpacing: 0.5 },
-  question: { fontSize: 26, lineHeight: 34 },
+  valoLabel: { fontSize: 11, letterSpacing: 1.5 },
+  headingBlock: { gap: 8 },
+  heading: { fontSize: 22, lineHeight: 30 },
+  subheading: { fontSize: 14, lineHeight: 22 },
   fields: { gap: 24 },
   card: {
     borderRadius: 16,
     borderWidth: 1,
     padding: 20,
-    gap: 16,
+    gap: 18,
   },
-  cardLabel: { fontSize: 11, letterSpacing: 0.8 },
+  cardLabel: { fontSize: 14, lineHeight: 22 },
   stepper: { flexDirection: "row", alignItems: "center", gap: 20 },
   stepBtn: {
     width: 44,
@@ -108,6 +113,7 @@ const styles = StyleSheet.create({
   },
   stepValue: { flex: 1, alignItems: "center" },
   stepNumber: { fontSize: 36, lineHeight: 40 },
-  stepUnit: { fontSize: 13, marginTop: 2 },
-  sectionLabel: { fontSize: 11, letterSpacing: 0.8, marginBottom: 12 },
+  stepUnit: { fontSize: 12, marginTop: 2 },
+  fieldGroup: { gap: 12 },
+  fieldLabel: { fontSize: 13, lineHeight: 18 },
 });

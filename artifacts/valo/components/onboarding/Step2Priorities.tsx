@@ -4,9 +4,17 @@ import { useColors } from "@/hooks/useColors";
 import ChipSelector from "./ChipSelector";
 
 const OPTIONS = [
-  "Health", "Family", "Career", "Fitness", "Relationships",
-  "Creativity", "Learning", "Finance", "Spirituality", "Personal growth",
+  "Health & fitness",
+  "Mental clarity",
+  "Relationships",
+  "Faith & spirituality",
+  "Career & purpose",
+  "Family",
+  "Personal growth",
+  "Financial goals",
 ];
+
+const MAX_SELECT = 3;
 
 interface Props {
   initialValue: Record<string, any>;
@@ -21,27 +29,31 @@ export default function Step2Priorities({ initialValue, onChange }: Props) {
   });
 
   useEffect(() => {
-    const userPriorities = selected.join(", ");
-    onChange({ userPriorities }, selected.length > 0);
+    onChange({ userPriorities: selected.join(", ") }, selected.length > 0);
   }, [selected]);
 
   const toggle = (opt: string) => {
     setSelected((prev) =>
-      prev.includes(opt) ? prev.filter((x) => x !== opt) : [...prev, opt]
+      prev.includes(opt)
+        ? prev.filter((x) => x !== opt)
+        : prev.length >= MAX_SELECT
+        ? prev
+        : [...prev, opt]
     );
   };
 
   return (
     <View style={styles.container}>
-      <View style={styles.bubble}>
-        <Text style={[styles.valoLabel, { color: colors.primary, fontFamily: "Inter_600SemiBold" }]}>
-          Valo
-        </Text>
-        <Text style={[styles.question, { color: colors.foreground, fontFamily: "Inter_700Bold" }]}>
+      <Text style={[styles.valoLabel, { color: colors.primary, fontFamily: "Inter_500Medium" }]}>
+        VALO
+      </Text>
+
+      <View style={styles.headingBlock}>
+        <Text style={[styles.heading, { color: colors.foreground, fontFamily: "Inter_500Medium" }]}>
           What matters most to you right now?
         </Text>
-        <Text style={[styles.subtext, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
-          Choose everything that feels alive for you today.
+        <Text style={[styles.subheading, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
+          Pick up to 3. Valo focuses here first.
         </Text>
       </View>
 
@@ -53,9 +65,9 @@ export default function Step2Priorities({ initialValue, onChange }: Props) {
         colors={colors}
       />
 
-      {selected.length > 0 && (
-        <Text style={[styles.hint, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
-          {selected.length} selected
+      {selected.length >= MAX_SELECT && (
+        <Text style={[styles.maxNote, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
+          Maximum 3 selected. Tap one to remove it.
         </Text>
       )}
     </View>
@@ -64,9 +76,9 @@ export default function Step2Priorities({ initialValue, onChange }: Props) {
 
 const styles = StyleSheet.create({
   container: { gap: 28 },
-  bubble: { gap: 10 },
-  valoLabel: { fontSize: 13, letterSpacing: 0.5 },
-  question: { fontSize: 26, lineHeight: 34 },
-  subtext: { fontSize: 15, lineHeight: 22 },
-  hint: { fontSize: 13 },
+  valoLabel: { fontSize: 11, letterSpacing: 1.5 },
+  headingBlock: { gap: 8 },
+  heading: { fontSize: 22, lineHeight: 30 },
+  subheading: { fontSize: 14, lineHeight: 22 },
+  maxNote: { fontSize: 12, lineHeight: 18 },
 });

@@ -40,7 +40,7 @@ export default function ChipSelector({ options, selected, onSelect, multi = fals
               style={[
                 styles.chipText,
                 {
-                  color: sel ? colors.primaryForeground : colors.foreground,
+                  color: sel ? colors.primaryForeground : colors.mutedForeground,
                   fontFamily: sel ? "Inter_500Medium" : "Inter_400Regular",
                 },
               ]}
@@ -57,10 +57,10 @@ export default function ChipSelector({ options, selected, onSelect, multi = fals
 const styles = StyleSheet.create({
   container: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
   chip: {
-    paddingHorizontal: 16,
-    paddingVertical: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 9,
     borderRadius: 100,
     borderWidth: 1,
   },
-  chipText: { fontSize: 14, lineHeight: 18 },
+  chipText: { fontSize: 12, lineHeight: 16 },
 });
