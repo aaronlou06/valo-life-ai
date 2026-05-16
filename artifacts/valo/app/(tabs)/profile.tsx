@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
   View,
   Text,
@@ -9,10 +9,12 @@ import {
   Alert,
   Modal,
   Platform,
+  Switch,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useColors } from "@/hooks/useColors";
 import { useValoAuth } from "@/contexts/AuthContext";
 import { useListGoals, useListHabits } from "@workspace/api-client-react";
@@ -39,6 +41,8 @@ function getInitials(name: string | null, email: string | null): string {
   return (parts[0]!.charAt(0) + parts[parts.length - 1]!.charAt(0)).toUpperCase();
 }
 
+// ─── Constants ────────────────────────────────────────────────────────────────
+
 const CORE_VALUES = [
   "Faith", "Family", "Health", "Excellence", "Growth",
   "Service", "Integrity", "Freedom", "Creativity", "Leadership",
@@ -62,6 +66,34 @@ const INTEGRATIONS = [
   { key: "superpower", label: "Superpower", icon: "star" },
   { key: "screen-time", label: "Screen Time", icon: "smartphone" },
 ] as const;
+
+// ─── Scroll picker constants (mirrors goals_insights.tsx) ─────────────────────
+
+const PICKER_ITEM_H = 44;
+const PICKER_VISIBLE = 5;
+const PICKER_HOURS = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12"];
+const PICKER_MINUTES = ["00", "05", "10", "15", "20", "25", "30", "35", "40", "45", "50", "55"];
+const PICKER_AMPM = ["AM", "PM"];
+
+// ─── Notification prefs ───────────────────────────────────────────────────────
+
+const NOTIF_PREFS_KEY = "@valo/notification-prefs";
+
+interface NotificationPrefs {
+  dailyReminder: boolean;
+  goalDeadlines: boolean;
+  habitReminders: boolean;
+  weeklyInsights: boolean;
+  morningBriefing: boolean;
+}
+
+const DEFAULT_NOTIF_PREFS: NotificationPrefs = {
+  dailyReminder: true,
+  goalDeadlines: true,
+  habitReminders: false,
+  weeklyInsights: true,
+  morningBriefing: false,
+};
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Sub-components
@@ -155,6 +187,80 @@ function TrendCard({ label, icon }: { label: string; icon: string }) {
   );
 }
 
+// ─── Scroll column picker ─────────────────────────────────────────────────────
+
+type PickerColors = ReturnType<typeof useColors>;
+
+function PickerColumn({
+  items,
+  selectedIndex,
+  onSelect,
+  colors,
+}: {
+  items: string[];
+  selectedIndex: number;
+  onSelect: (i: number) => void;
+  colors: PickerColors;
+}) {
+  const scrollRef = useRef<ScrollView>(null);
+  const isScrollingRef = useRef(false);
+
+  useEffect(() => {
+    if (isScrollingRef.current) return;
+    const safe = Math.max(0, Math.min(selectedIndex, items.length - 1));
+    const t = setTimeout(() => {
+      scrollRef.current?.scrollTo({ y: safe * PICKER_ITEM_H, animated: false });
+    }, 60);
+    return () => clearTimeout(t);
+  }, [selectedIndex, items.length]);
+
+  return (
+    <View style={{ flex: 1, height: PICKER_ITEM_H * PICKER_VISIBLE, overflow: "hidden" }}>
+      <ScrollView
+        ref={scrollRef}
+        showsVerticalScrollIndicator={false}
+        snapToInterval={PICKER_ITEM_H}
+        decelerationRate="fast"
+        contentContainerStyle={{ paddingVertical: PICKER_ITEM_H * 2 }}
+        onScrollBeginDrag={() => { isScrollingRef.current = true; }}
+        onMomentumScrollEnd={(e) => {
+          isScrollingRef.current = false;
+          const idx = Math.round(e.nativeEvent.contentOffset.y / PICKER_ITEM_H);
+          onSelect(Math.max(0, Math.min(idx, items.length - 1)));
+        }}
+        onScrollEndDrag={(e) => {
+          isScrollingRef.current = false;
+          const idx = Math.round(e.nativeEvent.contentOffset.y / PICKER_ITEM_H);
+          onSelect(Math.max(0, Math.min(idx, items.length - 1)));
+        }}
+      >
+        {items.map((item, i) => (
+          <TouchableOpacity
+            key={i}
+            style={{ height: PICKER_ITEM_H, justifyContent: "center", alignItems: "center" }}
+            onPress={() => {
+              scrollRef.current?.scrollTo({ y: i * PICKER_ITEM_H, animated: true });
+              onSelect(i);
+            }}
+          >
+            <Text
+              style={{
+                fontSize: 16,
+                color: i === selectedIndex ? colors.foreground : colors.mutedForeground,
+                fontFamily: i === selectedIndex ? "Inter_600SemiBold" : "Inter_400Regular",
+              }}
+            >
+              {item}
+            </Text>
+          </TouchableOpacity>
+        ))}
+      </ScrollView>
+    </View>
+  );
+}
+
+// ─── Time picker modal (scroll columns) ──────────────────────────────────────
+
 function TimePickerModal({
   visible,
   value,
@@ -167,23 +273,42 @@ function TimePickerModal({
   onSave: (hhmm: string) => void;
 }) {
   const colors = useColors();
-  const parts = value.split(":");
-  const initH = parseInt(parts[0] ?? "20", 10);
-  const initM = parseInt(parts[1] ?? "0", 10);
-  const [hour12, setHour12] = useState(initH % 12 || 12);
-  const [isPm, setIsPm] = useState(initH >= 12);
+
+  function parseValue(hhmm: string) {
+    const parts = hhmm.split(":");
+    const h24 = parseInt(parts[0] ?? "20", 10);
+    const m = parseInt(parts[1] ?? "0", 10);
+    const isPm = h24 >= 12;
+    const h12 = h24 % 12 || 12;
+    const hourIdx = PICKER_HOURS.indexOf(String(h12));
+    const minIdx = PICKER_MINUTES.indexOf(String(m).padStart(2, "0"));
+    const ampmIdx = isPm ? 1 : 0;
+    return {
+      hourIdx: hourIdx < 0 ? 6 : hourIdx,
+      minIdx: minIdx < 0 ? 6 : minIdx,
+      ampmIdx,
+    };
+  }
+
+  const initial = parseValue(value);
+  const [hourIdx, setHourIdx] = useState(initial.hourIdx);
+  const [minIdx, setMinIdx] = useState(initial.minIdx);
+  const [ampmIdx, setAmpmIdx] = useState(initial.ampmIdx);
 
   useEffect(() => {
     if (visible) {
-      const h = parseInt((value.split(":")[0] ?? "20"), 10);
-      setHour12(h % 12 || 12);
-      setIsPm(h >= 12);
+      const p = parseValue(value);
+      setHourIdx(p.hourIdx);
+      setMinIdx(p.minIdx);
+      setAmpmIdx(p.ampmIdx);
     }
   }, [visible, value]);
 
   function handleSave() {
-    const h24 = isPm ? (hour12 % 12) + 12 : hour12 % 12;
-    const mm = String(initM).padStart(2, "0");
+    const h12 = parseInt(PICKER_HOURS[hourIdx] ?? "8", 10);
+    const mm = PICKER_MINUTES[minIdx] ?? "00";
+    const isPm = ampmIdx === 1;
+    const h24 = isPm ? (h12 % 12) + 12 : h12 % 12;
     onSave(`${String(h24).padStart(2, "0")}:${mm}`);
   }
 
@@ -198,33 +323,40 @@ function TimePickerModal({
             Check-in time
           </Text>
 
-          <View style={styles.timeRow}>
-            <TouchableOpacity
-              style={[styles.stepBtn, { borderColor: colors.border }]}
-              onPress={() => setHour12((h) => (h <= 1 ? 12 : h - 1))}
-            >
-              <Feather name="minus" size={18} color={colors.foreground} />
-            </TouchableOpacity>
+          {/* Columns + selection indicator */}
+          <View style={styles.pickerWrapper}>
+            {/* Selection indicator */}
+            <View
+              pointerEvents="none"
+              style={[
+                styles.pickerIndicator,
+                {
+                  top: PICKER_ITEM_H * 2,
+                  height: PICKER_ITEM_H,
+                  borderTopColor: colors.border,
+                  borderBottomColor: colors.border,
+                },
+              ]}
+            />
 
-            <Text style={[styles.timeDisplay, { color: colors.foreground, fontFamily: "Inter_700Bold" }]}>
-              {hour12}:{String(initM).padStart(2, "0")}
-            </Text>
-
-            <TouchableOpacity
-              style={[styles.stepBtn, { borderColor: colors.border }]}
-              onPress={() => setHour12((h) => (h >= 12 ? 1 : h + 1))}
-            >
-              <Feather name="plus" size={18} color={colors.foreground} />
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={[styles.ampmBtn, { backgroundColor: colors.primary }]}
-              onPress={() => setIsPm((p) => !p)}
-            >
-              <Text style={[styles.ampmText, { color: colors.primaryForeground, fontFamily: "Inter_600SemiBold" }]}>
-                {isPm ? "PM" : "AM"}
-              </Text>
-            </TouchableOpacity>
+            <PickerColumn
+              items={PICKER_HOURS}
+              selectedIndex={hourIdx}
+              onSelect={setHourIdx}
+              colors={colors}
+            />
+            <PickerColumn
+              items={PICKER_MINUTES}
+              selectedIndex={minIdx}
+              onSelect={setMinIdx}
+              colors={colors}
+            />
+            <PickerColumn
+              items={PICKER_AMPM}
+              selectedIndex={ampmIdx}
+              onSelect={setAmpmIdx}
+              colors={colors}
+            />
           </View>
 
           <View style={styles.modalActions}>
@@ -238,9 +370,119 @@ function TimePickerModal({
               onPress={handleSave}
             >
               <Text style={[styles.modalSaveText, { color: colors.primaryForeground, fontFamily: "Inter_600SemiBold" }]}>
-                Save
+                Done
               </Text>
             </TouchableOpacity>
+          </View>
+        </TouchableOpacity>
+      </TouchableOpacity>
+    </Modal>
+  );
+}
+
+// ─── Notifications modal ──────────────────────────────────────────────────────
+
+function NotificationsModal({
+  visible,
+  callTime,
+  onClose,
+}: {
+  visible: boolean;
+  callTime: string;
+  onClose: () => void;
+}) {
+  const colors = useColors();
+  const [prefs, setPrefs] = useState<NotificationPrefs>(DEFAULT_NOTIF_PREFS);
+  const [savedKey, setSavedKey] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (visible) {
+      AsyncStorage.getItem(NOTIF_PREFS_KEY)
+        .then((raw) => {
+          if (raw) {
+            try { setPrefs({ ...DEFAULT_NOTIF_PREFS, ...JSON.parse(raw) }); } catch {}
+          }
+        })
+        .catch(() => {});
+    }
+  }, [visible]);
+
+  async function toggle(key: keyof NotificationPrefs) {
+    const next = { ...prefs, [key]: !prefs[key] };
+    setPrefs(next);
+    try {
+      await AsyncStorage.setItem(NOTIF_PREFS_KEY, JSON.stringify(next));
+      setSavedKey(key);
+      setTimeout(() => setSavedKey((cur) => (cur === key ? null : cur)), 1800);
+    } catch {}
+  }
+
+  const TOGGLES: { key: keyof NotificationPrefs; label: string }[] = [
+    { key: "dailyReminder", label: "Daily check-in reminder" },
+    { key: "goalDeadlines", label: "Goal deadline reminders" },
+    { key: "habitReminders", label: "Habit reminders" },
+    { key: "weeklyInsights", label: "Weekly insights summary" },
+    { key: "morningBriefing", label: "Morning briefing" },
+  ];
+
+  return (
+    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+      <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={onClose}>
+        <TouchableOpacity
+          activeOpacity={1}
+          style={[styles.modalBox, { backgroundColor: colors.card, borderColor: colors.border }]}
+        >
+          <View style={styles.notifHeader}>
+            <Text style={[styles.modalTitle, { color: colors.foreground, fontFamily: "Inter_600SemiBold" }]}>
+              Notifications
+            </Text>
+            <TouchableOpacity onPress={onClose} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+              <Feather name="x" size={20} color={colors.mutedForeground} />
+            </TouchableOpacity>
+          </View>
+
+          <View style={[styles.notifCard, { borderColor: colors.border }]}>
+            {TOGGLES.map((t, idx) => (
+              <View key={t.key}>
+                <View
+                  style={[
+                    styles.notifRow,
+                    idx < TOGGLES.length - 1 && {
+                      borderBottomWidth: StyleSheet.hairlineWidth,
+                      borderBottomColor: colors.border,
+                    },
+                  ]}
+                >
+                  <View style={styles.notifRowLeft}>
+                    <Text style={[styles.notifLabel, { color: colors.foreground, fontFamily: "Inter_400Regular" }]}>
+                      {t.label}
+                    </Text>
+                    {savedKey === t.key && (
+                      <Text style={[styles.savedBadge, { color: colors.primary, fontFamily: "Inter_400Regular" }]}>
+                        Saved
+                      </Text>
+                    )}
+                  </View>
+                  <Switch
+                    value={prefs[t.key]}
+                    onValueChange={() => { void toggle(t.key); }}
+                    trackColor={{ false: colors.muted, true: colors.primary }}
+                    thumbColor={colors.primaryForeground}
+                  />
+                </View>
+              </View>
+            ))}
+          </View>
+
+          <View style={[styles.notifNote, { backgroundColor: colors.muted, borderColor: colors.border }]}>
+            <Feather name="clock" size={13} color={colors.mutedForeground} />
+            <Text style={[styles.notifNoteText, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
+              {"Your daily check-in reminder will be sent at "}
+              <Text style={{ fontFamily: "Inter_500Medium", color: colors.foreground }}>
+                {formatTime(callTime)}
+              </Text>
+              {"."}
+            </Text>
           </View>
         </TouchableOpacity>
       </TouchableOpacity>
@@ -273,6 +515,7 @@ export default function ProfileScreen() {
   const [lifePriorities, setLifePriorities] = useState("");
   const [coreValues, setCoreValues] = useState<string[]>([]);
   const [showTimePicker, setShowTimePicker] = useState(false);
+  const [showNotifications, setShowNotifications] = useState(false);
   const [savedField, setSavedField] = useState<string | null>(null);
 
   // ── Load on mount ─────────────────────────────────────────────────────────
@@ -346,10 +589,7 @@ export default function ProfileScreen() {
   async function handleNameSave() {
     const trimmed = nameInput.trim();
     setEditingName(false);
-    if (!trimmed) {
-      setNameInput(name ?? "");
-      return;
-    }
+    if (!trimmed) { setNameInput(name ?? ""); return; }
     updateName(trimmed);
     await patchSettings({ name: trimmed }, "name");
   }
@@ -379,7 +619,6 @@ export default function ProfileScreen() {
           paddingTop: topPad + 12,
           paddingBottom: bottomPad + tabBarH + 32,
           paddingHorizontal: 20,
-          gap: 0,
         }}
       >
         {/* ══════════════════════════════════════════════════════════════════
@@ -471,7 +710,6 @@ export default function ProfileScreen() {
           <SectionLabel label="IDENTITY" />
           <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
 
-            {/* Who I am becoming */}
             <View style={styles.identityField}>
               <View style={styles.fieldHeaderRow}>
                 <Text style={[styles.fieldLabel, { color: colors.mutedForeground, fontFamily: "Inter_500Medium" }]}>
@@ -492,7 +730,6 @@ export default function ProfileScreen() {
 
             <View style={[styles.divider, { backgroundColor: colors.border }]} />
 
-            {/* My biggest motivator */}
             <View style={styles.identityField}>
               <View style={styles.fieldHeaderRow}>
                 <Text style={[styles.fieldLabel, { color: colors.mutedForeground, fontFamily: "Inter_500Medium" }]}>
@@ -512,7 +749,6 @@ export default function ProfileScreen() {
 
             <View style={[styles.divider, { backgroundColor: colors.border }]} />
 
-            {/* My core values */}
             <View style={styles.identityField}>
               <Text style={[styles.fieldLabel, { color: colors.mutedForeground, fontFamily: "Inter_500Medium" }]}>
                 My core values
@@ -557,7 +793,6 @@ export default function ProfileScreen() {
 
             <View style={[styles.divider, { backgroundColor: colors.border }]} />
 
-            {/* My intentions */}
             <View style={styles.identityField}>
               <View style={styles.fieldHeaderRow}>
                 <Text style={[styles.fieldLabel, { color: colors.mutedForeground, fontFamily: "Inter_500Medium" }]}>
@@ -592,7 +827,12 @@ export default function ProfileScreen() {
               value={formatTime(callTime)}
               onPress={() => setShowTimePicker(true)}
             />
-            <ChevronRow icon="bell" label="Notifications" onPress={() => Alert.alert("Coming soon")} last />
+            <ChevronRow
+              icon="bell"
+              label="Notifications"
+              onPress={() => setShowNotifications(true)}
+              last
+            />
           </View>
         </View>
 
@@ -683,6 +923,12 @@ export default function ProfileScreen() {
           setShowTimePicker(false);
           await patchSettings({ preferredCallTime: hhmm }, "callTime");
         }}
+      />
+
+      <NotificationsModal
+        visible={showNotifications}
+        callTime={callTime}
+        onClose={() => setShowNotifications(false)}
       />
     </>
   );
@@ -868,7 +1114,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   upgradeText: { fontSize: 15 },
-  // Time picker modal
+  // Modals (shared)
   modalOverlay: {
     flex: 1,
     backgroundColor: "rgba(0,0,0,0.45)",
@@ -881,36 +1127,9 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     borderWidth: 1,
     padding: 24,
-    gap: 24,
+    gap: 20,
   },
   modalTitle: { fontSize: 17 },
-  timeRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 14,
-    justifyContent: "center",
-  },
-  stepBtn: {
-    width: 44,
-    height: 44,
-    borderWidth: 1,
-    borderRadius: 12,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  timeDisplay: {
-    fontSize: 32,
-    width: 96,
-    textAlign: "center",
-  },
-  ampmBtn: {
-    width: 54,
-    height: 44,
-    borderRadius: 12,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  ampmText: { fontSize: 14 },
   modalActions: {
     flexDirection: "row",
     gap: 12,
@@ -930,4 +1149,53 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   modalSaveText: { fontSize: 15 },
+  // Scroll picker
+  pickerWrapper: {
+    flexDirection: "row",
+    position: "relative",
+  },
+  pickerIndicator: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    pointerEvents: "none",
+  },
+  // Notifications modal
+  notifHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  notifCard: {
+    borderRadius: 14,
+    borderWidth: 1,
+    overflow: "hidden",
+  },
+  notifRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+  },
+  notifRowLeft: {
+    flex: 1,
+    gap: 2,
+  },
+  notifLabel: { fontSize: 15 },
+  notifNote: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 8,
+    padding: 14,
+    borderRadius: 12,
+    borderWidth: 1,
+  },
+  notifNoteText: {
+    flex: 1,
+    fontSize: 13,
+    lineHeight: 19,
+  },
 });
