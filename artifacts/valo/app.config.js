@@ -17,9 +17,6 @@ export default {
       supportsTablet: false,
       bitcode: false,
       bundleIdentifier: "com.aaronlou06.valo",
-      entitlements: {
-        "com.apple.developer.push-notifications": true,
-      },
       infoPlist: {
         NSMicrophoneUsageDescription:
           "Valo needs microphone access to conduct your evening debrief.",
@@ -58,12 +55,6 @@ export default {
         },
       ],
       "expo-font",
-      [
-        "expo-notifications",
-        {
-          sounds: [],
-        },
-      ],
     ],
     experiments: {
       typedRoutes: true,
