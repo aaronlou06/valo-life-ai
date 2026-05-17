@@ -7,7 +7,7 @@ export default {
     icon: "./assets/images/icon.png",
     scheme: "valo",
     userInterfaceStyle: "automatic",
-    newArchEnabled: false,
+    newArchEnabled: true,
     splash: {
       image: "./assets/images/icon.png",
       resizeMode: "contain",
