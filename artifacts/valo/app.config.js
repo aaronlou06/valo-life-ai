@@ -17,10 +17,16 @@ export default {
       supportsTablet: false,
       bitcode: false,
       bundleIdentifier: "com.aaronlou06.valo",
+      entitlements: {
+        "com.apple.developer.push-notifications": true,
+      },
       infoPlist: {
         NSMicrophoneUsageDescription:
           "Valo needs microphone access to conduct your evening debrief.",
-
+        NSHealthShareUsageDescription:
+          "Valo reads your health data to personalize your daily check-in and insights.",
+        NSHealthUpdateUsageDescription:
+          "Valo writes workout and mindfulness data to Apple Health.",
         UIBackgroundModes: ["voip"],
         ITSAppUsesNonExemptEncryption: false,
       },
@@ -52,6 +58,12 @@ export default {
         },
       ],
       "expo-font",
+      [
+        "expo-notifications",
+        {
+          sounds: [],
+        },
+      ],
     ],
     experiments: {
       typedRoutes: true,
