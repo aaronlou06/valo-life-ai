@@ -18,6 +18,7 @@ import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useColors } from "@/hooks/useColors";
+import { useValoAuth } from "@/contexts/AuthContext";
 import {
   useListCalendarEvents,
   useCreateCalendarEvent,
@@ -60,7 +61,7 @@ const EVENT_TYPES: { key: string; label: string; color: string }[] = [
 
 const ROUTINE_COLORS = ["#C17B3F","#2563EB","#059669","#7C3AED","#D97706","#E11D48"];
 const DAY_LETTERS   = ["S","M","T","W","T","F","S"];
-const ROUTINES_KEY  = "@valo/routines";
+const ROUTINES_KEY_FOR = (uid: string) => `@valo/routines-${uid}`;
 const CELL_MIN_H    = 80;
 const MAX_CELL_PILLS = 3;
 
@@ -848,6 +849,7 @@ function RoutineModal({
 export default function CalendarScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
+  const { userId } = useValoAuth();
   const today = new Date();
   const currentTodayStr = todayStr();
 
@@ -875,10 +877,12 @@ export default function CalendarScreen() {
   const { mutateAsync: deleteEvent } = useDeleteCalendarEvent();
 
   useEffect(() => {
-    AsyncStorage.getItem(ROUTINES_KEY)
+    if (!userId) return;
+    setRoutines([]);
+    AsyncStorage.getItem(ROUTINES_KEY_FOR(userId))
       .then((val) => { if (val) setRoutines(JSON.parse(val)); })
       .catch(() => {});
-  }, []);
+  }, [userId]);
 
   const eventsByDate = useMemo(() => {
     const map: Record<string, CalendarEvent[]> = {};
@@ -910,7 +914,8 @@ export default function CalendarScreen() {
 
   async function saveRoutines(updated: Routine[]) {
     setRoutines(updated);
-    await AsyncStorage.setItem(ROUTINES_KEY, JSON.stringify(updated)).catch(() => {});
+    if (!userId) return;
+    await AsyncStorage.setItem(ROUTINES_KEY_FOR(userId), JSON.stringify(updated)).catch(() => {});
   }
 
   function getRoutineEvents(routineName: string): CalendarEvent[] {

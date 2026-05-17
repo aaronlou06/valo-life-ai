@@ -115,7 +115,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
     sessionRef.current = null;
     setSession(null);
-    await AsyncStorage.removeItem(STORAGE_KEY);
+    await AsyncStorage.multiRemove([
+      STORAGE_KEY,
+      "@valo/tomorrow-intention",
+      "@valo/notification-prefs",
+    ]);
   }, []);
 
   const updateName = useCallback((name: string) => {
