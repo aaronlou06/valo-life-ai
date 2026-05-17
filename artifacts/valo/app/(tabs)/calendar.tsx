@@ -947,6 +947,28 @@ export default function CalendarScreen() {
     } catch {}
   }
 
+  async function handleCleanupOrphanedEvents() {
+    const routineNames = new Set(routines.map((r) => r.name));
+    const orphans = events.filter((e) => {
+      if (e.type !== "routine") return false;
+      return !Array.from(routineNames).some(
+        (name) => e.title === name || e.title.startsWith(name + " —"),
+      );
+    });
+    if (orphans.length === 0) {
+      Alert.alert("All clear", "No orphaned events found.");
+      return;
+    }
+    try {
+      await Promise.all(orphans.map((e) => deleteEvent({ id: e.id })));
+      refetch();
+      Alert.alert("Done", `Cleaned up ${orphans.length} orphaned ${orphans.length === 1 ? "event" : "events"}.`);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    } catch {
+      Alert.alert("Error", "Something went wrong during cleanup.");
+    }
+  }
+
   async function handleDeleteRoutine(r: Routine) {
     await saveRoutines(routines.filter((x) => x.id !== r.id));
     try {
@@ -1080,9 +1102,14 @@ export default function CalendarScreen() {
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
             <Text style={[styles.sectionTitle, { color: colors.foreground, fontFamily: "Inter_600SemiBold" }]}>Routines</Text>
-            <TouchableOpacity style={[styles.sectionAddBtn, { backgroundColor: colors.primary }]} onPress={() => { setEditingRoutine(null); setShowRoutineModal(true); }}>
-              <Feather name="plus" size={15} color={colors.primaryForeground} />
-            </TouchableOpacity>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+              <TouchableOpacity onPress={handleCleanupOrphanedEvents} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                <Text style={{ fontSize: 13, color: colors.mutedForeground, fontFamily: "Inter_400Regular" }}>Clean up</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={[styles.sectionAddBtn, { backgroundColor: colors.primary }]} onPress={() => { setEditingRoutine(null); setShowRoutineModal(true); }}>
+                <Feather name="plus" size={15} color={colors.primaryForeground} />
+              </TouchableOpacity>
+            </View>
           </View>
           {routines.length === 0 ? (
             <TouchableOpacity style={[styles.emptyState, { borderColor: colors.border, backgroundColor: colors.card }]} onPress={() => { setEditingRoutine(null); setShowRoutineModal(true); }}>
