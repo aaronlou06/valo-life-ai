@@ -24,10 +24,7 @@ export default {
       infoPlist: {
         NSMicrophoneUsageDescription:
           "Valo needs microphone access to conduct your evening debrief.",
-        NSHealthShareUsageDescription:
-          "Valo reads your health data to personalize your daily check-in and insights.",
-        NSHealthUpdateUsageDescription:
-          "Valo writes workout and mindfulness data to Apple Health.",
+
         UIBackgroundModes: ["voip"],
         ITSAppUsesNonExemptEncryption: false,
       },
@@ -59,7 +56,15 @@ export default {
         },
       ],
       "expo-font",
-      "@kingstinct/react-native-healthkit",
+      [
+        "@kingstinct/react-native-healthkit",
+        {
+          healthSharePermission:
+            "Valo reads your health data to personalize your daily check-in and insights.",
+          healthUpdatePermission:
+            "Valo writes workout and mindfulness data to Apple Health.",
+        },
+      ],
     ],
     experiments: {
       typedRoutes: true,
