@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
+import { useRouter } from "expo-router";
 import {
   View,
   Text,
@@ -124,6 +125,7 @@ function ChevronRow({
   value,
   onPress,
   destructive,
+  accentColor,
   last,
 }: {
   icon: string;
@@ -131,9 +133,11 @@ function ChevronRow({
   value?: string;
   onPress: () => void;
   destructive?: boolean;
+  accentColor?: string;
   last?: boolean;
 }) {
   const colors = useColors();
+  const rowColor = accentColor ?? (destructive ? colors.destructive : undefined);
   return (
     <TouchableOpacity
       onPress={onPress}
@@ -147,12 +151,12 @@ function ChevronRow({
         <Feather
           name={icon as any}
           size={17}
-          color={destructive ? colors.destructive : colors.mutedForeground}
+          color={rowColor ?? colors.mutedForeground}
         />
         <Text
           style={[
             styles.chevronLabel,
-            { color: destructive ? colors.destructive : colors.foreground, fontFamily: "Inter_400Regular" },
+            { color: rowColor ?? colors.foreground, fontFamily: "Inter_400Regular" },
           ]}
         >
           {label}
@@ -497,6 +501,7 @@ function NotificationsModal({
 export default function ProfileScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
+  const router = useRouter();
   const { name, email, signOut, updateName, getToken, userId } = useValoAuth();
 
   const { data: goals } = useListGoals();
@@ -595,6 +600,51 @@ export default function ProfileScreen() {
   }
 
   // ── Sign out / delete ─────────────────────────────────────────────────────
+  async function handleResetData() {
+    const token = await getToken();
+    const headers: Record<string, string> = token ? { Authorization: `Bearer ${token}` } : {};
+    const base = getApiBase();
+
+    const [goalsRes, habitsRes, calRes] = await Promise.all([
+      fetch(`${base}/api/goals`, { headers }).catch(() => null),
+      fetch(`${base}/api/habits`, { headers }).catch(() => null),
+      fetch(`${base}/api/calendar-events`, { headers }).catch(() => null),
+    ]);
+
+    const goals: { id: number }[] = goalsRes?.ok ? await goalsRes.json().catch(() => []) : [];
+    const habits: { id: number }[] = habitsRes?.ok ? await habitsRes.json().catch(() => []) : [];
+    const calEvents: { id: number }[] = calRes?.ok ? await calRes.json().catch(() => []) : [];
+
+    await Promise.allSettled([
+      ...goals.map((g) => fetch(`${base}/api/goals/${g.id}`, { method: "DELETE", headers })),
+      ...habits.map((h) => fetch(`${base}/api/habits/${h.id}`, { method: "DELETE", headers })),
+      ...calEvents.map((e) => fetch(`${base}/api/calendar-events/${e.id}`, { method: "DELETE", headers })),
+    ]);
+
+    if (userId) {
+      await AsyncStorage.multiRemove([
+        `@valo/routines-${userId}`,
+        "@valo/tomorrow-intention",
+      ]).catch(() => {});
+    }
+
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    Alert.alert("Data reset. Fresh start!", undefined, [
+      { text: "OK", onPress: () => router.replace("/(tabs)/today" as any) },
+    ]);
+  }
+
+  function promptResetData() {
+    Alert.alert(
+      "Reset your data?",
+      "This will clear all your check-ins, goals, habits, calendar events, moods, and logs. Your account and onboarding info will be kept.",
+      [
+        { text: "Cancel", style: "cancel" },
+        { text: "Reset", style: "destructive", onPress: () => { void handleResetData(); } },
+      ],
+    );
+  }
+
   function handleDeleteAccount() {
     Alert.alert(
       "Delete account",
@@ -906,6 +956,7 @@ export default function ProfileScreen() {
           <SectionLabel label="ADMIN" />
           <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border, padding: 0, overflow: "hidden" }]}>
             <ChevronRow icon="download" label="Export my data" onPress={() => Alert.alert("Coming soon")} />
+            <ChevronRow icon="refresh-cw" label="Reset my data" onPress={promptResetData} accentColor="#C17B3F" />
             <ChevronRow icon="shield" label="Privacy settings" onPress={() => Alert.alert("Coming soon")} />
             <ChevronRow icon="eye" label="What Valo knows about me" onPress={() => Alert.alert("Coming soon")} />
             <ChevronRow icon="log-out" label="Log out" onPress={() => { void signOut(); }} />
