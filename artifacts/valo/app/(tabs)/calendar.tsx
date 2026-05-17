@@ -127,6 +127,19 @@ function typeBadgeColor(type: string | null | undefined): string {
   return "#6B7280";
 }
 
+function eventColor(ev: { type?: string | null; notes?: string | null }): string {
+  if (ev.type === "routine") {
+    const m = (ev.notes ?? "").match(/^routineColor:(#[0-9A-Fa-f]{6})\|/);
+    if (m) return m[1]!;
+  }
+  return typeBadgeColor(ev.type);
+}
+
+function routineNotesText(notes: string | null | undefined): string {
+  if (!notes) return "";
+  return notes.replace(/^routineColor:#[0-9A-Fa-f]{6}\|/, "");
+}
+
 function typeBadgeLabel(type: string | null | undefined): string {
   const found = EVENT_TYPES.find((t) => t.key === type);
   if (found) return found.label;
@@ -516,7 +529,8 @@ function DayDetailSheet({
               </Text>
             ) : (
               events.map((ev) => {
-                const bc = typeBadgeColor(ev.type);
+                const bc = eventColor(ev);
+                const noteText = routineNotesText(ev.notes);
                 return (
                   <View key={ev.id} style={[styles.eventCard, { backgroundColor: colors.card, borderColor: colors.border, marginBottom: 8 }]}>
                     <View style={styles.eventTop}>
@@ -536,7 +550,7 @@ function DayDetailSheet({
                         <Feather name="trash-2" size={16} color={colors.mutedForeground} />
                       </TouchableOpacity>
                     </View>
-                    {ev.notes ? <Text style={[styles.eventNotes, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]} numberOfLines={3}>{ev.notes}</Text> : null}
+                    {noteText ? <Text style={[styles.eventNotes, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]} numberOfLines={3}>{noteText}</Text> : null}
                   </View>
                 );
               })
@@ -591,7 +605,7 @@ function MonthGrid({
               </View>
             </View>
             {visibleEvents.map((ev) => (
-              <View key={ev.id} style={[styles.cellPill, { backgroundColor: typeBadgeColor(ev.type) }]}>
+              <View key={ev.id} style={[styles.cellPill, { backgroundColor: eventColor(ev) }]}>
                 <Text style={styles.cellPillText} numberOfLines={1}>{ev.title}</Text>
               </View>
             ))}
@@ -644,7 +658,7 @@ function WeekView({
               </Text>
             </View>
             {visibleEvents.map((ev) => {
-              const color = typeBadgeColor(ev.type);
+              const color = eventColor(ev);
               return (
                 <View key={ev.id} style={[styles.weekEventBlock, { backgroundColor: color + "22", borderLeftColor: color }]}>
                   <Text style={[styles.weekEventText, { color }]} numberOfLines={2}>{ev.title}</Text>
@@ -864,10 +878,18 @@ export default function CalendarScreen() {
     return map;
   }, [events]);
 
-  const upcomingEvents = useMemo(
-    () => [...events].filter((e) => e.date >= currentTodayStr).sort((a, b) => a.date.localeCompare(b.date)),
-    [events, currentTodayStr],
-  );
+  const upcomingEvents = useMemo(() => {
+    const d = new Date();
+    d.setDate(d.getDate() + 7);
+    const maxDate = toISODate(d);
+    return [...events]
+      .filter((e) => {
+        const date = e.date.includes("T") ? e.date.split("T")[0]! : e.date;
+        if (date < currentTodayStr || date > maxDate) return false;
+        return e.type !== "routine" && e.type !== "habit";
+      })
+      .sort((a, b) => a.date.localeCompare(b.date));
+  }, [events, currentTodayStr]);
 
   const selectedDayEvents = useMemo(
     () => eventsByDate[selectedDate] ?? [],
@@ -885,9 +907,10 @@ export default function CalendarScreen() {
     await saveRoutines(updated);
     const dates = getNextFourWeeksDates(r.days);
     const suffix = r.activities.length > 0 ? ` — ${r.activities.slice(0, 2).join(", ")}${r.activities.length > 2 ? "..." : ""}` : "";
-    const evNotes = r.activities.join(", ") || null;
+    const activityStr = r.activities.join(", ");
+    const evNotes = `routineColor:${r.color}|${activityStr}`;
     try {
-      await Promise.all(dates.map((date) => createEvent({ data: { title: r.name + suffix, date, type: "habit", notes: evNotes } })));
+      await Promise.all(dates.map((date) => createEvent({ data: { title: r.name + suffix, date, type: "routine", notes: evNotes } })));
       refetch();
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch {}
@@ -1038,11 +1061,11 @@ export default function CalendarScreen() {
 
         {/* ── Upcoming events ───────────────────────────────────────────────── */}
         <View style={[styles.section, { marginTop: 8 }]}>
-          <Text style={[styles.sectionTitle, { color: colors.foreground, fontFamily: "Inter_600SemiBold" }]}>Upcoming</Text>
+          <Text style={[styles.sectionTitle, { color: colors.foreground, fontFamily: "Inter_600SemiBold" }]}>Coming Up This Week</Text>
           {upcomingEvents.length === 0 ? (
             <View style={[styles.emptyState, { borderColor: colors.border, backgroundColor: colors.card }]}>
               <Feather name="calendar" size={28} color={colors.mutedForeground} />
-              <Text style={[styles.emptyText, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>No upcoming events</Text>
+              <Text style={[styles.emptyText, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>Nothing scheduled this week</Text>
             </View>
           ) : (
             upcomingEvents.map((event) => {
