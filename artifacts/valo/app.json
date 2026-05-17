@@ -7,7 +7,7 @@
     "icon": "./assets/images/icon.png",
     "scheme": "valo",
     "userInterfaceStyle": "automatic",
-    "newArchEnabled": true,
+    "newArchEnabled": false,
     "splash": {
       "image": "./assets/images/icon.png",
       "resizeMode": "contain",
@@ -58,8 +58,6 @@
         }
       ],
       "expo-font",
-      "@config-plugins/react-native-webrtc",
-      "@daily-co/config-plugin-rn-daily-js",
       "@kingstinct/react-native-healthkit"
     ],
     "experiments": {
