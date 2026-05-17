@@ -17,10 +17,6 @@ export default {
       supportsTablet: false,
       bitcode: false,
       bundleIdentifier: "com.aaronlou06.valo",
-      entitlements: {
-        "com.apple.developer.healthkit": true,
-        "com.apple.developer.healthkit.access": [],
-      },
       infoPlist: {
         NSMicrophoneUsageDescription:
           "Valo needs microphone access to conduct your evening debrief.",
@@ -56,15 +52,6 @@ export default {
         },
       ],
       "expo-font",
-      [
-        "@kingstinct/react-native-healthkit",
-        {
-          NSHealthShareUsageDescription:
-            "Valo reads your health data to personalize your daily check-in and insights.",
-          NSHealthUpdateUsageDescription:
-            "Valo writes workout and mindfulness data to Apple Health.",
-        },
-      ],
     ],
     experiments: {
       typedRoutes: true,

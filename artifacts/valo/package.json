@@ -66,8 +66,5 @@
     "typescript": "~5.9.2",
     "zod": "catalog:",
     "zod-validation-error": "^3.4.0"
-  },
-  "dependencies": {
-    "@kingstinct/react-native-healthkit": "9.0.11"
   }
 }
