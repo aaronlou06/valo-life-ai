@@ -1,0 +1,48 @@
+Update app/(tabs)/calendar.tsx to add two major features: manual event creation and a Routines section.
+Feature 1 — Add Event button:
+Add a + button in the top right of the header next to 'Calendar'. Tapping it opens a bottom sheet modal to create a new event with these fields:
+
+Title (text input, required)
+Date (uses the DatePickerField pattern from goals — a tappable field that opens a scroll picker, required)
+Time (optional, same pattern with hour/minute/AM-PM columns)
+Type (horizontal chip selector: Personal, Health, Work, Habit, Goal)
+Notes (optional multiline text input)
+
+A 'Save event' button at the bottom calls POST /api/calendar-events with { title, date, type, notes }. On success refresh the events list with haptic feedback. On error show an alert.
+Feature 2 — Routines section:
+Add a 'Routines' section below the calendar grid and above the Upcoming events section.
+A routine is a recurring pattern — a set of activities that happen on a schedule. Store routines in AsyncStorage under @valo/routines as a JSON array.
+Each routine has:
+
+id (string)
+name (string, e.g. 'Morning Routine', 'Evening Routine', 'Gym Days')
+days (array of 0-6, where 0=Sunday, e.g. [1,2,3,4,5] for weekdays)
+time (string, e.g. '6:30 AM', optional)
+activities (array of strings, e.g. ['Prayer', 'Cold shower', 'Workout', 'Journal'])
+color (string, one of the app's accent colors)
+
+Routines section UI:
+
+Section header 'Routines' with a + button to add a new routine
+Each routine shown as a card with: name, day pills (M T W T F S S with active days highlighted), time if set, and activity count ('5 activities')
+Tapping a routine card opens a detail/edit modal
+Swipe left or long press to delete
+
+Add/Edit Routine modal:
+
+Routine name (text input)
+Color picker (6 color swatches)
+Days selector (row of day pills, tap to toggle: S M T W T F S)
+Time (optional, same scroll picker pattern)
+Activities list (add/remove text inputs, same pattern as milestone sub-tasks in goals)
+'Save routine' button
+
+Routines → Calendar integration:
+When routines are saved, automatically create recurring calendar events. For each routine, create a calendar event via POST /api/calendar-events for the next 4 weeks on the selected days with:
+
+title: routine name + first activity (e.g. 'Morning Routine — Prayer, Cold shower...')
+date: the upcoming dates matching the selected days
+type: 'habit'
+notes: activities joined by ', '
+
+Use existing color system, Inter fonts, and match the visual style of the app."
