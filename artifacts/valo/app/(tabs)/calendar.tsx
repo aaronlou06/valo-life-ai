@@ -727,10 +727,10 @@ function RoutineCard({ routine, onEdit, onDelete, colors }: { routine: Routine; 
 // ─── Routine Modal ────────────────────────────────────────────────────────────
 
 function RoutineModal({
-  visible, routine, onClose, onSave, colors, insets,
+  visible, routine, onClose, onSave, onDelete, colors, insets,
 }: {
   visible: boolean; routine: Routine | null; onClose: () => void;
-  onSave: (r: Routine) => void; colors: Colors; insets: { top: number; bottom: number };
+  onSave: (r: Routine) => void; onDelete?: () => void; colors: Colors; insets: { top: number; bottom: number };
 }) {
   const [name, setName] = useState("");
   const [color, setColor] = useState(ROUTINE_COLORS[0]!);
@@ -821,6 +821,18 @@ function RoutineModal({
                 <Text style={[S.addActivityText, { color: colors.primary, fontFamily: "Inter_500Medium" }]}>Add activity</Text>
               </TouchableOpacity>
             </View>
+            {routine && onDelete ? (
+              <TouchableOpacity
+                style={[S.saveBtn, { backgroundColor: "transparent", borderWidth: 1, borderColor: "#EF4444", marginBottom: 0 }]}
+                onPress={() => Alert.alert("Delete Routine", `Remove "${routine.name}" and all its calendar events?`, [
+                  { text: "Cancel", style: "cancel" },
+                  { text: "Delete", style: "destructive", onPress: () => { onDelete(); onClose(); } },
+                ])}
+              >
+                <Feather name="trash-2" size={16} color="#EF4444" />
+                <Text style={[S.saveBtnText, { color: "#EF4444", fontFamily: "Inter_600SemiBold" }]}>Delete routine</Text>
+              </TouchableOpacity>
+            ) : null}
             <TouchableOpacity style={[S.saveBtn, { backgroundColor: color }]} onPress={handleSave}>
               <Text style={[S.saveBtnText, { color: "#FFFFFF", fontFamily: "Inter_600SemiBold" }]}>{routine ? "Update routine" : "Save routine"}</Text>
             </TouchableOpacity>
@@ -901,16 +913,44 @@ export default function CalendarScreen() {
     await AsyncStorage.setItem(ROUTINES_KEY, JSON.stringify(updated)).catch(() => {});
   }
 
+  function getRoutineEvents(routineName: string): CalendarEvent[] {
+    return events.filter(
+      (e) => e.type === "routine" &&
+        (e.notes ?? "").startsWith("routineColor:") &&
+        (e.title === routineName || e.title.startsWith(routineName + " —")),
+    );
+  }
+
+  async function purgeRoutineEvents(routineName: string): Promise<void> {
+    const matches = getRoutineEvents(routineName);
+    if (matches.length === 0) return;
+    await Promise.all(matches.map((e) => deleteEvent({ id: e.id })));
+  }
+
   async function handleSaveRoutine(r: Routine) {
-    const isNew = !routines.find((x) => x.id === r.id);
-    const updated = isNew ? [...routines, r] : routines.map((x) => (x.id === r.id ? r : x));
+    const existing = routines.find((x) => x.id === r.id);
+    const updated = existing
+      ? routines.map((x) => (x.id === r.id ? r : x))
+      : [...routines, r];
     await saveRoutines(updated);
+    if (existing) {
+      await purgeRoutineEvents(existing.name).catch(() => {});
+    }
     const dates = getNextFourWeeksDates(r.days);
     const suffix = r.activities.length > 0 ? ` — ${r.activities.slice(0, 2).join(", ")}${r.activities.length > 2 ? "..." : ""}` : "";
     const activityStr = r.activities.join(", ");
     const evNotes = `routineColor:${r.color}|${activityStr}`;
     try {
       await Promise.all(dates.map((date) => createEvent({ data: { title: r.name + suffix, date, type: "routine", notes: evNotes } })));
+      refetch();
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    } catch {}
+  }
+
+  async function handleDeleteRoutine(r: Routine) {
+    await saveRoutines(routines.filter((x) => x.id !== r.id));
+    try {
+      await purgeRoutineEvents(r.name);
       refetch();
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch {}
@@ -1053,7 +1093,7 @@ export default function CalendarScreen() {
             routines.map((r) => (
               <RoutineCard key={r.id} routine={r} colors={colors}
                 onEdit={() => { setEditingRoutine(r); setShowRoutineModal(true); }}
-                onDelete={() => saveRoutines(routines.filter((x) => x.id !== r.id))}
+                onDelete={() => handleDeleteRoutine(r)}
               />
             ))
           )}
@@ -1114,6 +1154,7 @@ export default function CalendarScreen() {
         routine={editingRoutine}
         onClose={() => setShowRoutineModal(false)}
         onSave={handleSaveRoutine}
+        onDelete={editingRoutine ? () => handleDeleteRoutine(editingRoutine) : undefined}
         colors={colors}
         insets={insets}
       />
