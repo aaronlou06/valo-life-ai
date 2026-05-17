@@ -17,6 +17,7 @@ import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useColors } from "@/hooks/useColors";
+import { useHealthKitSync } from "@/hooks/useHealthKitSync";
 import {
   useGetDashboard,
   useListCalendarEvents,
@@ -694,6 +695,7 @@ export default function TodayScreen() {
   const { data: goals } = useListGoals();
   const { data: calendarEvents } = useListCalendarEvents();
   const { data: moods } = useListMoods();
+  const { isSyncing: isHealthSyncing } = useHealthKitSync();
 
   const [modeOverride, setModeOverride] = useState<"morning" | "evening" | null>(null);
   const [intention, setIntention] = useState("");
@@ -792,6 +794,16 @@ export default function TodayScreen() {
           <Feather name="settings" size={18} color={colors.mutedForeground} />
         </TouchableOpacity>
       </View>
+
+      {/* ── HealthKit sync indicator ────────────────────────────────────────── */}
+      {isHealthSyncing && Platform.OS === "ios" && (
+        <View style={styles.healthSyncRow}>
+          <ActivityIndicator size="small" color={colors.primary} style={{ marginRight: 6 }} />
+          <Text style={[styles.healthSyncText, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
+            Syncing health data
+          </Text>
+        </View>
+      )}
 
       {/* ── Dev mode toggle ─────────────────────────────────────────────────── */}
       <View style={styles.toggleRow}>
@@ -953,6 +965,15 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
     marginTop: 4,
+  },
+  // HealthKit sync indicator
+  healthSyncRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 8,
+  },
+  healthSyncText: {
+    fontSize: 12,
   },
   // Mode toggle
   toggleRow: {

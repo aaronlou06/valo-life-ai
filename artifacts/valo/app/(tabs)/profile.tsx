@@ -18,6 +18,7 @@ import * as Haptics from "expo-haptics";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useColors } from "@/hooks/useColors";
 import { useValoAuth } from "@/contexts/AuthContext";
+import { useHealthKitSync } from "@/hooks/useHealthKitSync";
 import { useListGoals, useListHabits } from "@workspace/api-client-react";
 
 function getApiBase(): string {
@@ -506,6 +507,7 @@ export default function ProfileScreen() {
 
   const { data: goals } = useListGoals();
   const { data: habits } = useListHabits();
+  const { isPermissionsGranted: isHealthConnected } = useHealthKitSync();
 
   const topPad = Platform.OS === "web" ? Math.max(insets.top, 67) : insets.top;
   const bottomPad = Platform.OS === "web" ? 34 : insets.bottom;
@@ -892,32 +894,49 @@ export default function ProfileScreen() {
         <View style={styles.section}>
           <SectionLabel label="CONNECTED DATA" />
           <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border, padding: 0, overflow: "hidden" }]}>
-            {INTEGRATIONS.map((integration, idx) => (
-              <TouchableOpacity
-                key={integration.key}
-                onPress={() => Alert.alert("Coming soon")}
-                activeOpacity={0.7}
-                style={[
-                  styles.integrationRow,
-                  idx < INTEGRATIONS.length - 1 && {
-                    borderBottomWidth: StyleSheet.hairlineWidth,
-                    borderBottomColor: colors.border,
-                  },
-                ]}
-              >
-                <View style={styles.chevronLeft}>
-                  <Feather name={integration.icon as any} size={17} color={colors.mutedForeground} />
-                  <Text style={[styles.chevronLabel, { color: colors.foreground, fontFamily: "Inter_400Regular" }]}>
-                    {integration.label}
-                  </Text>
-                </View>
-                <View style={[styles.statusBadge, { backgroundColor: colors.muted }]}>
-                  <Text style={[styles.statusText, { color: colors.mutedForeground, fontFamily: "Inter_500Medium" }]}>
-                    Not connected
-                  </Text>
-                </View>
-              </TouchableOpacity>
-            ))}
+            {INTEGRATIONS.map((integration, idx) => {
+              const connected = integration.key === "apple-health" && isHealthConnected;
+              return (
+                <TouchableOpacity
+                  key={integration.key}
+                  onPress={() => Alert.alert("Coming soon")}
+                  activeOpacity={0.7}
+                  style={[
+                    styles.integrationRow,
+                    idx < INTEGRATIONS.length - 1 && {
+                      borderBottomWidth: StyleSheet.hairlineWidth,
+                      borderBottomColor: colors.border,
+                    },
+                  ]}
+                >
+                  <View style={styles.chevronLeft}>
+                    <Feather
+                      name={integration.icon as any}
+                      size={17}
+                      color={connected ? "#059669" : colors.mutedForeground}
+                    />
+                    <Text style={[styles.chevronLabel, { color: colors.foreground, fontFamily: "Inter_400Regular" }]}>
+                      {integration.label}
+                    </Text>
+                  </View>
+                  <View
+                    style={[
+                      styles.statusBadge,
+                      { backgroundColor: connected ? "#DCFCE7" : colors.muted },
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        styles.statusText,
+                        { color: connected ? "#059669" : colors.mutedForeground, fontFamily: "Inter_500Medium" },
+                      ]}
+                    >
+                      {connected ? "Connected" : "Not connected"}
+                    </Text>
+                  </View>
+                </TouchableOpacity>
+              );
+            })}
           </View>
         </View>
 

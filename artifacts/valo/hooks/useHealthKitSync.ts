@@ -1,0 +1,121 @@
+import { useState, useEffect, useRef, useCallback } from "react";
+import { AppState, AppStateStatus, Platform } from "react-native";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { useValoAuth } from "@/contexts/AuthContext";
+import {
+  requestHealthKitPermissions,
+  fetchTodayHealthData,
+} from "@/lib/healthKit";
+
+const LAST_SYNCED_KEY = "@valo/healthkit-last-synced";
+const PERMISSIONS_KEY = "@valo/healthkit-permissions-requested";
+
+function getApiBase(): string {
+  const domain = process.env.EXPO_PUBLIC_DOMAIN;
+  return domain ? `https://${domain}` : "";
+}
+
+export interface HealthKitSyncState {
+  isSyncing: boolean;
+  lastSynced: Date | null;
+  isPermissionsGranted: boolean;
+  syncNow: () => Promise<void>;
+}
+
+export function useHealthKitSync(): HealthKitSyncState {
+  const { getToken } = useValoAuth();
+  const [isSyncing, setIsSyncing] = useState(false);
+  const [lastSynced, setLastSynced] = useState<Date | null>(null);
+  const [isPermissionsGranted, setIsPermissionsGranted] = useState(false);
+  const appState = useRef<AppStateStatus>(AppState.currentState);
+
+  const syncNow = useCallback(async (): Promise<void> => {
+    if (Platform.OS !== "ios") return;
+    if (isSyncing) return;
+
+    setIsSyncing(true);
+    try {
+      const data = await fetchTodayHealthData();
+
+      const hasData =
+        data.sleepHours !== null ||
+        data.hrv !== null ||
+        data.restingHeartRate !== null ||
+        data.steps !== null;
+
+      if (!hasData) return;
+
+      const token = await getToken();
+      if (!token) return;
+
+      const body: Record<string, number> = {};
+      if (data.sleepHours !== null) body.sleepHours = data.sleepHours;
+      if (data.hrv !== null) body.hrv = data.hrv;
+      if (data.restingHeartRate !== null) body.restingHeartRate = data.restingHeartRate;
+      if (data.steps !== null) body.steps = Math.round(data.steps);
+
+      await fetch(`${getApiBase()}/api/daily-logs`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(body),
+      });
+
+      const now = new Date();
+      setLastSynced(now);
+      await AsyncStorage.setItem(LAST_SYNCED_KEY, now.toISOString());
+    } catch {
+      // silent — never block the UI for a health sync failure
+    } finally {
+      setIsSyncing(false);
+    }
+  }, [getToken, isSyncing]);
+
+  useEffect(() => {
+    if (Platform.OS !== "ios") return;
+
+    async function init() {
+      try {
+        const stored = await AsyncStorage.getItem(LAST_SYNCED_KEY);
+        if (stored) setLastSynced(new Date(stored));
+
+        const alreadyRequested = await AsyncStorage.getItem(PERMISSIONS_KEY);
+        const granted = await requestHealthKitPermissions();
+        setIsPermissionsGranted(granted);
+
+        if (!alreadyRequested) {
+          await AsyncStorage.setItem(PERMISSIONS_KEY, "true");
+        }
+
+        await syncNow();
+      } catch {
+        // ignore
+      }
+    }
+
+    void init();
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    if (Platform.OS !== "ios") return;
+
+    const subscription = AppState.addEventListener(
+      "change",
+      (nextState: AppStateStatus) => {
+        if (
+          appState.current.match(/inactive|background/) &&
+          nextState === "active"
+        ) {
+          void syncNow();
+        }
+        appState.current = nextState;
+      }
+    );
+
+    return () => subscription.remove();
+  }, [syncNow]);
+
+  return { isSyncing, lastSynced, isPermissionsGranted, syncNow };
+}
