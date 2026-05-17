@@ -330,6 +330,10 @@ importers:
         version: 3.25.76
 
   artifacts/valo:
+    dependencies:
+      '@kingstinct/react-native-healthkit':
+        specifier: 9.0.11
+        version: 9.0.11(react-native@0.81.5(@babel/core@7.29.0)(@types/react@19.1.17)(react@19.1.0))(react@19.1.0)
     devDependencies:
       '@babel/core':
         specifier: ^7.25.2
@@ -358,9 +362,6 @@ importers:
       '@expo/vector-icons':
         specifier: ^15.0.3
         version: 15.1.1(expo-font@14.0.11(expo@54.0.34)(react-native@0.81.5(@babel/core@7.29.0)(@types/react@19.1.17)(react@19.1.0))(react@19.1.0))(react-native@0.81.5(@babel/core@7.29.0)(@types/react@19.1.17)(react@19.1.0))(react@19.1.0)
-      '@kingstinct/react-native-healthkit':
-        specifier: ^14.0.1
-        version: 14.0.1(react-native@0.81.5(@babel/core@7.29.0)(@types/react@19.1.17)(react@19.1.0))(react@19.1.0)
       '@react-native-async-storage/async-storage':
         specifier: 2.2.0
         version: 2.2.0(react-native@0.81.5(@babel/core@7.29.0)(@types/react@19.1.17)(react@19.1.0))
@@ -1864,12 +1865,12 @@ packages:
   '@jridgewell/trace-mapping@0.3.31':
     resolution: {integrity: sha512-zzNR+SdQSDJzc8joaeP8QQoCQr8NuYx2dIIytl1QeBEZHJ9uW6hebsrYgbz8hJwUQao3TWCMtmfV8Nu1twOLAw==}
 
-  '@kingstinct/react-native-healthkit@14.0.1':
-    resolution: {integrity: sha512-uqjMqaiNtGCsSXGwCUAv1ujSgcnZ+fIz8d3QZdc4PG36vq2icvtY7eXdZeb60Ek8shuWZpx+jL4wsEIrL5cIqg==}
+  '@kingstinct/react-native-healthkit@9.0.11':
+    resolution: {integrity: sha512-9FQMIzX59r9aotDZVLjm+M8I3N/9wScKTfrgC8z+pn77v5SY0w4KFDXQO9YHYOzQJxDOV0yC4n4XTieb+vVmRA==}
     peerDependencies:
-      react: '>=19'
-      react-native: '>=0.79'
-      react-native-nitro-modules: '>=0.35'
+      react: '*'
+      react-native: '*'
+      react-native-nitro-modules: '*'
 
   '@nodelib/fs.scandir@2.1.5':
     resolution: {integrity: sha512-vq24Bq3ym5HEQm2NKCr3yXDwjc7vTsEThRDnkp2DK9p1uqLR+DHurm/NOTo0KG7HYHU7eppKZj3MyqYuMBf62g==}
@@ -8112,7 +8113,7 @@ snapshots:
       '@jridgewell/resolve-uri': 3.1.2
       '@jridgewell/sourcemap-codec': 1.5.5
 
-  '@kingstinct/react-native-healthkit@14.0.1(react-native@0.81.5(@babel/core@7.29.0)(@types/react@19.1.17)(react@19.1.0))(react@19.1.0)':
+  '@kingstinct/react-native-healthkit@9.0.11(react-native@0.81.5(@babel/core@7.29.0)(@types/react@19.1.17)(react@19.1.0))(react@19.1.0)':
     dependencies:
       react: 19.1.0
       react-native: 0.81.5(@babel/core@7.29.0)(@types/react@19.1.17)(react@19.1.0)

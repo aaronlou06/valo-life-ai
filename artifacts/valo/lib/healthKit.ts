@@ -27,19 +27,21 @@ const READ_TYPES = [
 export async function requestHealthKitPermissions(): Promise<boolean> {
   if (Platform.OS !== "ios") return false;
   try {
-    await requestAuthorization({ toRead: READ_TYPES, toShare: [] });
+    // v9: requestAuthorization(toShare, toRead)
+    await requestAuthorization([], READ_TYPES);
     return true;
   } catch {
     return false;
   }
 }
 
-function todayDateFilter() {
+function todayFilter() {
   const startDate = new Date();
   startDate.setHours(0, 0, 0, 0);
   const endDate = new Date();
   endDate.setHours(23, 59, 59, 999);
-  return { date: { startDate, endDate } };
+  // v9: FilterForSamples has startDate/endDate directly (no nested "date" key)
+  return { startDate, endDate };
 }
 
 async function fetchQuantityStat(
@@ -50,7 +52,7 @@ async function fetchQuantityStat(
     const result = await queryStatisticsForQuantity(
       identifier as "HKQuantityTypeIdentifierStepCount",
       [stat],
-      { filter: todayDateFilter() },
+      { filter: todayFilter() },
     );
     if (!result) return null;
     const qty: { quantity?: number } | undefined =
@@ -67,26 +69,29 @@ async function fetchQuantityStat(
 async function fetchSleepHours(): Promise<number | null> {
   if (Platform.OS !== "ios") return null;
   try {
-    const startDate = new Date();
-    startDate.setDate(startDate.getDate() - 1);
-    startDate.setHours(18, 0, 0, 0);
-    const endDate = new Date();
-    endDate.setHours(23, 59, 59, 999);
-
-    const samples = await queryCategorySamples(
-      "HKCategoryTypeIdentifierSleepAnalysis",
-      { limit: 0, filter: { date: { startDate, endDate } } },
-    );
+    // v9: queryCategorySamples takes only the identifier — no options
+    const samples = await queryCategorySamples("HKCategoryTypeIdentifierSleepAnalysis");
 
     if (!samples || samples.length === 0) return null;
+
+    // Filter to samples starting from 6pm yesterday
+    const cutoff = new Date();
+    cutoff.setDate(cutoff.getDate() - 1);
+    cutoff.setHours(18, 0, 0, 0);
+    const now = new Date();
 
     const ASLEEP_VALUES = new Set([1, 3, 4, 5]);
     let totalMs = 0;
     for (const s of samples) {
-      if (ASLEEP_VALUES.has((s as any).value)) {
-        const start = new Date(s.startDate).getTime();
-        const end = new Date(s.endDate).getTime();
-        if (end > start) totalMs += end - start;
+      const start = new Date(s.startDate).getTime();
+      const end = new Date(s.endDate).getTime();
+      if (
+        ASLEEP_VALUES.has((s as any).value) &&
+        start >= cutoff.getTime() &&
+        end <= now.getTime() &&
+        end > start
+      ) {
+        totalMs += end - start;
       }
     }
     if (totalMs === 0) return null;

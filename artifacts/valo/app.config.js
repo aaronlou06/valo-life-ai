@@ -59,9 +59,9 @@ export default {
       [
         "@kingstinct/react-native-healthkit",
         {
-          healthSharePermission:
+          NSHealthShareUsageDescription:
             "Valo reads your health data to personalize your daily check-in and insights.",
-          healthUpdatePermission:
+          NSHealthUpdateUsageDescription:
             "Valo writes workout and mindfulness data to Apple Health.",
         },
       ],
