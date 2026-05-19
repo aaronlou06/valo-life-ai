@@ -19,17 +19,10 @@ import { useColors } from "@/hooks/useColors";
 import { markOnboardingComplete } from "@/hooks/onboardingState";
 
 import Step1Identity from "@/components/onboarding/Step1Identity";
-import Step2Priorities from "@/components/onboarding/Step2Priorities";
-import Step3Feelings from "@/components/onboarding/Step3Feelings";
-import Step4Motivation from "@/components/onboarding/Step4Motivation";
-import Step5Bio from "@/components/onboarding/Step5Bio";
-import Step6Fitness from "@/components/onboarding/Step6Fitness";
-import Step7Diet from "@/components/onboarding/Step7Diet";
-import Step8Rhythm from "@/components/onboarding/Step8Rhythm";
-import Step9Call from "@/components/onboarding/Step9Call";
-import WelcomeScreen from "@/components/onboarding/WelcomeScreen";
+import StepVoiceCall from "@/components/onboarding/StepVoiceCall";
+import StepConnect from "@/components/onboarding/StepConnect";
 
-const TOTAL_STEPS = 9;
+const TOTAL_STEPS = 3;
 
 function getApiBase(): string {
   const domain = process.env.EXPO_PUBLIC_DOMAIN;
@@ -70,7 +63,6 @@ export default function OnboardingScreen() {
 
   const [step, setStep] = useState(1);
   const [saving, setSaving] = useState(false);
-  const [completed, setCompleted] = useState(false);
   const [allData, setAllData] = useState<Record<string, any>>({});
 
   const currentDataRef = useRef<{ data: Record<string, any>; valid: boolean }>({
@@ -80,7 +72,6 @@ export default function OnboardingScreen() {
   const [currentValid, setCurrentValid] = useState(false);
 
   const scrollRef = useRef<ScrollView>(null);
-
   const fadeAnim = useRef(new Animated.Value(1)).current;
   const slideAnim = useRef(new Animated.Value(0)).current;
 
@@ -123,22 +114,15 @@ export default function OnboardingScreen() {
     setCurrentValid(valid);
   }, []);
 
-  const finishOnboarding = useCallback(
-    async (extraData?: Record<string, any>) => {
-      const srcData = extraData ?? currentDataRef.current.data;
-      const patchData: Record<string, any> = { ...srcData, onboardingCompleted: true };
-      try {
-        await patchOnboarding(patchData);
-      } catch {
-        // proceed even if network fails
-      }
-      if (srcData.name) updateName(srcData.name as string);
-      markOnboardingComplete();
-      setAllData((prev) => ({ ...prev, ...srcData }));
-      animateTransition(() => setCompleted(true));
-    },
-    [patchOnboarding, updateName, animateTransition]
-  );
+  const finishOnboarding = useCallback(async () => {
+    try {
+      await patchOnboarding({ onboardingCompleted: true });
+    } catch {
+      // proceed even if network fails
+    }
+    markOnboardingComplete();
+    router.replace("/(tabs)/today");
+  }, [patchOnboarding, router]);
 
   const handleNext = useCallback(async () => {
     if (!currentValid || saving) return;
@@ -146,41 +130,29 @@ export default function OnboardingScreen() {
     setSaving(true);
 
     const { data } = currentDataRef.current;
-    const isLast = step === TOTAL_STEPS;
 
     try {
-      if (isLast) {
-        await finishOnboarding(data);
-      } else {
-        await patchOnboarding(data);
-        if (data.name) updateName(data.name);
-        setAllData((prev) => ({ ...prev, ...data }));
-        animateTransition(() => {
-          setStep((s) => s + 1);
-          setCurrentValid(false);
-        });
-      }
+      await patchOnboarding(data);
+      if (data.name) updateName(data.name);
+      setAllData((prev) => ({ ...prev, ...data }));
+      animateTransition(() => {
+        setStep((s) => s + 1);
+        setCurrentValid(false);
+      });
     } catch {
-      if (isLast) {
-        if (data.name) updateName(data.name);
-        markOnboardingComplete();
-        setAllData((prev) => ({ ...prev, ...data }));
-        animateTransition(() => setCompleted(true));
-      } else {
-        if (data.name) updateName(data.name);
-        setAllData((prev) => ({ ...prev, ...data }));
-        animateTransition(() => {
-          setStep((s) => s + 1);
-          setCurrentValid(false);
-        });
-      }
+      if (data.name) updateName(data.name);
+      setAllData((prev) => ({ ...prev, ...data }));
+      animateTransition(() => {
+        setStep((s) => s + 1);
+        setCurrentValid(false);
+      });
     } finally {
       setSaving(false);
     }
-  }, [currentValid, saving, step, patchOnboarding, finishOnboarding, animateTransition, updateName]);
+  }, [currentValid, saving, patchOnboarding, animateTransition, updateName]);
 
   const handleBack = useCallback(() => {
-    if (step === 1 || saving) return;
+    if (step === 1 || step === 2 || saving) return;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     animateTransition(() => {
       setStep((s) => s - 1);
@@ -188,37 +160,20 @@ export default function OnboardingScreen() {
     });
   }, [step, saving, animateTransition]);
 
-  const handleSkip = useCallback(async () => {
-    if (saving) return;
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    setSaving(true);
-    try {
-      await patchOnboarding({ onboardingCompleted: true });
-      markOnboardingComplete();
-      animateTransition(() => setCompleted(true));
-    } catch {
-      markOnboardingComplete();
-      animateTransition(() => setCompleted(true));
-    } finally {
-      setSaving(false);
-    }
-  }, [saving, patchOnboarding, animateTransition]);
-
-  if (completed) {
-    return (
-      <WelcomeScreen
-        allData={allData}
-        onBegin={() => {
-          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-          router.replace("/(tabs)/today");
-        }}
-      />
-    );
-  }
+  const advanceToStep3 = useCallback(() => {
+    animateTransition(() => {
+      setStep(3);
+      setCurrentValid(false);
+    });
+  }, [animateTransition]);
 
   const topPad = Platform.OS === "web" ? Math.max(insets.top, 67) : insets.top;
   const bottomPad = insets.bottom;
   const stepProps = { initialValue: allData, onChange: handleStepChange };
+
+  const showHeader = step !== 2;
+  const showContinueBtn = step === 1;
+  const backDisabled = step !== 3;
 
   return (
     <KeyboardAvoidingView
@@ -226,22 +181,26 @@ export default function OnboardingScreen() {
       behavior={Platform.OS === "ios" ? "padding" : "height"}
       keyboardVerticalOffset={0}
     >
-      {/* Header */}
-      <View style={[styles.header, { paddingTop: topPad + 8 }]}>
-        <TouchableOpacity
-          onPress={handleBack}
-          style={[styles.backBtn, { opacity: step === 1 ? 0 : 1 }]}
-          disabled={step === 1}
-        >
-          <Feather name="arrow-left" size={20} color={colors.mutedForeground} />
-        </TouchableOpacity>
-        <ProgressBar step={step} total={TOTAL_STEPS} colors={colors} />
-        <Text style={[styles.stepLabel, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
-          {step} of {TOTAL_STEPS}
-        </Text>
-      </View>
+      {showHeader && (
+        <View style={[styles.header, { paddingTop: topPad + 8 }]}>
+          <TouchableOpacity
+            onPress={handleBack}
+            style={[styles.backBtn, { opacity: backDisabled ? 0 : 1 }]}
+            disabled={backDisabled}
+          >
+            <Feather name="arrow-left" size={20} color={colors.mutedForeground} />
+          </TouchableOpacity>
+          <ProgressBar step={step} total={TOTAL_STEPS} colors={colors} />
+          <Text style={[styles.stepLabel, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
+            {step} of {TOTAL_STEPS}
+          </Text>
+        </View>
+      )}
 
-      {/* Animated step content */}
+      {!showHeader && (
+        <View style={{ height: topPad + 8 }} />
+      )}
+
       <Animated.View style={[styles.animated, { opacity: fadeAnim, transform: [{ translateY: slideAnim }] }]}>
         <ScrollView
           ref={scrollRef}
@@ -251,62 +210,60 @@ export default function OnboardingScreen() {
           showsVerticalScrollIndicator={false}
         >
           {step === 1 && <Step1Identity {...stepProps} />}
-          {step === 2 && <Step2Priorities {...stepProps} />}
-          {step === 3 && <Step3Feelings {...stepProps} />}
-          {step === 4 && <Step4Motivation {...stepProps} />}
-          {step === 5 && <Step5Bio {...stepProps} />}
-          {step === 6 && <Step6Fitness {...stepProps} />}
-          {step === 7 && <Step7Diet {...stepProps} />}
-          {step === 8 && <Step8Rhythm {...stepProps} />}
-          {step === 9 && <Step9Call {...stepProps} />}
+          {step === 2 && (
+            <StepVoiceCall
+              {...stepProps}
+              onAdvance={advanceToStep3}
+            />
+          )}
+          {step === 3 && (
+            <StepConnect
+              name={allData.name ?? ""}
+              onComplete={finishOnboarding}
+            />
+          )}
         </ScrollView>
       </Animated.View>
 
-      {/* Bottom actions */}
-      <View style={[styles.bottomActions, { paddingBottom: bottomPad + 16 }]}>
-        {step === TOTAL_STEPS && (
-          <TouchableOpacity onPress={handleSkip} style={styles.skipBtn} disabled={saving}>
-            <Text style={[styles.skipText, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
-              Skip for now
-            </Text>
+      {showContinueBtn && (
+        <View style={[styles.bottomActions, { paddingBottom: bottomPad + 16 }]}>
+          <TouchableOpacity
+            style={[
+              styles.continueBtn,
+              {
+                backgroundColor: currentValid ? colors.primary : colors.muted,
+                opacity: saving ? 0.8 : 1,
+              },
+            ]}
+            onPress={handleNext}
+            disabled={!currentValid || saving}
+            activeOpacity={0.85}
+          >
+            {saving ? (
+              <ActivityIndicator color={colors.primaryForeground} size="small" />
+            ) : (
+              <>
+                <Text
+                  style={[
+                    styles.continueBtnText,
+                    {
+                      color: currentValid ? colors.primaryForeground : colors.mutedForeground,
+                      fontFamily: "Inter_600SemiBold",
+                    },
+                  ]}
+                >
+                  Continue
+                </Text>
+                <Feather
+                  name="arrow-right"
+                  size={18}
+                  color={currentValid ? colors.primaryForeground : colors.mutedForeground}
+                />
+              </>
+            )}
           </TouchableOpacity>
-        )}
-        <TouchableOpacity
-          style={[
-            styles.continueBtn,
-            {
-              backgroundColor: currentValid ? colors.primary : colors.muted,
-              opacity: saving ? 0.8 : 1,
-            },
-          ]}
-          onPress={handleNext}
-          disabled={!currentValid || saving}
-          activeOpacity={0.85}
-        >
-          {saving ? (
-            <ActivityIndicator color={colors.primaryForeground} size="small" />
-          ) : (
-            <>
-              <Text
-                style={[
-                  styles.continueBtnText,
-                  {
-                    color: currentValid ? colors.primaryForeground : colors.mutedForeground,
-                    fontFamily: "Inter_600SemiBold",
-                  },
-                ]}
-              >
-                {step === TOTAL_STEPS ? "Finish" : "Continue"}
-              </Text>
-              <Feather
-                name="arrow-right"
-                size={18}
-                color={currentValid ? colors.primaryForeground : colors.mutedForeground}
-              />
-            </>
-          )}
-        </TouchableOpacity>
-      </View>
+        </View>
+      )}
     </KeyboardAvoidingView>
   );
 }
@@ -336,8 +293,6 @@ const styles = StyleSheet.create({
     paddingTop: 12,
     gap: 10,
   },
-  skipBtn: { alignItems: "center", paddingVertical: 4 },
-  skipText: { fontSize: 14 },
   continueBtn: {
     height: 56,
     borderRadius: 16,

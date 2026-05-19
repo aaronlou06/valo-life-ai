@@ -1,0 +1,44 @@
+"Redesign the onboarding flow in app/onboarding.tsx and related components to be a 3-step process instead of 9 steps:
+Step 1 — Name only:
+Keep Step1Identity.tsx but simplify it to ONLY collect the user's first name. Remove the 'What kind of person are you trying to become?' identity field — Valo will collect that in the voice call. The step is valid as soon as the name field has at least 1 character.
+Step 2 — Voice onboarding call:
+Replace steps 2-9 with a single voice call screen. Create components/onboarding/StepVoiceCall.tsx:
+
+Full screen with Valo's logo/icon centered
+Large text: 'Meet Valo'
+Subtext: 'Valo wants to get to know you. This call takes about 5-10 minutes and replaces all the forms.'
+A large mic button using the same pulse animation pattern from checkin.tsx
+'Start my intro call' button that calls startCall() from useVapiOnboarding
+While call is active: show the same live transcript card from checkin.tsx (current speaker, fading between Valo and user)
+When call ends: show a brief 'Great to meet you!' success state with a checkmark, then automatically advance to step 3 after 2 seconds
+A small 'Skip voice call' link at the bottom in muted text that advances to step 3 without calling
+Import useVapiOnboarding from @/hooks/useVapiOnboarding
+
+Step 3 — Connect & explore:
+Replace WelcomeScreen.tsx with a new completion screen components/onboarding/StepConnect.tsx:
+
+Heading: 'You're set up, [name].'
+Subtext: 'Connect your devices to unlock Valo's full potential.'
+Three connection cards with icon, name, status, and connect button:
+
+Apple Health — 'Sleep, HRV, steps, recovery' — Connect button (calls requestHealthKitPermissions() from @/lib/healthKit)
+Apple Calendar — 'Your schedule, meetings, events' — Connect button (shows alert 'Coming soon')
+Google Calendar — 'Your Google schedule' — Connect button (shows alert 'Coming soon')
+
+
+Each card shows 'Connected ✓' in green after connecting
+'Go to Valo' primary button at bottom that completes onboarding and navigates to /(tabs)/today
+Small 'Skip for now' link below the button
+
+Update app/onboarding.tsx:
+
+Change TOTAL_STEPS to 3
+Step 1 → Step1Identity (name only)
+Step 2 → StepVoiceCall (voice call, no Continue button — advances automatically when call ends or skip is tapped)
+Step 3 → StepConnect (replaces WelcomeScreen, has its own 'Go to Valo' button)
+Remove all imports for Steps 2-9
+Remove the progress bar step counter for step 2 (hide it during the voice call)
+The back button should still work on step 1 and 3 but be hidden on step 2
+
+Also update finishOnboarding to only save the name from step 1 — everything else gets saved by the VAPI webhook after the call ends.
+Run typecheck after and confirm it passes."

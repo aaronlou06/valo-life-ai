@@ -10,11 +10,10 @@ interface Props {
 export default function Step1Identity({ initialValue, onChange }: Props) {
   const colors = useColors();
   const [name, setName] = useState<string>(initialValue.name ?? "");
-  const [userIdentity, setUserIdentity] = useState<string>(initialValue.userIdentity ?? "");
 
   useEffect(() => {
-    onChange({ name: name.trim(), userIdentity: userIdentity.trim() }, name.trim().length > 0);
-  }, [name, userIdentity]);
+    onChange({ name: name.trim() }, name.trim().length > 0);
+  }, [name]);
 
   return (
     <View style={styles.container}>
@@ -27,43 +26,31 @@ export default function Step1Identity({ initialValue, onChange }: Props) {
           Let's start with you.
         </Text>
         <Text style={[styles.subheading, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
-          Just the basics to get Valo set up.
+          Just your name to get started — Valo will learn everything else through conversation.
         </Text>
       </View>
 
-      <View style={styles.fields}>
-        <View style={styles.fieldGroup}>
-          <Text style={[styles.fieldLabel, { color: colors.mutedForeground, fontFamily: "Inter_500Medium" }]}>
-            First name
-          </Text>
-          <TextInput
-            value={name}
-            onChangeText={setName}
-            placeholder="What should Valo call you?"
-            placeholderTextColor={colors.mutedForeground}
-            autoFocus
-            returnKeyType="next"
-            style={[styles.input, { color: colors.foreground, borderColor: colors.border, backgroundColor: colors.card, fontFamily: "Inter_400Regular" }]}
-          />
-        </View>
-
-        <View style={styles.fieldGroup}>
-          <Text style={[styles.fieldLabel, { color: colors.mutedForeground, fontFamily: "Inter_500Medium" }]}>
-            What kind of person are you trying to become?
-          </Text>
-          <TextInput
-            value={userIdentity}
-            onChangeText={setUserIdentity}
-            placeholder={"e.g. Someone my kids can be proud of — or — Someone who's actually disciplined, not just motivated"}
-            placeholderTextColor={colors.mutedForeground}
-            multiline
-            numberOfLines={4}
-            style={[styles.textarea, { color: colors.foreground, borderColor: colors.border, backgroundColor: colors.card, fontFamily: "Inter_400Regular" }]}
-          />
-          <Text style={[styles.note, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
-            Valo will reference this. Be honest — no one else sees it.
-          </Text>
-        </View>
+      <View style={styles.fieldGroup}>
+        <Text style={[styles.fieldLabel, { color: colors.mutedForeground, fontFamily: "Inter_500Medium" }]}>
+          First name
+        </Text>
+        <TextInput
+          value={name}
+          onChangeText={setName}
+          placeholder="What should Valo call you?"
+          placeholderTextColor={colors.mutedForeground}
+          autoFocus
+          returnKeyType="done"
+          style={[
+            styles.input,
+            {
+              color: colors.foreground,
+              borderColor: colors.border,
+              backgroundColor: colors.card,
+              fontFamily: "Inter_400Regular",
+            },
+          ]}
+        />
       </View>
     </View>
   );
@@ -75,7 +62,6 @@ const styles = StyleSheet.create({
   headingBlock: { gap: 8 },
   heading: { fontSize: 22, lineHeight: 30 },
   subheading: { fontSize: 14, lineHeight: 22 },
-  fields: { gap: 24 },
   fieldGroup: { gap: 10 },
   fieldLabel: { fontSize: 13, lineHeight: 18 },
   input: {
@@ -85,15 +71,4 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     fontSize: 16,
   },
-  textarea: {
-    minHeight: 100,
-    borderWidth: 1,
-    borderRadius: 14,
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    fontSize: 15,
-    lineHeight: 22,
-    textAlignVertical: "top",
-  },
-  note: { fontSize: 12, lineHeight: 18 },
 });
