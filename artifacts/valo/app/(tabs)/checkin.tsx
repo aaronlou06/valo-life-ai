@@ -451,6 +451,10 @@ export default function VoiceScreen() {
   const [isSaving, setIsSaving] = useState(false);
   const [saved, setSaved] = useState(false);
 
+  const [currentSpeaker, setCurrentSpeaker] = useState<"assistant" | "user" | null>(null);
+  const [currentText, setCurrentText] = useState("");
+  const liveCardOpacity = useRef(new Animated.Value(1)).current;
+
   const upsertLog = useUpsertDailyLog();
   const createMood = useCreateMood();
 
@@ -554,10 +558,37 @@ export default function VoiceScreen() {
   }, [isEnding]);
 
   useEffect(() => {
-    if (transcript.length > 0) {
-      setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 50);
+    if (!isActive) {
+      setCurrentSpeaker(null);
+      setCurrentText("");
+      liveCardOpacity.setValue(1);
+      return;
     }
-  }, [transcript.length]);
+    if (transcript.length === 0) return;
+    const last = transcript[transcript.length - 1];
+    if (!last) return;
+    const role = last.role as "assistant" | "user";
+    if (currentSpeaker === null) {
+      setCurrentSpeaker(role);
+      setCurrentText(last.text);
+    } else if (role === currentSpeaker) {
+      setCurrentText(last.text);
+    } else {
+      Animated.timing(liveCardOpacity, {
+        toValue: 0,
+        duration: 200,
+        useNativeDriver: true,
+      }).start(() => {
+        setCurrentSpeaker(role);
+        setCurrentText(last.text);
+        Animated.timing(liveCardOpacity, {
+          toValue: 1,
+          duration: 200,
+          useNativeDriver: true,
+        }).start();
+      });
+    }
+  }, [isActive, transcript.length, transcript[transcript.length - 1]?.text]);
 
   useFocusEffect(
     useCallback(() => {
@@ -656,46 +687,6 @@ export default function VoiceScreen() {
             </Text>
           )}
 
-          {/* Active call controls */}
-          {isActive && (
-            <View style={styles.callControls}>
-              <TouchableOpacity
-                style={[
-                  styles.controlBtn,
-                  {
-                    backgroundColor: isMuted ? colors.muted : colors.card,
-                    borderColor: colors.border,
-                  },
-                ]}
-                onPress={() => {
-                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                  toggleMute();
-                }}
-              >
-                <Feather
-                  name={isMuted ? "mic-off" : "mic"}
-                  size={18}
-                  color={isMuted ? colors.mutedForeground : colors.foreground}
-                />
-                <Text style={[styles.controlBtnText, { color: isMuted ? colors.mutedForeground : colors.foreground, fontFamily: "Inter_500Medium" }]}>
-                  {isMuted ? "Unmute" : "Mute"}
-                </Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={[styles.controlBtn, styles.endBtn]}
-                onPress={() => {
-                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
-                  endCall();
-                }}
-              >
-                <Feather name="phone-off" size={18} color="#fff" />
-                <Text style={[styles.controlBtnText, { color: "#fff", fontFamily: "Inter_500Medium" }]}>
-                  End call
-                </Text>
-              </TouchableOpacity>
-            </View>
-          )}
         </View>
       )}
 
@@ -866,50 +857,114 @@ export default function VoiceScreen() {
         </View>
       )}
 
-      {/* ── LIVE TRANSCRIPT ─────────────────────────────────────────────── */}
-      {(isActive || (isIdle && transcript.length > 0 && !showSummary)) &&
-        transcript.length > 0 && (
-          <View style={{ gap: 8 }}>
-            <Text style={[styles.sectionTitle, { color: colors.mutedForeground, fontFamily: "Inter_500Medium" }]}>
-              TRANSCRIPT
+      {/* ── ACTIVE CALL: live single-message display ─────────────────────── */}
+      {isActive && currentSpeaker !== null && currentText.length > 0 && (
+        <Animated.View
+          style={[
+            styles.liveCard,
+            { backgroundColor: colors.card, borderColor: colors.border, opacity: liveCardOpacity },
+          ]}
+        >
+          <Text
+            style={[
+              styles.liveCardLabel,
+              {
+                color: currentSpeaker === "assistant" ? VALO_BLUE : USER_GREEN,
+                fontFamily: "Inter_600SemiBold",
+              },
+            ]}
+          >
+            {currentSpeaker === "assistant" ? "Valo" : "You"}
+          </Text>
+          <Text
+            style={[styles.liveCardText, { color: colors.foreground, fontFamily: "Inter_400Regular" }]}
+            numberOfLines={5}
+            ellipsizeMode="tail"
+          >
+            {currentText}
+          </Text>
+        </Animated.View>
+      )}
+
+      {/* ── ACTIVE CALL: mute + end controls ────────────────────────────── */}
+      {isActive && (
+        <View style={styles.callControls}>
+          <TouchableOpacity
+            style={[
+              styles.controlBtn,
+              {
+                backgroundColor: isMuted ? colors.muted : colors.card,
+                borderColor: colors.border,
+              },
+            ]}
+            onPress={() => {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+              toggleMute();
+            }}
+          >
+            <Feather
+              name={isMuted ? "mic-off" : "mic"}
+              size={18}
+              color={isMuted ? colors.mutedForeground : colors.foreground}
+            />
+            <Text style={[styles.controlBtnText, { color: isMuted ? colors.mutedForeground : colors.foreground, fontFamily: "Inter_500Medium" }]}>
+              {isMuted ? "Unmute" : "Mute"}
             </Text>
-            {transcript.map((entry, i) => (
-              <View key={i} style={styles.transcriptRow}>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.controlBtn, styles.endBtn]}
+            onPress={() => {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+              endCall();
+            }}
+          >
+            <Feather name="phone-off" size={18} color="#fff" />
+            <Text style={[styles.controlBtnText, { color: "#fff", fontFamily: "Inter_500Medium" }]}>
+              End call
+            </Text>
+          </TouchableOpacity>
+        </View>
+      )}
+
+      {/* ── POST-CALL TRANSCRIPT ─────────────────────────────────────────── */}
+      {isIdle && transcript.length > 0 && !showSummary && (
+        <View style={{ gap: 8 }}>
+          <Text style={[styles.sectionTitle, { color: colors.mutedForeground, fontFamily: "Inter_500Medium" }]}>
+            TRANSCRIPT
+          </Text>
+          {transcript.map((entry, i) => (
+            <View key={i} style={styles.transcriptRow}>
+              <Text
+                style={[
+                  styles.transcriptSpeaker,
+                  {
+                    color: entry.role === "assistant" ? VALO_BLUE : colors.primary,
+                    fontFamily: "Inter_600SemiBold",
+                  },
+                ]}
+              >
+                {entry.role === "assistant" ? "Valo" : "You"}
+              </Text>
+              <View
+                style={[
+                  styles.transcriptBubble,
+                  {
+                    backgroundColor: entry.role === "assistant" ? colors.card : colors.secondary,
+                    borderColor: colors.border,
+                  },
+                ]}
+              >
                 <Text
-                  style={[
-                    styles.transcriptSpeaker,
-                    {
-                      color:
-                        entry.role === "assistant" ? VALO_BLUE : colors.primary,
-                      fontFamily: "Inter_600SemiBold",
-                    },
-                  ]}
+                  style={[styles.transcriptText, { color: colors.foreground, fontFamily: "Inter_400Regular" }]}
                 >
-                  {entry.role === "assistant" ? "Valo" : "You"}
+                  {entry.text}
                 </Text>
-                <View
-                  style={[
-                    styles.transcriptBubble,
-                    {
-                      backgroundColor:
-                        entry.role === "assistant" ? colors.card : colors.secondary,
-                      borderColor: colors.border,
-                    },
-                  ]}
-                >
-                  <Text
-                    style={[
-                      styles.transcriptText,
-                      { color: colors.foreground, fontFamily: "Inter_400Regular" },
-                    ]}
-                  >
-                    {entry.text}
-                  </Text>
-                </View>
               </View>
-            ))}
-          </View>
-        )}
+            </View>
+          ))}
+        </View>
+      )}
       </>
       )}
 
@@ -1038,6 +1093,27 @@ const styles = StyleSheet.create({
   },
   endBtn: { backgroundColor: "#EF4444", borderColor: "#EF4444" },
   controlBtnText: { fontSize: 14 },
+
+  // Live single-message card (during active call)
+  liveCard: {
+    borderRadius: 16,
+    borderWidth: 1,
+    paddingHorizontal: 18,
+    paddingVertical: 16,
+    gap: 6,
+    marginVertical: 8,
+    alignItems: "center",
+  },
+  liveCardLabel: {
+    fontSize: 11,
+    letterSpacing: 0.8,
+    alignSelf: "center",
+  },
+  liveCardText: {
+    fontSize: 17,
+    lineHeight: 26,
+    textAlign: "center",
+  },
 
   // Transcript
   transcriptRow: { gap: 4 },
