@@ -29,12 +29,9 @@ export type DebriefExtraction = {
   flags: string[];
 };
 
-const REGULAR_ASSISTANT_ID = "1ac4c2fa-da5e-4528-8260-bc051717706e";
+const ONBOARDING_ASSISTANT_ID = "767a3c70-b675-4c16-8081-090665224984";
 
-const FIRST_CALL_ASSISTANT_ID =
-  process.env.EXPO_PUBLIC_VAPI_FIRST_CALL_ASSISTANT_ID ?? REGULAR_ASSISTANT_ID;
-
-export function useVapiDebrief(
+export function useVapiOnboarding(
   userId: string,
   getToken: () => Promise<string | null>,
   firstCallCompleted: boolean
@@ -156,10 +153,6 @@ export function useVapiDebrief(
     setDebriefExtraction(null);
     setIsMuted(false);
 
-    const assistantId = firstCallCompleted
-      ? REGULAR_ASSISTANT_ID
-      : FIRST_CALL_ASSISTANT_ID;
-
     const contextPath = firstCallCompleted
       ? `/api/vapi/context/${userId}`
       : `/api/vapi/first-call-context/${userId}`;
@@ -172,13 +165,13 @@ export function useVapiDebrief(
       );
       if (!res.ok) throw new Error(`Context fetch failed: ${res.status}`);
       const contextPayload = await res.json();
-      await vapi.start(assistantId, { variableValues: contextPayload });
+      await vapi.start(ONBOARDING_ASSISTANT_ID, { variableValues: contextPayload });
     } catch (err: any) {
       console.error("Vapi start error:", err);
       setCallState("idle");
       Alert.alert(
         "Call failed",
-        "Could not start the debrief. Please try again.",
+        "Could not start the call. Please try again.",
         [{ text: "OK" }]
       );
     }
