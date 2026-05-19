@@ -41,7 +41,7 @@ export default function SignUpScreen() {
     setError("");
     try {
       await signUp(email.trim(), password);
-      router.replace("/(tabs)/today");
+      router.replace("/onboarding");
     } catch (e: any) {
       setError(e.message ?? "Registration failed. Please try again.");
     } finally {
