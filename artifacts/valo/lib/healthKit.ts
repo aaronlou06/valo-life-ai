@@ -1,15 +1,19 @@
-import { Platform, Alert } from "react-native";
-
-console.log('[HealthKit] Platform:', Platform.OS);
+import { Platform } from "react-native";
 
 let AppleHealthKit: any = null;
 
 if (Platform.OS === "ios") {
   try {
     const mod = require("react-native-health");
-    AppleHealthKit = mod.default ?? mod;
+    const kit = mod?.default ?? mod;
+    if (kit && typeof kit.initHealthKit === "function") {
+      AppleHealthKit = kit;
+      console.log("[HealthKit] loaded successfully");
+    } else {
+      console.warn("[HealthKit] module loaded but API not available:", Object.keys(mod ?? {}));
+    }
   } catch (e) {
-    console.warn("[Valo] react-native-health not available:", e);
+    console.warn("[HealthKit] failed to load:", e);
   }
 }
 
@@ -30,16 +34,6 @@ export const HealthKitPermissions = {
     write: [],
   },
 };
-
-if (Platform.OS === 'ios') {
-  Alert.alert('HealthKit Debug', `AppleHealthKit loaded: ${!!AppleHealthKit}, Platform: ${Platform.OS}`);
-
-  if (AppleHealthKit) {
-    AppleHealthKit.isAvailable((err: any, available: boolean) => {
-      Alert.alert('HealthKit Available', `available: ${available}, err: ${JSON.stringify(err)}`);
-    });
-  }
-}
 
 export type DailyHealthData = {
   sleepHours: number | null;
