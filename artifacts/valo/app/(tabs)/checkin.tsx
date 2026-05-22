@@ -19,6 +19,11 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import DraggableFlatList, {
+  ScaleDecorator,
+  type RenderItemParams,
+} from "react-native-draggable-flatlist";
+import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { useUpsertDailyLog, useCreateMood, useGetSettings } from "@workspace/api-client-react";
 import { useColors } from "@/hooks/useColors";
 import { useVapiDebrief, type DebriefExtraction } from "@/hooks/useVapiDebrief";
@@ -241,23 +246,38 @@ function PromptCards({ ctx }: { ctx: VoiceContextData }) {
 type CheckInMode = "voice" | "guided" | "manual";
 
 type GuidedCardDef =
-  | { id: string; question: string; type: "choice"; options: string[] }
-  | { id: string; question: string; type: "text" };
+  | { id: string; question: string; type: "choice"; options: string[]; category: string }
+  | { id: string; question: string; type: "text"; category: string };
 
 const GUIDED_CARDS: GuidedCardDef[] = [
-  { id: "sleep", question: "How did you sleep last night?", type: "choice", options: ["Great", "Good", "Fair", "Poor"] },
-  { id: "energy", question: "How's your energy today?", type: "choice", options: ["High", "Good", "Low", "Drained"] },
-  { id: "mood", question: "How are you feeling overall?", type: "choice", options: ["Great", "Good", "Okay", "Rough"] },
-  { id: "workout", question: "Did you work out today?", type: "choice", options: ["Yes", "No", "Rest day"] },
-  { id: "nutrition", question: "How did you eat today?", type: "choice", options: ["Clean", "Pretty good", "Could be better", "Off track"] },
-  { id: "water", question: "How's your water intake?", type: "choice", options: ["On track", "Behind"] },
-  { id: "habits", question: "Did you complete your habits?", type: "choice", options: ["All of them", "Most of them", "A few", "None"] },
-  { id: "stress", question: "How was your stress today?", type: "choice", options: ["Low", "Moderate", "High", "Very high"] },
-  { id: "connections", question: "Did you have any meaningful conversations today?", type: "choice", options: ["Yes", "No"] },
-  { id: "productivity", question: "How productive were you today?", type: "choice", options: ["Very", "Somewhat", "Not really", "Not at all"] },
-  { id: "win", question: "What was one win today?", type: "text" },
-  { id: "tomorrow", question: "What's your intention for tomorrow?", type: "text" },
+  { id: "sleep",            question: "How did you sleep last night?",              type: "choice", options: ["Great", "Good", "Fair", "Poor"],               category: "Health" },
+  { id: "energy",           question: "How's your energy today?",                   type: "choice", options: ["High", "Good", "Low", "Drained"],               category: "Health" },
+  { id: "mood",             question: "How are you feeling overall?",               type: "choice", options: ["Great", "Good", "Okay", "Rough"],               category: "Health" },
+  { id: "stress",           question: "How was your stress today?",                 type: "choice", options: ["Low", "Moderate", "High", "Very high"],         category: "Health" },
+  { id: "water",            question: "How's your water intake?",                   type: "choice", options: ["On track", "Behind"],                           category: "Health" },
+  { id: "workout",          question: "Did you work out today?",                    type: "choice", options: ["Yes", "No", "Rest day"],                        category: "Fitness" },
+  { id: "steps",            question: "How many steps did you get today?",          type: "choice", options: ["10k+", "7–10k", "5–7k", "Under 5k"],            category: "Fitness" },
+  { id: "nutrition",        question: "How did you eat today?",                     type: "choice", options: ["Clean", "Pretty good", "Could be better", "Off track"], category: "Nutrition" },
+  { id: "productivity",     question: "How productive were you today?",             type: "choice", options: ["Very", "Somewhat", "Not really", "Not at all"], category: "Productivity" },
+  { id: "connections",      question: "Did you have any meaningful conversations today?", type: "choice", options: ["Yes", "No"],                             category: "Relationships" },
+  { id: "habits",           question: "Did you complete your habits?",              type: "choice", options: ["All of them", "Most of them", "A few", "None"], category: "Mindset" },
+  { id: "gratitude",        question: "What are you grateful for today?",           type: "text",                                                              category: "Mindset" },
+  { id: "win",              question: "What was one win today?",                    type: "text",                                                              category: "Mindset" },
+  { id: "tomorrow",         question: "What's your intention for tomorrow?",        type: "text",                                                              category: "Mindset" },
+  { id: "spiritual_habits", question: "Did you complete your spiritual habits?",    type: "choice", options: ["All of them", "Most of them", "A few", "None"], category: "Spirituality" },
 ];
+
+const CATEGORY_ORDER = ["Health", "Fitness", "Nutrition", "Productivity", "Relationships", "Mindset", "Spirituality"] as const;
+
+const CATEGORY_META: Record<string, { color: string }> = {
+  Health:        { color: "#D47A5A" },
+  Fitness:       { color: "#5A9B6A" },
+  Nutrition:     { color: "#C49040" },
+  Productivity:  { color: "#5A7EAF" },
+  Relationships: { color: "#AF5A88" },
+  Mindset:       { color: "#8A5AAF" },
+  Spirituality:  { color: "#C4A07A" },
+};
 
 // ─── Guided card config ──────────────────────────────────────────────────────
 
@@ -326,6 +346,18 @@ function deriveCardOrder(lifePriorities: string | null): string[] {
 
 // ─── Customize modal ─────────────────────────────────────────────────────────
 
+function CategoryTag({ category }: { category: string }) {
+  const meta = CATEGORY_META[category];
+  const color = meta?.color ?? "#999";
+  return (
+    <View style={[configStyles.catTag, { backgroundColor: color + "25" }]}>
+      <Text style={[configStyles.catTagText, { color, fontFamily: "Inter_600SemiBold" }]}>
+        {category}
+      </Text>
+    </View>
+  );
+}
+
 function GuidedConfigModal({
   visible,
   config,
@@ -338,159 +370,326 @@ function GuidedConfigModal({
   onClose: () => void;
 }) {
   const colors = useColors();
-  const [localOrder, setLocalOrder] = useState<string[]>(config.order);
-  const [localHidden, setLocalHidden] = useState<Set<string>>(new Set(config.hidden));
+
+  // localActive: ordered list of active card IDs
+  const [localActive, setLocalActive] = useState<string[]>([]);
+  const [expandedCats, setExpandedCats] = useState<Set<string>>(new Set());
 
   useEffect(() => {
-    if (visible) {
-      setLocalOrder(config.order);
-      setLocalHidden(new Set(config.hidden));
+    if (!visible) return;
+    const hiddenSet = new Set(config.hidden);
+    // order may contain only active IDs or all IDs — filter to just active
+    const activeFromOrder = config.order.filter((id) => !hiddenSet.has(id));
+    // guarantee always-show cards are present
+    const activeSet = new Set(activeFromOrder);
+    const withAlways = [...activeFromOrder];
+    for (const id of ALWAYS_SHOW_IDS) {
+      if (!activeSet.has(id)) withAlways.unshift(id);
     }
+    setLocalActive(withAlways);
+    setExpandedCats(new Set());
   }, [visible]);
 
   const handleDone = () => {
-    onChange({ order: localOrder, hidden: Array.from(localHidden) });
+    const activeSet = new Set(localActive);
+    const inactive = GUIDED_CARDS.map((c) => c.id).filter((id) => !activeSet.has(id));
+    onChange({ order: localActive, hidden: inactive });
     onClose();
   };
 
-  const moveUp = (idx: number) => {
-    if (idx === 0) return;
-    setLocalOrder((prev) => {
-      const next = [...prev];
-      [next[idx - 1], next[idx]] = [next[idx]!, next[idx - 1]!];
-      return next;
-    });
+  const disableCard = (id: string) => {
+    if (ALWAYS_SHOW_IDS.includes(id)) return;
+    setLocalActive((prev) => prev.filter((d) => d !== id));
   };
 
-  const moveDown = (idx: number) => {
-    if (idx === localOrder.length - 1) return;
-    setLocalOrder((prev) => {
-      const next = [...prev];
-      [next[idx + 1], next[idx]] = [next[idx]!, next[idx + 1]!];
-      return next;
-    });
+  const enableCard = (id: string) => {
+    setLocalActive((prev) => [...prev, id]);
+    // collapse that category once added
+    const card = GUIDED_CARDS.find((c) => c.id === id);
+    if (card) {
+      setExpandedCats((prev) => {
+        const next = new Set(prev);
+        next.delete(card.category);
+        return next;
+      });
+    }
   };
 
-  const toggleCard = (id: string) => {
-    const isAlwaysShow = ALWAYS_SHOW_IDS.includes(id);
-    if (isAlwaysShow) return;
-    setLocalHidden((prev) => {
+  const toggleCat = (cat: string) => {
+    setExpandedCats((prev) => {
       const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
+      if (next.has(cat)) next.delete(cat);
+      else next.add(cat);
       return next;
     });
   };
+
+  const activeItems = localActive
+    .map((id) => GUIDED_CARDS.find((c) => c.id === id))
+    .filter((c): c is GuidedCardDef => c !== undefined);
+
+  const activeSet = new Set(localActive);
+
+  // build inactive-by-category map
+  const inactiveByCategory: Partial<Record<string, GuidedCardDef[]>> = {};
+  for (const cat of CATEGORY_ORDER) {
+    const cards = GUIDED_CARDS.filter((c) => c.category === cat && !activeSet.has(c.id));
+    if (cards.length > 0) inactiveByCategory[cat] = cards;
+  }
+  const hasInactive = Object.keys(inactiveByCategory).length > 0;
+
+  const renderActiveItem = ({ item, drag, isActive }: RenderItemParams<GuidedCardDef>) => {
+    const isAlways = ALWAYS_SHOW_IDS.includes(item.id);
+    return (
+      <ScaleDecorator activeScale={0.97}>
+        <View
+          style={[
+            configStyles.activeRow,
+            {
+              backgroundColor: isActive ? colors.muted : colors.card,
+              borderBottomColor: colors.border,
+            },
+          ]}
+        >
+          <TouchableOpacity
+            onLongPress={drag}
+            delayLongPress={120}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            style={{ opacity: isAlways ? 0.3 : 0.6 }}
+            disabled={isAlways}
+          >
+            <Feather name="menu" size={18} color={colors.mutedForeground} />
+          </TouchableOpacity>
+
+          <View style={{ flex: 1, gap: 5 }}>
+            <Text
+              style={[configStyles.rowQuestion, { color: colors.foreground, fontFamily: "Inter_400Regular" }]}
+              numberOfLines={2}
+            >
+              {item.question}
+            </Text>
+            <CategoryTag category={item.category} />
+          </View>
+
+          <TouchableOpacity
+            onPress={() => disableCard(item.id)}
+            disabled={isAlways}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            style={{ opacity: isAlways ? 0.3 : 1 }}
+          >
+            <View style={[configStyles.checkCircle, { borderColor: colors.primary, backgroundColor: colors.primary + "18" }]}>
+              <Feather name="check" size={13} color={colors.primary} />
+            </View>
+          </TouchableOpacity>
+        </View>
+      </ScaleDecorator>
+    );
+  };
+
+  const ListHeader = (
+    <View style={[configStyles.sectionBand, { backgroundColor: colors.muted, borderBottomColor: colors.border }]}>
+      <Text style={[configStyles.sectionBandTitle, { color: colors.foreground, fontFamily: "Inter_600SemiBold" }]}>
+        Active questions
+      </Text>
+      <Text style={[configStyles.sectionBandCount, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
+        {activeItems.length}
+      </Text>
+    </View>
+  );
+
+  const ListFooter = hasInactive ? (
+    <View>
+      <View
+        style={[
+          configStyles.sectionBand,
+          { backgroundColor: colors.muted, borderTopColor: colors.border, borderBottomColor: colors.border, borderTopWidth: StyleSheet.hairlineWidth, marginTop: 20 },
+        ]}
+      >
+        <Text style={[configStyles.sectionBandTitle, { color: colors.foreground, fontFamily: "Inter_600SemiBold" }]}>
+          Add more questions
+        </Text>
+      </View>
+
+      {CATEGORY_ORDER.map((cat) => {
+        const cards = inactiveByCategory[cat];
+        if (!cards || cards.length === 0) return null;
+        const expanded = expandedCats.has(cat);
+        const catColor = CATEGORY_META[cat]?.color ?? colors.primary;
+        return (
+          <View key={cat}>
+            <TouchableOpacity
+              style={[configStyles.folderRow, { borderBottomColor: colors.border, backgroundColor: colors.card }]}
+              onPress={() => toggleCat(cat)}
+              activeOpacity={0.7}
+            >
+              <View style={[configStyles.folderDot, { backgroundColor: catColor }]} />
+              <Text style={[configStyles.folderName, { color: colors.foreground, fontFamily: "Inter_500Medium" }]}>
+                {cat}
+              </Text>
+              <Text style={[configStyles.folderCount, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
+                {cards.length}
+              </Text>
+              <Feather
+                name="chevron-right"
+                size={15}
+                color={colors.mutedForeground}
+                style={{ transform: [{ rotate: expanded ? "90deg" : "0deg" }] }}
+              />
+            </TouchableOpacity>
+
+            {expanded &&
+              cards.map((card) => (
+                <TouchableOpacity
+                  key={card.id}
+                  style={[configStyles.inactiveRow, { borderBottomColor: colors.border, backgroundColor: colors.background }]}
+                  onPress={() => enableCard(card.id)}
+                  activeOpacity={0.7}
+                >
+                  <View style={{ flex: 1, gap: 5 }}>
+                    <Text
+                      style={[configStyles.rowQuestion, { color: colors.foreground, fontFamily: "Inter_400Regular" }]}
+                      numberOfLines={2}
+                    >
+                      {card.question}
+                    </Text>
+                    <CategoryTag category={card.category} />
+                  </View>
+                  <View style={[configStyles.addBtn, { borderColor: colors.border }]}>
+                    <Feather name="plus" size={16} color={colors.primary} />
+                  </View>
+                </TouchableOpacity>
+              ))}
+          </View>
+        );
+      })}
+      <View style={{ height: 48 }} />
+    </View>
+  ) : (
+    <View style={{ height: 48 }} />
+  );
 
   return (
     <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
-      <View style={configStyles.overlay}>
-        <TouchableOpacity style={{ flex: 1 }} activeOpacity={1} onPress={onClose} />
-        <View style={[configStyles.sheet, { backgroundColor: colors.background }]}>
-          <View style={[configStyles.sheetHeader, { borderBottomColor: colors.border }]}>
-            <TouchableOpacity onPress={onClose} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-              <Text style={[configStyles.headerAction, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
-                Cancel
-              </Text>
-            </TouchableOpacity>
-            <Text style={[configStyles.headerTitle, { color: colors.foreground, fontFamily: "Inter_600SemiBold" }]}>
-              Customize
-            </Text>
-            <TouchableOpacity onPress={handleDone} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-              <Text style={[configStyles.headerAction, { color: colors.primary, fontFamily: "Inter_600SemiBold" }]}>
-                Done
-              </Text>
-            </TouchableOpacity>
-          </View>
+      <GestureHandlerRootView style={{ flex: 1 }}>
+        <View style={configStyles.overlay}>
+          <TouchableOpacity style={{ flex: 1 }} activeOpacity={1} onPress={onClose} />
 
-          <ScrollView contentContainerStyle={configStyles.list} showsVerticalScrollIndicator={false}>
-            {localOrder.map((id, idx) => {
-              const card = GUIDED_CARDS.find((c) => c.id === id);
-              if (!card) return null;
-              const isAlwaysShow = ALWAYS_SHOW_IDS.includes(id);
-              const enabled = !localHidden.has(id);
-              return (
-                <View
-                  key={id}
-                  style={[configStyles.row, { backgroundColor: colors.card, borderColor: colors.border }]}
-                >
-                  <Switch
-                    value={enabled}
-                    onValueChange={() => toggleCard(id)}
-                    disabled={isAlwaysShow}
-                    trackColor={{ false: colors.border, true: colors.primary }}
-                    thumbColor={colors.card}
-                    style={{ opacity: isAlwaysShow ? 0.45 : 1 }}
-                  />
-                  <Text
-                    style={[
-                      configStyles.rowLabel,
-                      {
-                        color: enabled ? colors.foreground : colors.mutedForeground,
-                        fontFamily: "Inter_400Regular",
-                      },
-                    ]}
-                    numberOfLines={2}
-                  >
-                    {card.question}
-                  </Text>
-                  <View style={configStyles.arrows}>
-                    <TouchableOpacity
-                      onPress={() => moveUp(idx)}
-                      disabled={idx === 0}
-                      hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
-                      style={{ opacity: idx === 0 ? 0.25 : 1 }}
-                    >
-                      <Feather name="chevron-up" size={17} color={colors.mutedForeground} />
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      onPress={() => moveDown(idx)}
-                      disabled={idx === localOrder.length - 1}
-                      hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
-                      style={{ opacity: idx === localOrder.length - 1 ? 0.25 : 1 }}
-                    >
-                      <Feather name="chevron-down" size={17} color={colors.mutedForeground} />
-                    </TouchableOpacity>
-                  </View>
-                </View>
-              );
-            })}
-            <Text style={[configStyles.hint, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
-              Mood and stress always appear.
-            </Text>
-          </ScrollView>
+          <View style={[configStyles.sheet, { backgroundColor: colors.background }]}>
+            {/* Sheet handle */}
+            <View style={configStyles.handleWrap}>
+              <View style={[configStyles.handle, { backgroundColor: colors.border }]} />
+            </View>
+
+            {/* Header */}
+            <View style={[configStyles.sheetHeader, { borderBottomColor: colors.border }]}>
+              <TouchableOpacity onPress={onClose} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                <Text style={[configStyles.headerAction, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
+                  Cancel
+                </Text>
+              </TouchableOpacity>
+              <Text style={[configStyles.headerTitle, { color: colors.foreground, fontFamily: "Inter_600SemiBold" }]}>
+                Customize
+              </Text>
+              <TouchableOpacity onPress={handleDone} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                <Text style={[configStyles.headerAction, { color: colors.primary, fontFamily: "Inter_600SemiBold" }]}>
+                  Done
+                </Text>
+              </TouchableOpacity>
+            </View>
+
+            <DraggableFlatList
+              data={activeItems}
+              keyExtractor={(item) => item.id}
+              onDragEnd={({ data }) => setLocalActive(data.map((c) => c.id))}
+              renderItem={renderActiveItem}
+              showsVerticalScrollIndicator={false}
+              ListHeaderComponent={ListHeader}
+              ListFooterComponent={ListFooter}
+            />
+          </View>
         </View>
-      </View>
+      </GestureHandlerRootView>
     </Modal>
   );
 }
 
 const configStyles = StyleSheet.create({
-  overlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.35)", justifyContent: "flex-end" },
-  sheet: { borderTopLeftRadius: 22, borderTopRightRadius: 22, maxHeight: "88%", overflow: "hidden" },
+  overlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.38)", justifyContent: "flex-end" },
+  sheet: { borderTopLeftRadius: 24, borderTopRightRadius: 24, maxHeight: "92%", overflow: "hidden" },
+  handleWrap: { alignItems: "center", paddingTop: 10, paddingBottom: 4 },
+  handle: { width: 36, height: 4, borderRadius: 2 },
   sheetHeader: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
     paddingHorizontal: 20,
-    paddingVertical: 16,
+    paddingVertical: 14,
     borderBottomWidth: StyleSheet.hairlineWidth,
   },
   headerTitle: { fontSize: 16 },
   headerAction: { fontSize: 15 },
-  list: { padding: 20, gap: 10, paddingBottom: 40 },
-  row: {
+  sectionBand: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 12,
-    borderRadius: 12,
-    borderWidth: 1,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
+    gap: 8,
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderBottomWidth: StyleSheet.hairlineWidth,
   },
-  rowLabel: { flex: 1, fontSize: 14, lineHeight: 20 },
-  arrows: { gap: 4 },
-  hint: { fontSize: 12, textAlign: "center", marginTop: 4 },
+  sectionBandTitle: { flex: 1, fontSize: 12, letterSpacing: 0.5 },
+  sectionBandCount: { fontSize: 12 },
+  activeRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 14,
+    paddingHorizontal: 20,
+    paddingVertical: 14,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+  },
+  rowQuestion: { fontSize: 14, lineHeight: 20 },
+  checkCircle: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    borderWidth: 1.5,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  catTag: {
+    alignSelf: "flex-start",
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+    borderRadius: 8,
+  },
+  catTagText: { fontSize: 10, letterSpacing: 0.4 },
+  folderRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    paddingHorizontal: 20,
+    paddingVertical: 14,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+  },
+  folderDot: { width: 8, height: 8, borderRadius: 4 },
+  folderName: { flex: 1, fontSize: 14 },
+  folderCount: { fontSize: 13, marginRight: 2 },
+  inactiveRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 14,
+    paddingLeft: 36,
+    paddingRight: 20,
+    paddingVertical: 13,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+  },
+  addBtn: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    borderWidth: 1,
+    alignItems: "center",
+    justifyContent: "center",
+  },
 });
 
 function ModeToggle({ mode, onSelect }: { mode: CheckInMode; onSelect: (m: CheckInMode) => void }) {
