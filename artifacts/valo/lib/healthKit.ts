@@ -1,4 +1,4 @@
-import { Platform } from "react-native";
+import { Platform, Alert } from "react-native";
 
 console.log('[HealthKit] Platform:', Platform.OS);
 
@@ -32,10 +32,10 @@ export const HealthKitPermissions = {
 
 if (Platform.OS === 'ios' && AppleHealthKit) {
   AppleHealthKit.isAvailable((err: any, available: boolean) => {
-    console.log('[HealthKit] isAvailable result:', available, 'err:', err);
+    Alert.alert('HealthKit Status', `Available: ${available}, Error: ${JSON.stringify(err)}`);
     if (available) {
       AppleHealthKit.initHealthKit(HealthKitPermissions, (initErr: any) => {
-        console.log('[HealthKit] auto-init result - err:', initErr);
+        Alert.alert('HealthKit Init', `Error: ${JSON.stringify(initErr)}`);
       });
     }
   });
