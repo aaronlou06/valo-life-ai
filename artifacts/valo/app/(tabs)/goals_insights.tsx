@@ -21,6 +21,7 @@ import { useColors } from "@/hooks/useColors";
 import {
   useListGoals,
   useListHabits,
+  useListInsights,
   useCreateGoal,
   useUpdateGoal,
   useCreateCalendarEvent,
@@ -31,6 +32,7 @@ import {
   getListGoalsQueryKey,
   getListHabitsQueryKey,
   type Goal,
+  type InsightEntry,
 } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 
@@ -1507,6 +1509,7 @@ export default function GoalsScreen() {
 
   const { data: goals, isLoading: goalsLoading } = useListGoals();
   const { data: habits, isLoading: habitsLoading } = useListHabits();
+  const { data: insights, isLoading: insightsLoading } = useListInsights();
   const createHabit = useCreateHabit();
   const updateHabit = useUpdateHabit();
   const deleteGoal = useDeleteGoal();
@@ -1704,6 +1707,53 @@ export default function GoalsScreen() {
             </TouchableOpacity>
           ))
         )}
+        {/* ── Insights ───────────────────────────────────────────────────── */}
+        <View style={[styles.sectionHeader, { marginTop: 32 }]}>
+          <Text style={[styles.sectionTitle, { color: colors.foreground, fontFamily: "Inter_600SemiBold" }]}>Insights</Text>
+        </View>
+
+        {insightsLoading ? (
+          <ActivityIndicator color={colors.primary} style={{ marginTop: 20 }} />
+        ) : !insights?.length ? (
+          <View style={[styles.emptyCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+            <Feather name="zap" size={24} color={colors.mutedForeground} />
+            <Text style={[styles.emptyText, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
+              Insights appear after a few days of logging.
+            </Text>
+          </View>
+        ) : (
+          insights.map((insight: InsightEntry) => (
+            <View
+              key={insight.id}
+              style={[styles.insightCard, { backgroundColor: colors.card, borderColor: colors.border }]}
+            >
+              <View style={[styles.insightLabelRow]}>
+                <View style={[styles.insightLabelBadge, { backgroundColor: colors.muted }]}>
+                  <Text style={[styles.insightLabel, { color: colors.primary, fontFamily: "Inter_600SemiBold" }]}>
+                    {insight.label}
+                  </Text>
+                </View>
+                <Text style={[styles.insightDate, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
+                  {insight.date}
+                </Text>
+              </View>
+
+              <Text style={[styles.insightContent, { color: colors.foreground, fontFamily: "Inter_400Regular" }]}>
+                {insight.content}
+              </Text>
+
+              {insight.followUpQuestion ? (
+                <View style={[styles.insightFollowUp, { borderTopColor: colors.border }]}>
+                  <Feather name="message-circle" size={13} color={colors.primary} />
+                  <Text style={[styles.insightFollowUpText, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
+                    {insight.followUpQuestion}
+                  </Text>
+                </View>
+              ) : null}
+            </View>
+          ))
+        )}
+
       </ScrollView>
     </>
   );
@@ -1833,6 +1883,37 @@ const styles = StyleSheet.create({
   stepChainBox: { width: 16, height: 16, borderRadius: 3, borderWidth: 1.5, justifyContent: "center", alignItems: "center" },
   stepChainLine: { width: 1.5, flex: 1, minHeight: 12 },
   stepChainLabel: { fontSize: 13, lineHeight: 20, paddingTop: 0, flex: 1 },
+
+  // Insight cards
+  insightCard: {
+    borderRadius: 14,
+    borderWidth: 1,
+    padding: 16,
+    marginBottom: 10,
+    gap: 10,
+  },
+  insightLabelRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  insightLabelBadge: {
+    paddingHorizontal: 10,
+    paddingVertical: 3,
+    borderRadius: 20,
+    alignSelf: "flex-start",
+  },
+  insightLabel: { fontSize: 11, letterSpacing: 0.3 },
+  insightDate: { fontSize: 11 },
+  insightContent: { fontSize: 14, lineHeight: 22 },
+  insightFollowUp: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 7,
+    paddingTop: 10,
+    borderTopWidth: StyleSheet.hairlineWidth,
+  },
+  insightFollowUpText: { fontSize: 13, lineHeight: 19, flex: 1 },
 
   // Nav
   navRow: { flexDirection: "row", alignItems: "center", gap: 12, paddingTop: 12, borderTopWidth: 1 },
