@@ -513,6 +513,16 @@ export default function ProfileScreen() {
   const [connectingHealth, setConnectingHealth] = useState(false);
   const [healthDenied, setHealthDenied] = useState(false);
 
+  const handleLogOut = async () => {
+    try {
+      await signOut();
+      router.replace('/(auth)/sign-in');
+    } catch (e) {
+      console.error('Sign out error:', e);
+      router.replace('/(auth)/sign-in');
+    }
+  };
+
   const topPad = Platform.OS === "web" ? Math.max(insets.top, 67) : insets.top;
   const bottomPad = Platform.OS === "web" ? 34 : insets.bottom;
   const tabBarH = Platform.OS === "web" ? 84 : 83;
@@ -1026,7 +1036,7 @@ export default function ProfileScreen() {
             <ChevronRow icon="refresh-cw" label="Reset my data" onPress={promptResetData} accentColor="#C17B3F" />
             <ChevronRow icon="shield" label="Privacy settings" onPress={() => Alert.alert("Coming soon")} />
             <ChevronRow icon="eye" label="What Valo knows about me" onPress={() => Alert.alert("Coming soon")} />
-            <ChevronRow icon="log-out" label="Log out" onPress={() => { void signOut(); }} />
+            <ChevronRow icon="log-out" label="Log out" onPress={handleLogOut} />
             <ChevronRow icon="trash-2" label="Delete account" onPress={handleDeleteAccount} destructive last />
           </View>
         </View>
