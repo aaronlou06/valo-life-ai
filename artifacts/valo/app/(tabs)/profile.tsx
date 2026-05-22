@@ -903,6 +903,7 @@ export default function ProfileScreen() {
             activeOpacity={0.7}
             style={[styles.integrationStandalone, { backgroundColor: colors.card, borderColor: colors.border }]}
             onPress={async () => {
+              Alert.alert('HealthKit Test', 'Button pressed - testing HealthKit...');
               console.log('[Profile] Apple Health tapped');
               setHealthDenied(false);
               setConnectingHealth(true);

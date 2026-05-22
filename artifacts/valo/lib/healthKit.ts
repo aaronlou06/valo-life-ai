@@ -30,6 +30,17 @@ export const HealthKitPermissions = {
   },
 };
 
+if (Platform.OS === 'ios' && AppleHealthKit) {
+  AppleHealthKit.isAvailable((err: any, available: boolean) => {
+    console.log('[HealthKit] isAvailable result:', available, 'err:', err);
+    if (available) {
+      AppleHealthKit.initHealthKit(HealthKitPermissions, (initErr: any) => {
+        console.log('[HealthKit] auto-init result - err:', initErr);
+      });
+    }
+  });
+}
+
 export type DailyHealthData = {
   sleepHours: number | null;
   hrv: number | null;
