@@ -7,8 +7,10 @@
     "development": {
       "developmentClient": true,
       "distribution": "internal",
+      "credentialsSource": "remote",
       "ios": {
-        "resourceClass": "m-medium"
+        "resourceClass": "m-medium",
+        "simulator": false
       }
     },
     "preview": {
