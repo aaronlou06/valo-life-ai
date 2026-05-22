@@ -20,7 +20,7 @@ import { useColors } from "@/hooks/useColors";
 import { useValoAuth } from "@/contexts/AuthContext";
 import { useHealthKitSync } from "@/hooks/useHealthKitSync";
 import { requestHealthKitPermissions } from "@/lib/healthKit";
-import { useListGoals, useListHabits } from "@workspace/api-client-react";
+import { useListGoals, useListHabits, useGetDashboard } from "@workspace/api-client-react";
 
 function getApiBase(): string {
   const domain = process.env.EXPO_PUBLIC_DOMAIN;
@@ -508,6 +508,7 @@ export default function ProfileScreen() {
 
   const { data: goals } = useListGoals();
   const { data: habits } = useListHabits();
+  const { data: dashboard } = useGetDashboard();
   const { isPermissionsGranted: isHealthConnected, syncNow: healthSyncNow, isSyncing: healthSyncing } = useHealthKitSync();
 
   const [connectingHealth, setConnectingHealth] = useState(false);
@@ -736,7 +737,7 @@ export default function ProfileScreen() {
               <View style={[styles.statChip, { backgroundColor: colors.muted }]}>
                 <Feather name="zap" size={11} color={colors.primary} />
                 <Text style={[styles.statChipText, { color: colors.foreground, fontFamily: "Inter_500Medium" }]}>
-                  0 day streak
+                  {dashboard?.streak ?? 0} day streak
                 </Text>
               </View>
               {goalCount > 0 && (

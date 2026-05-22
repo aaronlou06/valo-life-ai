@@ -5,6 +5,25 @@ import { requireAuth, type AuthenticatedRequest } from "../middlewares/requireAu
 
 const router: IRouter = Router();
 
+function computeStreak(logDates: Set<string>, today: string): number {
+  let streak = 0;
+  const cursor = new Date(today);
+  // If today hasn't been logged yet, don't penalise — start counting from yesterday
+  if (!logDates.has(today)) {
+    cursor.setDate(cursor.getDate() - 1);
+  }
+  while (true) {
+    const dateStr = cursor.toISOString().split("T")[0]!;
+    if (logDates.has(dateStr)) {
+      streak++;
+      cursor.setDate(cursor.getDate() - 1);
+    } else {
+      break;
+    }
+  }
+  return streak;
+}
+
 router.get("/dashboard", requireAuth, async (req, res): Promise<void> => {
   const userId = (req as AuthenticatedRequest).userId;
   const today = new Date().toISOString().split("T")[0]!;
@@ -12,12 +31,16 @@ router.get("/dashboard", requireAuth, async (req, res): Promise<void> => {
   sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
   const cutoff = sevenDaysAgo.toISOString().split("T")[0]!;
 
-  const [[todayLog], recentMoods, habits, todayEntries] = await Promise.all([
+  const [[todayLog], recentMoods, habits, todayEntries, allLogDates] = await Promise.all([
     db.select().from(dailyLogsTable).where(and(eq(dailyLogsTable.userId, userId), eq(dailyLogsTable.date, today))),
     db.select().from(moodEntriesTable).where(and(eq(moodEntriesTable.userId, userId), gte(moodEntriesTable.date, cutoff))).orderBy(desc(moodEntriesTable.createdAt)),
     db.select().from(habitsTable).where(eq(habitsTable.userId, userId)),
     db.select().from(logEntriesTable).where(and(eq(logEntriesTable.userId, userId), eq(logEntriesTable.date, today))),
+    db.select({ date: dailyLogsTable.date }).from(dailyLogsTable).where(eq(dailyLogsTable.userId, userId)),
   ]);
+
+  const logDateSet = new Set(allLogDates.map((r) => r.date));
+  const streak = computeStreak(logDateSet, today);
 
   const avgMood = recentMoods.length > 0
     ? recentMoods.reduce((sum, m) => sum + m.score, 0) / recentMoods.length
@@ -52,6 +75,7 @@ router.get("/dashboard", requireAuth, async (req, res): Promise<void> => {
     healthStatus,
     workStatus,
     relationshipStatus,
+    streak,
   });
 });
 

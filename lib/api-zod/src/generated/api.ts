@@ -290,6 +290,9 @@ export const GetDashboardResponse = zod.object({
   healthStatus: zod.string(),
   workStatus: zod.string(),
   relationshipStatus: zod.string(),
+  streak: zod
+    .number()
+    .describe("Number of consecutive days the user has logged a check-in"),
 });
 
 /**

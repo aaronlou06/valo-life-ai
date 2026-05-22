@@ -683,7 +683,7 @@ components:
 
     Dashboard:
       type: object
-      required: [healthScore, workScore, relationshipScore, healthStatus, workStatus, relationshipStatus]
+      required: [healthScore, workScore, relationshipScore, healthStatus, workStatus, relationshipStatus, streak]
       properties:
         sleepHours:
           type: ["number", "null"]
@@ -705,6 +705,9 @@ components:
           type: string
         relationshipStatus:
           type: string
+        streak:
+          type: integer
+          description: Number of consecutive days the user has logged a check-in
 
     OnboardingStatus:
       type: object
