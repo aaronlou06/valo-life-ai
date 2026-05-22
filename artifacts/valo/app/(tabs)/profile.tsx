@@ -510,15 +510,8 @@ export default function ProfileScreen() {
   const { data: habits } = useListHabits();
   const { isPermissionsGranted: isHealthConnected, syncNow: healthSyncNow, isSyncing: healthSyncing } = useHealthKitSync();
 
-  const handleHealthKitConnect = React.useCallback(async () => {
-    console.log('[Profile] handleHealthKitConnect called');
-    const granted = await requestHealthKitPermissions();
-    console.log('[Profile] permissions result:', granted);
-    if (granted) {
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      await healthSyncNow();
-    }
-  }, [healthSyncNow]);
+  const [connectingHealth, setConnectingHealth] = useState(false);
+  const [healthDenied, setHealthDenied] = useState(false);
 
   const topPad = Platform.OS === "web" ? Math.max(insets.top, 67) : insets.top;
   const bottomPad = Platform.OS === "web" ? 34 : insets.bottom;
@@ -904,72 +897,93 @@ export default function ProfileScreen() {
         ══════════════════════════════════════════════════════════════════ */}
         <View style={styles.section}>
           <SectionLabel label="CONNECTED DATA" />
+
+          {/* Apple Health — standalone row, no overflow:hidden parent */}
+          <TouchableOpacity
+            activeOpacity={0.7}
+            style={[styles.integrationStandalone, { backgroundColor: colors.card, borderColor: colors.border }]}
+            onPress={async () => {
+              console.log('[Profile] Apple Health tapped');
+              setHealthDenied(false);
+              setConnectingHealth(true);
+              const granted = await requestHealthKitPermissions();
+              console.log('[Profile] permissions result:', granted);
+              setConnectingHealth(false);
+              if (granted) {
+                Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+                await healthSyncNow();
+              } else {
+                setHealthDenied(true);
+              }
+            }}
+          >
+            <View style={styles.chevronLeft}>
+              <Feather
+                name="heart"
+                size={17}
+                color={isHealthConnected ? "#059669" : colors.mutedForeground}
+              />
+              <View>
+                <Text style={[styles.chevronLabel, { color: colors.foreground, fontFamily: "Inter_400Regular" }]}>
+                  Apple Health
+                </Text>
+                {healthDenied && (
+                  <Text style={{ fontSize: 11, color: "#DC2626", fontFamily: "Inter_400Regular", marginTop: 1 }}>
+                    Permission denied
+                  </Text>
+                )}
+              </View>
+            </View>
+            {isHealthConnected ? (
+              <View style={[styles.statusBadge, { backgroundColor: "#DCFCE7" }]}>
+                <Feather name="check" size={12} color="#059669" />
+                <Text style={[styles.statusText, { color: "#059669", fontFamily: "Inter_500Medium" }]}>
+                  Connected
+                </Text>
+              </View>
+            ) : connectingHealth || healthSyncing ? (
+              <View style={[styles.statusBadge, { backgroundColor: colors.muted }]}>
+                <Text style={[styles.statusText, { color: colors.mutedForeground, fontFamily: "Inter_500Medium" }]}>
+                  {healthSyncing ? "Syncing…" : "Connecting…"}
+                </Text>
+              </View>
+            ) : (
+              <View style={[styles.connectActionBtn, { backgroundColor: colors.primary }]}>
+                <Text style={[styles.connectActionText, { color: colors.primaryForeground, fontFamily: "Inter_600SemiBold" }]}>
+                  Connect
+                </Text>
+              </View>
+            )}
+          </TouchableOpacity>
+
+          {/* Other integrations */}
           <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border, padding: 0, overflow: "hidden" }]}>
-            {INTEGRATIONS.map((integration, idx) => {
-              const isAppleHealth = integration.key === "apple-health";
-              const connected = isAppleHealth && isHealthConnected;
-              const syncing = isAppleHealth && healthSyncing;
-              return (
-                <View
-                  key={integration.key}
-                  style={[
-                    styles.integrationRow,
-                    idx < INTEGRATIONS.length - 1 && {
-                      borderBottomWidth: StyleSheet.hairlineWidth,
-                      borderBottomColor: colors.border,
-                    },
-                  ]}
-                >
-                  <View style={styles.chevronLeft}>
-                    <Feather
-                      name={integration.icon as any}
-                      size={17}
-                      color={connected ? "#059669" : colors.mutedForeground}
-                    />
-                    <Text style={[styles.chevronLabel, { color: colors.foreground, fontFamily: "Inter_400Regular" }]}>
-                      {integration.label}
-                    </Text>
-                  </View>
-                  {isAppleHealth ? (
-                    connected ? (
-                      <View style={[styles.statusBadge, { backgroundColor: "#DCFCE7" }]}>
-                        <Feather name="check" size={12} color="#059669" />
-                        <Text style={[styles.statusText, { color: "#059669", fontFamily: "Inter_500Medium" }]}>
-                          Connected
-                        </Text>
-                      </View>
-                    ) : syncing ? (
-                      <View style={[styles.statusBadge, { backgroundColor: colors.muted }]}>
-                        <Text style={[styles.statusText, { color: colors.mutedForeground, fontFamily: "Inter_500Medium" }]}>
-                          Syncing…
-                        </Text>
-                      </View>
-                    ) : (
-                      <TouchableOpacity
-                        style={[styles.connectActionBtn, { backgroundColor: colors.primary }]}
-                        onPress={handleHealthKitConnect}
-                        activeOpacity={0.8}
-                      >
-                        <Text style={[styles.connectActionText, { color: colors.primaryForeground, fontFamily: "Inter_600SemiBold" }]}>
-                          Connect
-                        </Text>
-                      </TouchableOpacity>
-                    )
-                  ) : (
-                    <TouchableOpacity
-                      onPress={() => Alert.alert("Coming soon")}
-                      activeOpacity={0.7}
-                    >
-                      <View style={[styles.statusBadge, { backgroundColor: colors.muted }]}>
-                        <Text style={[styles.statusText, { color: colors.mutedForeground, fontFamily: "Inter_500Medium" }]}>
-                          Not connected
-                        </Text>
-                      </View>
-                    </TouchableOpacity>
-                  )}
+            {INTEGRATIONS.filter((i) => i.key !== "apple-health").map((integration, idx, arr) => (
+              <TouchableOpacity
+                key={integration.key}
+                onPress={() => Alert.alert("Coming soon")}
+                activeOpacity={0.7}
+                style={[
+                  styles.integrationRow,
+                  idx < arr.length - 1 && {
+                    borderBottomWidth: StyleSheet.hairlineWidth,
+                    borderBottomColor: colors.border,
+                  },
+                ]}
+              >
+                <View style={styles.chevronLeft}>
+                  <Feather name={integration.icon as any} size={17} color={colors.mutedForeground} />
+                  <Text style={[styles.chevronLabel, { color: colors.foreground, fontFamily: "Inter_400Regular" }]}>
+                    {integration.label}
+                  </Text>
                 </View>
-              );
-            })}
+                <View style={[styles.statusBadge, { backgroundColor: colors.muted }]}>
+                  <Text style={[styles.statusText, { color: colors.mutedForeground, fontFamily: "Inter_500Medium" }]}>
+                    Not connected
+                  </Text>
+                </View>
+              </TouchableOpacity>
+            ))}
           </View>
         </View>
 
@@ -1183,6 +1197,16 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   chevronValue: { fontSize: 13 },
+  integrationStandalone: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    borderRadius: 12,
+    borderWidth: StyleSheet.hairlineWidth,
+    marginBottom: 8,
+  },
   integrationRow: {
     flexDirection: "row",
     alignItems: "center",
