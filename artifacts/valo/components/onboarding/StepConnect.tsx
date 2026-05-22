@@ -4,6 +4,7 @@ import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { useColors } from "@/hooks/useColors";
 import { requestHealthKitPermissions } from "@/lib/healthKit";
+import { useHealthKitSync } from "@/hooks/useHealthKitSync";
 
 interface Props {
   name: string;
@@ -12,15 +13,19 @@ interface Props {
 
 export default function StepConnect({ name, onComplete }: Props) {
   const colors = useColors();
+  const { syncNow, isSyncing, isPermissionsGranted } = useHealthKitSync();
   const [healthConnected, setHealthConnected] = useState(false);
 
   const firstName = name.split(" ")[0] || "there";
+
+  const isHealthConnected = isPermissionsGranted || healthConnected;
 
   const handleHealthKit = async () => {
     const granted = await requestHealthKitPermissions();
     if (granted) {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       setHealthConnected(true);
+      await syncNow();
     }
   };
 
@@ -29,7 +34,8 @@ export default function StepConnect({ name, onComplete }: Props) {
       icon: "activity" as const,
       name: "Apple Health",
       description: "Sleep, HRV, steps, recovery",
-      connected: healthConnected,
+      connected: isHealthConnected,
+      syncing: isSyncing,
       onConnect: handleHealthKit,
     },
     {
@@ -88,6 +94,10 @@ export default function StepConnect({ name, onComplete }: Props) {
                   Connected
                 </Text>
               </View>
+            ) : ("syncing" in conn && conn.syncing) ? (
+              <Text style={[styles.syncingText, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
+                Syncing…
+              </Text>
             ) : (
               <TouchableOpacity
                 style={[styles.connectBtn, { backgroundColor: colors.primary }]}
@@ -152,6 +162,7 @@ const styles = StyleSheet.create({
   connectedText: { color: "#22C55E", fontSize: 13 },
   connectBtn: { paddingHorizontal: 14, paddingVertical: 7, borderRadius: 20 },
   connectBtnText: { fontSize: 13 },
+  syncingText: { fontSize: 13 },
 
   bottomActions: { gap: 12, marginTop: 8 },
   goBtn: { height: 56, borderRadius: 16, alignItems: "center", justifyContent: "center" },
