@@ -19,7 +19,6 @@ export default {
       bundleIdentifier: "com.aaronlou06.valo",
       entitlements: {
         "com.apple.developer.healthkit": true,
-        "com.apple.developer.healthkit.access": [],
       },
       infoPlist: {
         NSMicrophoneUsageDescription:

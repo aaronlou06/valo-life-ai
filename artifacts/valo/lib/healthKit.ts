@@ -42,12 +42,24 @@ export type DailyHealthData = {
 export async function requestHealthKitPermissions(): Promise<boolean> {
   console.log('[HealthKit] requestPermissions called, AppleHealthKit:', !!AppleHealthKit);
   if (!AppleHealthKit) return false;
+
+  const available: boolean = await new Promise((resolve) => {
+    AppleHealthKit.isAvailable((err: any, result: boolean) => {
+      console.log('[HealthKit] isAvailable err:', err, 'result:', result);
+      resolve(!err && result);
+    });
+  });
+
+  if (!available) {
+    console.log('[HealthKit] HealthKit not available on this device');
+    return false;
+  }
+
   return new Promise((resolve) => {
     console.log('[HealthKit] initHealthKit called');
     AppleHealthKit.initHealthKit(HealthKitPermissions, (err: any) => {
       if (err) {
-        console.log('[HealthKit] initHealthKit error:', err);
-        console.warn("[Valo] HealthKit init error:", err);
+        console.log('[HealthKit] initHealthKit error:', JSON.stringify(err));
         resolve(false);
       } else {
         console.log('[HealthKit] initHealthKit success');
