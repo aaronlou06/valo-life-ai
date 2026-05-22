@@ -30,15 +30,14 @@ export const HealthKitPermissions = {
   },
 };
 
-if (Platform.OS === 'ios' && AppleHealthKit) {
-  AppleHealthKit.isAvailable((err: any, available: boolean) => {
-    Alert.alert('HealthKit Status', `Available: ${available}, Error: ${JSON.stringify(err)}`);
-    if (available) {
-      AppleHealthKit.initHealthKit(HealthKitPermissions, (initErr: any) => {
-        Alert.alert('HealthKit Init', `Error: ${JSON.stringify(initErr)}`);
-      });
-    }
-  });
+if (Platform.OS === 'ios') {
+  Alert.alert('HealthKit Debug', `AppleHealthKit loaded: ${!!AppleHealthKit}, Platform: ${Platform.OS}`);
+
+  if (AppleHealthKit) {
+    AppleHealthKit.isAvailable((err: any, available: boolean) => {
+      Alert.alert('HealthKit Available', `available: ${available}, err: ${JSON.stringify(err)}`);
+    });
+  }
 }
 
 export type DailyHealthData = {
