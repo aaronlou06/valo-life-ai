@@ -1,28 +1,43 @@
-import { Platform } from "react-native";
+"Install and configure react-native-health for Apple HealthKit integration.
+Step 1 — Install:
+bashcd /home/runner/workspace/artifacts/valo && pnpm add react-native-health
+Step 2 — Update app.config.js plugins array:
+Add react-native-health to the plugins array with permissions:
+javascript['react-native-health', {
+  healthSharePermission: 'Valo reads your health data to personalize your daily check-in and insights.',
+  healthUpdatePermission: 'Valo writes workout and mindfulness data to Apple Health.',
+}]
+Also add back the HealthKit entitlement to the ios section:
+javascriptentitlements: {
+  'com.apple.developer.healthkit': true,
+  'com.apple.developer.healthkit.access': [],
+},
+Step 3 — Rewrite lib/healthKit.ts to use react-native-health:
+typescriptimport { Platform } from 'react-native';
 
 let AppleHealthKit: any = null;
 
-if (Platform.OS === "ios") {
+if (Platform.OS === 'ios') {
   try {
-    AppleHealthKit = require("react-native-health").default;
+    AppleHealthKit = require('react-native-health').default;
   } catch (e) {
-    console.warn("[Valo] react-native-health not available:", e);
+    console.warn('[Valo] react-native-health not available:', e);
   }
 }
 
 export const HealthKitPermissions = {
   permissions: {
     read: [
-      "HeartRateVariability",
-      "RestingHeartRate",
-      "HeartRate",
-      "Steps",
-      "SleepAnalysis",
-      "ActiveEnergyBurned",
-      "RespiratoryRate",
-      "OxygenSaturation",
-      "BodyMass",
-      "Height",
+      'HeartRateVariability',
+      'RestingHeartRate', 
+      'HeartRate',
+      'Steps',
+      'SleepAnalysis',
+      'ActiveEnergyBurned',
+      'RespiratoryRate',
+      'OxygenSaturation',
+      'BodyMass',
+      'Height',
     ],
     write: [],
   },
@@ -42,7 +57,7 @@ export async function requestHealthKitPermissions(): Promise<boolean> {
   return new Promise((resolve) => {
     AppleHealthKit.initHealthKit(HealthKitPermissions, (err: any) => {
       if (err) {
-        console.warn("[Valo] HealthKit init error:", err);
+        console.warn('[Valo] HealthKit init error:', err);
         resolve(false);
       } else {
         resolve(true);
@@ -108,13 +123,7 @@ export async function fetchSleepHours(): Promise<number | null> {
     };
     AppleHealthKit.getSleepSamples(options, (err: any, results: any) => {
       if (err || !results?.length) { resolve(null); return; }
-      const asleepSamples = results.filter(
-        (s: any) =>
-          s.value === "ASLEEP" ||
-          s.value === "ASLEEP_CORE" ||
-          s.value === "ASLEEP_DEEP" ||
-          s.value === "ASLEEP_REM"
-      );
+      const asleepSamples = results.filter((s: any) => s.value === 'ASLEEP' || s.value === 'ASLEEP_CORE' || s.value === 'ASLEEP_DEEP' || s.value === 'ASLEEP_REM');
       const totalMs = asleepSamples.reduce((sum: number, s: any) => {
         const start = new Date(s.startDate).getTime();
         const end = new Date(s.endDate).getTime();
@@ -138,13 +147,16 @@ export async function fetchActiveCalories(): Promise<number | null> {
 }
 
 export async function fetchTodayHealthData(): Promise<DailyHealthData> {
-  const [sleepHours, hrv, restingHeartRate, steps, activeCalories] =
-    await Promise.all([
-      fetchSleepHours(),
-      fetchHRV(),
-      fetchRestingHeartRate(),
-      fetchSteps(),
-      fetchActiveCalories(),
-    ]);
+  const [sleepHours, hrv, restingHeartRate, steps, activeCalories] = await Promise.all([
+    fetchSleepHours(),
+    fetchHRV(),
+    fetchRestingHeartRate(),
+    fetchSteps(),
+    fetchActiveCalories(),
+  ]);
   return { sleepHours, hrv, restingHeartRate, steps, activeCalories, respiratoryRate: null };
 }
+Step 4 — Update hooks/useHealthKitSync.ts to use the new functions correctly — make sure it calls requestHealthKitPermissions() first, then fetchTodayHealthData(), then posts to /api/daily-logs.
+Step 5 — Run pnpm install from workspace root to update lockfile.
+Step 6 — Run typecheck and confirm it passes.
+Do not change any other files."

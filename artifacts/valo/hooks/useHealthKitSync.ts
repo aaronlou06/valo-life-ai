@@ -35,6 +35,10 @@ export function useHealthKitSync(): HealthKitSyncState {
 
     setIsSyncing(true);
     try {
+      const granted = await requestHealthKitPermissions();
+      if (!granted) return;
+      setIsPermissionsGranted(true);
+
       const data = await fetchTodayHealthData();
 
       const hasData =
