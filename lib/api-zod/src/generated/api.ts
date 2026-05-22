@@ -332,3 +332,17 @@ export const SaveOnboardingBody = zod.object({
 export const SaveOnboardingResponse = zod.object({
   ok: zod.boolean(),
 });
+
+/**
+ * @summary Get authenticated user settings
+ */
+export const GetSettingsResponse = zod.object({
+  phoneNumber: zod.string().nullish(),
+  preferredCallTime: zod.string().nullish(),
+  callTimezone: zod.string().nullish(),
+  callsEnabled: zod.boolean(),
+  name: zod.string().nullish(),
+  lifePriorities: zod.string().nullish(),
+  onboardingCompleted: zod.boolean(),
+  firstCallCompleted: zod.boolean(),
+});

@@ -12,11 +12,14 @@ import {
   Animated,
   TextInput,
   Alert,
+  Modal,
+  Switch,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
-import { useUpsertDailyLog, useCreateMood } from "@workspace/api-client-react";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { useUpsertDailyLog, useCreateMood, useGetSettings } from "@workspace/api-client-react";
 import { useColors } from "@/hooks/useColors";
 import { useVapiDebrief, type DebriefExtraction } from "@/hooks/useVapiDebrief";
 import { useVoiceContext, type VoiceContextData } from "@/hooks/useVoiceContext";
@@ -256,6 +259,240 @@ const GUIDED_CARDS: GuidedCardDef[] = [
   { id: "tomorrow", question: "What's your intention for tomorrow?", type: "text" },
 ];
 
+// ─── Guided card config ──────────────────────────────────────────────────────
+
+interface StoredGuidedConfig {
+  order: string[];
+  hidden: string[];
+}
+
+const PRIORITY_CARD_MAP: Record<string, string[]> = {
+  health:        ["sleep", "energy", "workout", "water", "nutrition"],
+  fitness:       ["workout", "energy", "water", "nutrition", "sleep"],
+  career:        ["productivity", "habits", "win", "tomorrow"],
+  work:          ["productivity", "habits", "win", "tomorrow"],
+  relationships: ["connections"],
+  family:        ["connections"],
+  social:        ["connections"],
+  faith:         ["habits"],
+  spirituality:  ["habits"],
+  finance:       ["productivity", "win", "tomorrow"],
+  learning:      ["habits", "productivity", "win"],
+  lifestyle:     ["sleep", "energy", "water", "nutrition"],
+  mental:        ["mood", "stress"],
+  wellbeing:     ["mood", "stress"],
+};
+
+const ALWAYS_SHOW_IDS = ["mood", "stress"];
+
+function deriveCardOrder(lifePriorities: string | null): string[] {
+  const allIds = GUIDED_CARDS.map((c) => c.id);
+  if (!lifePriorities) return allIds;
+
+  const priorities = lifePriorities
+    .split(",")
+    .map((p) => p.trim().toLowerCase())
+    .filter(Boolean);
+
+  const ordered: string[] = [];
+  const added = new Set<string>();
+
+  for (const priority of priorities) {
+    const cards = PRIORITY_CARD_MAP[priority] ?? [];
+    for (const id of cards) {
+      if (!added.has(id) && allIds.includes(id)) {
+        ordered.push(id);
+        added.add(id);
+      }
+    }
+  }
+
+  for (const id of ALWAYS_SHOW_IDS) {
+    if (!added.has(id) && allIds.includes(id)) {
+      ordered.push(id);
+      added.add(id);
+    }
+  }
+
+  for (const id of allIds) {
+    if (!added.has(id)) {
+      ordered.push(id);
+      added.add(id);
+    }
+  }
+
+  return ordered;
+}
+
+// ─── Customize modal ─────────────────────────────────────────────────────────
+
+function GuidedConfigModal({
+  visible,
+  config,
+  onChange,
+  onClose,
+}: {
+  visible: boolean;
+  config: StoredGuidedConfig;
+  onChange: (c: StoredGuidedConfig) => void;
+  onClose: () => void;
+}) {
+  const colors = useColors();
+  const [localOrder, setLocalOrder] = useState<string[]>(config.order);
+  const [localHidden, setLocalHidden] = useState<Set<string>>(new Set(config.hidden));
+
+  useEffect(() => {
+    if (visible) {
+      setLocalOrder(config.order);
+      setLocalHidden(new Set(config.hidden));
+    }
+  }, [visible]);
+
+  const handleDone = () => {
+    onChange({ order: localOrder, hidden: Array.from(localHidden) });
+    onClose();
+  };
+
+  const moveUp = (idx: number) => {
+    if (idx === 0) return;
+    setLocalOrder((prev) => {
+      const next = [...prev];
+      [next[idx - 1], next[idx]] = [next[idx]!, next[idx - 1]!];
+      return next;
+    });
+  };
+
+  const moveDown = (idx: number) => {
+    if (idx === localOrder.length - 1) return;
+    setLocalOrder((prev) => {
+      const next = [...prev];
+      [next[idx + 1], next[idx]] = [next[idx]!, next[idx + 1]!];
+      return next;
+    });
+  };
+
+  const toggleCard = (id: string) => {
+    const isAlwaysShow = ALWAYS_SHOW_IDS.includes(id);
+    if (isAlwaysShow) return;
+    setLocalHidden((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  return (
+    <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
+      <View style={configStyles.overlay}>
+        <TouchableOpacity style={{ flex: 1 }} activeOpacity={1} onPress={onClose} />
+        <View style={[configStyles.sheet, { backgroundColor: colors.background }]}>
+          <View style={[configStyles.sheetHeader, { borderBottomColor: colors.border }]}>
+            <TouchableOpacity onPress={onClose} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+              <Text style={[configStyles.headerAction, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
+                Cancel
+              </Text>
+            </TouchableOpacity>
+            <Text style={[configStyles.headerTitle, { color: colors.foreground, fontFamily: "Inter_600SemiBold" }]}>
+              Customize
+            </Text>
+            <TouchableOpacity onPress={handleDone} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+              <Text style={[configStyles.headerAction, { color: colors.primary, fontFamily: "Inter_600SemiBold" }]}>
+                Done
+              </Text>
+            </TouchableOpacity>
+          </View>
+
+          <ScrollView contentContainerStyle={configStyles.list} showsVerticalScrollIndicator={false}>
+            {localOrder.map((id, idx) => {
+              const card = GUIDED_CARDS.find((c) => c.id === id);
+              if (!card) return null;
+              const isAlwaysShow = ALWAYS_SHOW_IDS.includes(id);
+              const enabled = !localHidden.has(id);
+              return (
+                <View
+                  key={id}
+                  style={[configStyles.row, { backgroundColor: colors.card, borderColor: colors.border }]}
+                >
+                  <Switch
+                    value={enabled}
+                    onValueChange={() => toggleCard(id)}
+                    disabled={isAlwaysShow}
+                    trackColor={{ false: colors.border, true: colors.primary }}
+                    thumbColor={colors.card}
+                    style={{ opacity: isAlwaysShow ? 0.45 : 1 }}
+                  />
+                  <Text
+                    style={[
+                      configStyles.rowLabel,
+                      {
+                        color: enabled ? colors.foreground : colors.mutedForeground,
+                        fontFamily: "Inter_400Regular",
+                      },
+                    ]}
+                    numberOfLines={2}
+                  >
+                    {card.question}
+                  </Text>
+                  <View style={configStyles.arrows}>
+                    <TouchableOpacity
+                      onPress={() => moveUp(idx)}
+                      disabled={idx === 0}
+                      hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+                      style={{ opacity: idx === 0 ? 0.25 : 1 }}
+                    >
+                      <Feather name="chevron-up" size={17} color={colors.mutedForeground} />
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      onPress={() => moveDown(idx)}
+                      disabled={idx === localOrder.length - 1}
+                      hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+                      style={{ opacity: idx === localOrder.length - 1 ? 0.25 : 1 }}
+                    >
+                      <Feather name="chevron-down" size={17} color={colors.mutedForeground} />
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              );
+            })}
+            <Text style={[configStyles.hint, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
+              Mood and stress always appear.
+            </Text>
+          </ScrollView>
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
+const configStyles = StyleSheet.create({
+  overlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.35)", justifyContent: "flex-end" },
+  sheet: { borderTopLeftRadius: 22, borderTopRightRadius: 22, maxHeight: "88%", overflow: "hidden" },
+  sheetHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+  },
+  headerTitle: { fontSize: 16 },
+  headerAction: { fontSize: 15 },
+  list: { padding: 20, gap: 10, paddingBottom: 40 },
+  row: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+  },
+  rowLabel: { flex: 1, fontSize: 14, lineHeight: 20 },
+  arrows: { gap: 4 },
+  hint: { fontSize: 12, textAlign: "center", marginTop: 4 },
+});
+
 function ModeToggle({ mode, onSelect }: { mode: CheckInMode; onSelect: (m: CheckInMode) => void }) {
   const colors = useColors();
   const MODES: { key: CheckInMode; label: string }[] = [
@@ -293,12 +530,14 @@ function ModeToggle({ mode, onSelect }: { mode: CheckInMode; onSelect: (m: Check
 }
 
 function GuidedCheckin({
+  cards,
   answers,
   onAnswer,
   isSaving,
   saved,
   onSave,
 }: {
+  cards: GuidedCardDef[];
   answers: Record<string, string>;
   onAnswer: (id: string, value: string) => void;
   isSaving: boolean;
@@ -311,7 +550,7 @@ function GuidedCheckin({
 
   return (
     <View style={{ gap: 12 }}>
-      {GUIDED_CARDS.map((card) => {
+      {cards.map((card) => {
         if (card.type === "choice") {
           return (
             <View
@@ -450,6 +689,8 @@ export default function VoiceScreen() {
   const [answers, setAnswers] = useState<Record<string, string>>({});
   const [isSaving, setIsSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [showConfigModal, setShowConfigModal] = useState(false);
+  const [guidedConfig, setGuidedConfig] = useState<StoredGuidedConfig | null>(null);
 
   const [currentSpeaker, setCurrentSpeaker] = useState<"assistant" | "user" | null>(null);
   const [currentText, setCurrentText] = useState("");
@@ -457,6 +698,43 @@ export default function VoiceScreen() {
 
   const upsertLog = useUpsertDailyLog();
   const createMood = useCreateMood();
+  const { data: settings } = useGetSettings();
+
+  const GUIDED_CONFIG_KEY = `@valo/guided-config-${safeUserId}`;
+
+  useEffect(() => {
+    if (!safeUserId) return;
+    AsyncStorage.getItem(GUIDED_CONFIG_KEY).then((raw) => {
+      if (raw) {
+        try {
+          const parsed = JSON.parse(raw) as StoredGuidedConfig;
+          setGuidedConfig(parsed);
+          return;
+        } catch {}
+      }
+      const order = deriveCardOrder(settings?.lifePriorities ?? null);
+      setGuidedConfig({ order, hidden: [] });
+    });
+  }, [safeUserId]);
+
+  useEffect(() => {
+    if (guidedConfig !== null || !settings) return;
+    const order = deriveCardOrder(settings.lifePriorities ?? null);
+    setGuidedConfig({ order, hidden: [] });
+  }, [settings]);
+
+  const saveGuidedConfig = async (next: StoredGuidedConfig) => {
+    setGuidedConfig(next);
+    await AsyncStorage.setItem(GUIDED_CONFIG_KEY, JSON.stringify(next));
+  };
+
+  const activeCards: GuidedCardDef[] = (() => {
+    if (!guidedConfig) return GUIDED_CARDS;
+    const hiddenSet = new Set(guidedConfig.hidden);
+    return guidedConfig.order
+      .map((id) => GUIDED_CARDS.find((c) => c.id === id))
+      .filter((c): c is GuidedCardDef => c !== undefined && !hiddenSet.has(c.id));
+  })();
 
   const MOOD_SCORE: Record<string, number> = { Great: 10, Good: 7, Okay: 5, Rough: 3 };
   const SLEEP_HOURS: Record<string, number> = { Great: 8, Good: 7, Fair: 6, Poor: 5 };
@@ -969,13 +1247,41 @@ export default function VoiceScreen() {
       )}
 
       {mode === "guided" && (
-        <GuidedCheckin
-          answers={answers}
-          onAnswer={(id, val) => setAnswers((prev) => ({ ...prev, [id]: val }))}
-          isSaving={isSaving}
-          saved={saved}
-          onSave={handleGuidedSave}
-        />
+        <>
+          <View style={styles.guidedHeader}>
+            <Text style={[styles.guidedHeaderLabel, { color: colors.mutedForeground, fontFamily: "Inter_500Medium" }]}>
+              {activeCards.length} questions
+            </Text>
+            <TouchableOpacity
+              onPress={() => setShowConfigModal(true)}
+              style={[styles.customizeBtn, { borderColor: colors.border, backgroundColor: colors.card }]}
+              activeOpacity={0.75}
+            >
+              <Feather name="sliders" size={13} color={colors.primary} />
+              <Text style={[styles.customizeBtnText, { color: colors.primary, fontFamily: "Inter_500Medium" }]}>
+                Customize
+              </Text>
+            </TouchableOpacity>
+          </View>
+
+          <GuidedCheckin
+            cards={activeCards}
+            answers={answers}
+            onAnswer={(id, val) => setAnswers((prev) => ({ ...prev, [id]: val }))}
+            isSaving={isSaving}
+            saved={saved}
+            onSave={handleGuidedSave}
+          />
+
+          {guidedConfig && (
+            <GuidedConfigModal
+              visible={showConfigModal}
+              config={guidedConfig}
+              onChange={saveGuidedConfig}
+              onClose={() => setShowConfigModal(false)}
+            />
+          )}
+        </>
       )}
 
       {mode === "manual" && (
@@ -1169,6 +1475,25 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   modePillText: { fontSize: 14 },
+
+  // Guided header + customize button
+  guidedHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 14,
+  },
+  guidedHeaderLabel: { fontSize: 13 },
+  customizeBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 20,
+    borderWidth: 1,
+  },
+  customizeBtnText: { fontSize: 13 },
 
   // Guided check-in cards
   guidedCard: {

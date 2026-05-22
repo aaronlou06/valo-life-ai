@@ -27,6 +27,8 @@ tags:
     description: Calendar events and goal deadlines
   - name: onboarding
     description: Onboarding flow status and progressive field save
+  - name: settings
+    description: User settings and preferences
 paths:
   /healthz:
     get:
@@ -392,8 +394,42 @@ paths:
                   ok:
                     type: boolean
 
+  /settings:
+    get:
+      operationId: getSettings
+      tags: [settings]
+      summary: Get authenticated user settings
+      responses:
+        "200":
+          description: User settings
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserSettings"
+
 components:
   schemas:
+    UserSettings:
+      type: object
+      required: [callsEnabled, onboardingCompleted, firstCallCompleted]
+      properties:
+        phoneNumber:
+          type: ["string", "null"]
+        preferredCallTime:
+          type: ["string", "null"]
+        callTimezone:
+          type: ["string", "null"]
+        callsEnabled:
+          type: boolean
+        name:
+          type: ["string", "null"]
+        lifePriorities:
+          type: ["string", "null"]
+        onboardingCompleted:
+          type: boolean
+        firstCallCompleted:
+          type: boolean
+
     HealthStatus:
       type: object
       properties:

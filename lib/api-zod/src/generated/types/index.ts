@@ -27,3 +27,4 @@ export * from "./moodInput";
 export * from "./onboardingSaveInput";
 export * from "./onboardingStatus";
 export * from "./saveOnboarding200";
+export * from "./userSettings";

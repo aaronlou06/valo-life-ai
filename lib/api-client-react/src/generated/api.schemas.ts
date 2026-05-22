@@ -5,6 +5,22 @@
  * Valo API specification
  * OpenAPI spec version: 0.1.0
  */
+export interface UserSettings {
+  /** @nullable */
+  phoneNumber?: string | null;
+  /** @nullable */
+  preferredCallTime?: string | null;
+  /** @nullable */
+  callTimezone?: string | null;
+  callsEnabled: boolean;
+  /** @nullable */
+  name?: string | null;
+  /** @nullable */
+  lifePriorities?: string | null;
+  onboardingCompleted: boolean;
+  firstCallCompleted: boolean;
+}
+
 export interface HealthStatus {
   status: string;
 }
