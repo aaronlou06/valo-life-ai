@@ -1,5 +1,7 @@
 import { Platform } from "react-native";
 
+console.log('[HealthKit] Platform:', Platform.OS);
+
 let AppleHealthKit: any = null;
 
 if (Platform.OS === "ios") {
@@ -38,13 +40,17 @@ export type DailyHealthData = {
 };
 
 export async function requestHealthKitPermissions(): Promise<boolean> {
+  console.log('[HealthKit] requestPermissions called, AppleHealthKit:', !!AppleHealthKit);
   if (!AppleHealthKit) return false;
   return new Promise((resolve) => {
+    console.log('[HealthKit] initHealthKit called');
     AppleHealthKit.initHealthKit(HealthKitPermissions, (err: any) => {
       if (err) {
+        console.log('[HealthKit] initHealthKit error:', err);
         console.warn("[Valo] HealthKit init error:", err);
         resolve(false);
       } else {
+        console.log('[HealthKit] initHealthKit success');
         resolve(true);
       }
     });

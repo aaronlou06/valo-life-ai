@@ -511,7 +511,9 @@ export default function ProfileScreen() {
   const { isPermissionsGranted: isHealthConnected, syncNow: healthSyncNow, isSyncing: healthSyncing } = useHealthKitSync();
 
   const handleHealthKitConnect = React.useCallback(async () => {
+    console.log('[Profile] handleHealthKitConnect called');
     const granted = await requestHealthKitPermissions();
+    console.log('[Profile] permissions result:', granted);
     if (granted) {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       await healthSyncNow();
