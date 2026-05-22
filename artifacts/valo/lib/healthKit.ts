@@ -6,7 +6,8 @@ let AppleHealthKit: any = null;
 
 if (Platform.OS === "ios") {
   try {
-    AppleHealthKit = require("react-native-health").default;
+    const mod = require("react-native-health");
+    AppleHealthKit = mod.default ?? mod;
   } catch (e) {
     console.warn("[Valo] react-native-health not available:", e);
   }
