@@ -22,6 +22,9 @@ export const habitsTable = pgTable("habits", {
   goalId: integer("goal_id"),
   // optional link to parent goal
 
+  routineId: text("routine_id"),
+  // optional link to a routine this habit belongs to
+
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 });
@@ -33,6 +36,7 @@ export const insertHabitSchema = createInsertSchema(habitsTable)
     targetFrequency: true,
     longestStreak: true,
     goalId: true,
+    routineId: true,
   });
 
 export type InsertHabit = z.infer<typeof insertHabitSchema>;
