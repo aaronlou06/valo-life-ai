@@ -155,8 +155,15 @@ interface DynCardData {
   progress?: number;
 }
 
-function buildRecoveryCard(dash: DashData | undefined): DynCardData | null {
-  if (!dash || (dash.hrv == null && dash.sleepHours == null)) return null;
+function buildRecoveryCard(dash: DashData | undefined): DynCardData {
+  if (!dash || (dash.hrv == null && dash.sleepHours == null)) {
+    return {
+      key: "recovery",
+      icon: "link",
+      label: "Recovery",
+      body: "Connect your wearable to see your recovery score.",
+    };
+  }
   const { hrv, sleepHours: sleep } = dash;
   let body: string;
   let good = true;
@@ -180,16 +187,22 @@ function buildRecoveryCard(dash: DashData | undefined): DynCardData | null {
   };
 }
 
-function buildGoalProgressCard(goals: GoalItem[] | undefined): DynCardData | null {
-  if (!goals || goals.length === 0) return null;
+function buildGoalProgressCard(goals: GoalItem[] | undefined): DynCardData {
+  if (!goals || goals.length === 0) {
+    return {
+      key: "goal",
+      icon: "target",
+      label: "Goal progress",
+      body: "Add your first goal to track progress here.",
+    };
+  }
   const deadlineGoal = goals
     .filter((g) => g.targetDate != null && daysUntil(g.targetDate) >= 0 && daysUntil(g.targetDate) <= 14)
     .sort((a, b) => daysUntil(a.targetDate!) - daysUntil(b.targetDate!))[0];
   const lowestGoal = goals
     .filter((g) => g.progressPercent > 0 && g.progressPercent < 100)
     .sort((a, b) => a.progressPercent - b.progressPercent)[0];
-  const goal = deadlineGoal ?? lowestGoal;
-  if (!goal) return null;
+  const goal = deadlineGoal ?? lowestGoal ?? goals[0]!;
   const days = goal.targetDate != null ? daysUntil(goal.targetDate) : null;
   const daysStr = days != null ? ` · ${days} day${days !== 1 ? "s" : ""} left` : "";
   return {
@@ -201,10 +214,25 @@ function buildGoalProgressCard(goals: GoalItem[] | undefined): DynCardData | nul
   };
 }
 
-function buildStreakCard(habits: HabitItem[] | undefined): DynCardData | null {
-  if (!habits || habits.length === 0) return null;
+function buildStreakCard(habits: HabitItem[] | undefined): DynCardData {
+  if (!habits || habits.length === 0) {
+    return {
+      key: "streak",
+      icon: "check-circle",
+      label: "Streak",
+      body: "Start a streak today — pick a habit and commit.",
+    };
+  }
   const best = habits.filter((h) => h.streak >= 3).sort((a, b) => b.streak - a.streak)[0];
-  if (!best) return null;
+  if (!best) {
+    const top = habits.slice().sort((a, b) => b.streak - a.streak)[0]!;
+    return {
+      key: "streak",
+      icon: "check-circle",
+      label: "Streak",
+      body: `${top.name} — Start a streak today and commit.`,
+    };
+  }
   return {
     key: "streak",
     icon: "check-circle",
@@ -213,8 +241,15 @@ function buildStreakCard(habits: HabitItem[] | undefined): DynCardData | null {
   };
 }
 
-function buildWinCard(habits: HabitItem[] | undefined): DynCardData | null {
-  if (!habits || habits.length === 0) return null;
+function buildWinCard(habits: HabitItem[] | undefined): DynCardData {
+  if (!habits || habits.length === 0) {
+    return {
+      key: "win",
+      icon: "zap",
+      label: "Win",
+      body: "Complete your habits today to earn a win card.",
+    };
+  }
   const longStreak = habits.filter((h) => h.streak >= 7).sort((a, b) => b.streak - a.streak)[0];
   if (longStreak) {
     return {
@@ -234,13 +269,24 @@ function buildWinCard(habits: HabitItem[] | undefined): DynCardData | null {
       accent: true,
     };
   }
-  return null;
+  return {
+    key: "win",
+    icon: "zap",
+    label: "Win",
+    body: "Complete your habits today to earn a win card.",
+  };
 }
 
-function buildPatternCard(insights: InsightItem[] | undefined): DynCardData | null {
-  if (!insights || insights.length === 0) return null;
-  const latest = insights[0];
-  if (!latest?.content) return null;
+function buildPatternCard(insights: InsightItem[] | undefined): DynCardData {
+  const latest = insights?.[0];
+  if (!latest?.content) {
+    return {
+      key: "pattern",
+      icon: "activity",
+      label: "Pattern",
+      body: "Check in daily — Valo will surface patterns here after a few days.",
+    };
+  }
   return {
     key: "pattern",
     icon: "activity",
@@ -256,7 +302,7 @@ function getDynamicCards(
   insights: InsightItem[] | undefined,
   timeOfDay: TimeOfDay
 ): DynCardData[] {
-  const builders: Record<string, () => DynCardData | null> = {
+  const builders: Record<string, () => DynCardData> = {
     recovery: () => buildRecoveryCard(dash),
     goal:     () => buildGoalProgressCard(goals),
     streak:   () => buildStreakCard(habits),
@@ -270,22 +316,15 @@ function getDynamicCards(
   };
 
   const list = priorities[timeOfDay];
-  const result: DynCardData[] = [];
+  const result: DynCardData[] = list.map((key) => builders[key]!());
 
-  for (const key of list) {
-    if (result.length >= 3) break;
-    const card = builders[key]?.();
-    if (card) result.push(card);
-  }
-
-  // Fill remaining slots from fallback order if priority list didn't yield 3 cards
+  // Fill any remaining slots (shouldn't occur with 3-item priority lists, but kept as safety net)
   if (result.length < 3) {
     const fallback = ["recovery", "goal", "streak", "win", "pattern"];
     for (const key of fallback) {
       if (result.length >= 3) break;
-      if (list.includes(key) || result.some((c) => c.key === key)) continue;
-      const card = builders[key]?.();
-      if (card) result.push(card);
+      if (result.some((c) => c.key === key)) continue;
+      result.push(builders[key]!());
     }
   }
 
