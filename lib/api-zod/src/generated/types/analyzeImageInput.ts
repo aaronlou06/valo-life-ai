@@ -5,10 +5,13 @@
  * Valo API specification
  * OpenAPI spec version: 0.1.0
  */
+import type { AnalyzeImageInputSubtype } from "./analyzeImageInputSubtype";
 import type { AnalyzeImageInputType } from "./analyzeImageInputType";
 
 export interface AnalyzeImageInput {
   /** Base64-encoded image data (with or without data-URL prefix) */
   image: string;
   type: AnalyzeImageInputType;
+  /** Optional subtype (used for screentime to distinguish daily vs weekly reports) */
+  subtype?: AnalyzeImageInputSubtype;
 }

@@ -361,6 +361,12 @@ export const AnalyzeImageBody = zod.object({
     .string()
     .describe("Base64-encoded image data (with or without data-URL prefix)"),
   type: zod.enum(["food", "screentime", "progress", "other"]),
+  subtype: zod
+    .enum(["daily", "weekly"])
+    .optional()
+    .describe(
+      "Optional subtype (used for screentime to distinguish daily vs weekly reports)",
+    ),
 });
 
 export const AnalyzeImageResponse = zod.object({

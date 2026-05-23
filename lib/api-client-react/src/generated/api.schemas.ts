@@ -288,10 +288,23 @@ export const AnalyzeImageInputType = {
   other: "other",
 } as const;
 
+/**
+ * Optional subtype (used for screentime to distinguish daily vs weekly reports)
+ */
+export type AnalyzeImageInputSubtype =
+  (typeof AnalyzeImageInputSubtype)[keyof typeof AnalyzeImageInputSubtype];
+
+export const AnalyzeImageInputSubtype = {
+  daily: "daily",
+  weekly: "weekly",
+} as const;
+
 export interface AnalyzeImageInput {
   /** Base64-encoded image data (with or without data-URL prefix) */
   image: string;
   type: AnalyzeImageInputType;
+  /** Optional subtype (used for screentime to distinguish daily vs weekly reports) */
+  subtype?: AnalyzeImageInputSubtype;
 }
 
 export type AnalyzeImageResultData = { [key: string]: unknown };

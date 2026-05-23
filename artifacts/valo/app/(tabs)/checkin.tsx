@@ -1486,8 +1486,6 @@ export default function CheckInScreen() {
   const [localHabits, setLocalHabits] = useState<HabitItem[] | null>(null);
   const [modalCanSave, setModalCanSave] = useState(false);
   const modalSaveFnRef = useRef<(() => void) | null>(null);
-  const [showScreenTimeInstructions, setShowScreenTimeInstructions] = useState(false);
-
   // ── Smart upload state ──────────────────────────────────────────────────────
   const [analyzingType, setAnalyzingType] = useState<UploadType | null>(null);
   const [analysisResult, setAnalysisResult] = useState<{ type: UploadType; data: Record<string, unknown> } | null>(null);
@@ -1748,23 +1746,53 @@ export default function CheckInScreen() {
   async function handleMoodSave(score: number, note: string) {
     setIsSavingLog(true);
     try {
-      await createMood.mutateAsync({ data: { score, note: note.trim() || null } });
+      const token = await getToken();
+      const resp = await fetch(`${getApiBase()}/api/moods`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({ score, note: note.trim() || null }),
+      });
+      if (!resp.ok) {
+        const errData = await resp.json().catch(() => ({})) as { error?: string };
+        throw new Error(errData.error ?? `HTTP ${resp.status}`);
+      }
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       doLogSavedAnimations();
       setActiveModal(null);
-    } catch { Alert.alert("Could not save. Please try again."); }
-    finally { setIsSavingLog(false); }
+    } catch (err) {
+      Alert.alert("Could not save mood", err instanceof Error ? err.message : "Please try again.");
+    } finally {
+      setIsSavingLog(false);
+    }
   }
 
   async function handleEnergySave(score: number) {
     setIsSavingLog(true);
     try {
-      await createMood.mutateAsync({ data: { score, note: "energy" } });
+      const token = await getToken();
+      const resp = await fetch(`${getApiBase()}/api/moods`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({ score, note: "energy" }),
+      });
+      if (!resp.ok) {
+        const errData = await resp.json().catch(() => ({})) as { error?: string };
+        throw new Error(errData.error ?? `HTTP ${resp.status}`);
+      }
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       doLogSavedAnimations();
       setActiveModal(null);
-    } catch { Alert.alert("Could not save. Please try again."); }
-    finally { setIsSavingLog(false); }
+    } catch (err) {
+      Alert.alert("Could not save energy", err instanceof Error ? err.message : "Please try again.");
+    } finally {
+      setIsSavingLog(false);
+    }
   }
 
   async function handleWorkoutSave(type: string, duration: number, effort: number) {
@@ -1812,13 +1840,21 @@ export default function CheckInScreen() {
   // Smart upload handlers
   function handleSmartUpload(type: UploadType) {
     if (type === "screentime") {
-      setShowScreenTimeInstructions(true);
+      Alert.alert(
+        "Screen Time",
+        "Which type of report are you uploading?",
+        [
+          { text: "Daily report", onPress: () => void doPickAndAnalyze("screentime", "daily") },
+          { text: "Weekly report", onPress: () => void doPickAndAnalyze("screentime", "weekly") },
+          { text: "Cancel", style: "cancel" },
+        ],
+      );
       return;
     }
     void doPickAndAnalyze(type);
   }
 
-  async function doPickAndAnalyze(type: UploadType) {
+  async function doPickAndAnalyze(type: UploadType, subtype?: string) {
     const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (!perm.granted) {
       Alert.alert("Permission required", "Please allow access to your photo library.");
@@ -1837,7 +1873,7 @@ export default function CheckInScreen() {
           "Content-Type": "application/json",
           ...(token ? { Authorization: `Bearer ${token}` } : {}),
         },
-        body: JSON.stringify({ image: base64, type }),
+        body: JSON.stringify({ image: base64, type, ...(subtype ? { subtype } : {}) }),
       });
       if (!resp.ok) throw new Error("Analysis failed");
       const json = (await resp.json()) as { type: UploadType; data: Record<string, unknown> };
@@ -2309,85 +2345,6 @@ export default function CheckInScreen() {
           ))}
         </View>
       </View>
-
-      {/* ── Screen Time instructions modal ───────────────────────────────── */}
-      <Modal
-        visible={showScreenTimeInstructions}
-        animationType="slide"
-        presentationStyle="fullScreen"
-        onRequestClose={() => setShowScreenTimeInstructions(false)}
-      >
-        <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
-          <View style={[fsModal.header, { borderBottomColor: colors.border }]}>
-            <Text style={[fsModal.title, { color: colors.foreground, fontFamily: "Inter_700Bold" }]}>
-              Screen Time
-            </Text>
-            <TouchableOpacity
-              onPress={() => setShowScreenTimeInstructions(false)}
-              hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
-            >
-              <Feather name="x" size={22} color={colors.foreground} />
-            </TouchableOpacity>
-          </View>
-          <ScrollView style={{ flex: 1 }} contentContainerStyle={fsModal.content} showsVerticalScrollIndicator={false}>
-            <Text style={[styles.sectionLabel, { color: colors.mutedForeground, fontFamily: "Inter_500Medium" }]}>
-              HOW TO GET YOUR REPORT
-            </Text>
-            {[
-              { step: "1", text: "Open the Settings app on your iPhone" },
-              { step: "2", text: "Tap Screen Time" },
-              { step: "3", text: "Tap your name at the top of the page" },
-              { step: "4", text: "Scroll down to the weekly summary section" },
-              { step: "5", text: "Take a screenshot — then come back here" },
-            ].map(({ step, text }) => (
-              <View
-                key={step}
-                style={[styles.promptCard, { backgroundColor: colors.card, borderColor: colors.border }]}
-              >
-                <View
-                  style={[
-                    styles.promptDot,
-                    {
-                      backgroundColor: colors.primary,
-                      width: 24, height: 24, borderRadius: 12,
-                      alignItems: "center", justifyContent: "center",
-                    },
-                  ]}
-                >
-                  <Text style={{ color: colors.primaryForeground, fontFamily: "Inter_700Bold", fontSize: 12 }}>
-                    {step}
-                  </Text>
-                </View>
-                <Text style={[styles.promptText, { color: colors.foreground, fontFamily: "Inter_400Regular" }]}>
-                  {text}
-                </Text>
-              </View>
-            ))}
-            <Text
-              style={[
-                styles.promptText,
-                { color: colors.mutedForeground, fontFamily: "Inter_400Regular", marginTop: 8 },
-              ]}
-            >
-              Once you have the screenshot saved, tap below. Valo will read your report and surface the patterns.
-            </Text>
-          </ScrollView>
-          <View style={[fsModal.footer, { borderTopColor: colors.border, paddingBottom: Math.max(insets.bottom, 20) }]}>
-            <TouchableOpacity
-              style={[fsModal.saveBtn, { backgroundColor: colors.primary }]}
-              onPress={async () => {
-                setShowScreenTimeInstructions(false);
-                await doPickAndAnalyze("screentime");
-              }}
-              activeOpacity={0.8}
-            >
-              <Text style={[fsModal.saveBtnText, { color: colors.primaryForeground, fontFamily: "Inter_600SemiBold" }]}>
-                Upload screenshot
-              </Text>
-            </TouchableOpacity>
-          </View>
-        </SafeAreaView>
-      </Modal>
 
       {/* ── Section 4: Full check-in (collapsible guided) ─────────────────── */}
       <View style={{ gap: 12 }}>

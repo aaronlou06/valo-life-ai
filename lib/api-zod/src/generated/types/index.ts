@@ -7,6 +7,7 @@
  */
 
 export * from "./analyzeImageInput";
+export * from "./analyzeImageInputSubtype";
 export * from "./analyzeImageInputType";
 export * from "./analyzeImageResult";
 export * from "./analyzeImageResultData";

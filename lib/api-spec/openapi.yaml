@@ -840,6 +840,10 @@ components:
         type:
           type: string
           enum: [food, screentime, progress, other]
+        subtype:
+          type: string
+          enum: [daily, weekly]
+          description: Optional subtype (used for screentime to distinguish daily vs weekly reports)
 
     AnalyzeImageResult:
       type: object
