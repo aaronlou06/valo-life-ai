@@ -15,7 +15,7 @@ import {
   Modal,
   KeyboardAvoidingView,
 } from "react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useSafeAreaInsets, SafeAreaView } from "react-native-safe-area-context";
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -83,7 +83,7 @@ const DAILY_PROMPTS = [
 ] as const;
 
 type QuickLogType = "mood" | "energy" | "workout" | "sleep" | "habits";
-type UploadType = "food" | "screentime" | "progress" | "labs";
+type UploadType = "food" | "screentime" | "progress" | "other";
 type Colors = ReturnType<typeof useColors>;
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -437,15 +437,25 @@ const WORKOUT_TYPES = ["Strength", "Cardio", "Yoga", "Walk", "Sport", "Rest"];
 function MoodLogger({
   colors,
   onSave,
-  isSaving,
+  registerSave,
 }: {
   colors: Colors;
   onSave: (score: number, note: string) => void;
-  isSaving: boolean;
+  registerSave: (canSave: boolean, saveFn: (() => void) | null) => void;
 }) {
   const [selected, setSelected] = useState<number | null>(null);
   const [note, setNote] = useState("");
-  const canSave = selected != null && !isSaving;
+  const noteRef = useRef(note);
+  noteRef.current = note;
+
+  useEffect(() => {
+    if (selected != null) {
+      const s = selected;
+      registerSave(true, () => onSave(s, noteRef.current));
+    } else {
+      registerSave(false, null);
+    }
+  }, [selected]);
 
   return (
     <View style={{ gap: 20 }}>
@@ -486,28 +496,6 @@ function MoodLogger({
         onChangeText={setNote}
         multiline
       />
-      <TouchableOpacity
-        style={[styles.modalSaveBtn, { backgroundColor: canSave ? colors.primary : colors.muted }]}
-        onPress={() => selected != null && onSave(selected, note)}
-        disabled={!canSave}
-        activeOpacity={0.8}
-      >
-        {isSaving ? (
-          <ActivityIndicator color={colors.primaryForeground} />
-        ) : (
-          <Text
-            style={[
-              styles.modalSaveBtnText,
-              {
-                color: canSave ? colors.primaryForeground : colors.mutedForeground,
-                fontFamily: "Inter_600SemiBold",
-              },
-            ]}
-          >
-            Save mood
-          </Text>
-        )}
-      </TouchableOpacity>
     </View>
   );
 }
@@ -515,13 +503,22 @@ function MoodLogger({
 function EnergyLogger({
   colors,
   onSave,
-  isSaving,
+  registerSave,
 }: {
   colors: Colors;
   onSave: (score: number) => void;
-  isSaving: boolean;
+  registerSave: (canSave: boolean, saveFn: (() => void) | null) => void;
 }) {
   const [selected, setSelected] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (selected != null) {
+      const s = selected;
+      registerSave(true, () => onSave(s));
+    } else {
+      registerSave(false, null);
+    }
+  }, [selected]);
 
   return (
     <View style={{ gap: 16 }}>
@@ -553,28 +550,6 @@ function EnergyLogger({
           </TouchableOpacity>
         ))}
       </View>
-      <TouchableOpacity
-        style={[styles.modalSaveBtn, { backgroundColor: selected != null ? colors.primary : colors.muted }]}
-        onPress={() => selected != null && onSave(selected)}
-        disabled={selected == null || isSaving}
-        activeOpacity={0.8}
-      >
-        {isSaving ? (
-          <ActivityIndicator color={colors.primaryForeground} />
-        ) : (
-          <Text
-            style={[
-              styles.modalSaveBtnText,
-              {
-                color: selected != null ? colors.primaryForeground : colors.mutedForeground,
-                fontFamily: "Inter_600SemiBold",
-              },
-            ]}
-          >
-            Save energy
-          </Text>
-        )}
-      </TouchableOpacity>
     </View>
   );
 }
@@ -582,16 +557,24 @@ function EnergyLogger({
 function WorkoutLogger({
   colors,
   onSave,
-  isSaving,
+  registerSave,
 }: {
   colors: Colors;
   onSave: (type: string, duration: number, effort: number) => void;
-  isSaving: boolean;
+  registerSave: (canSave: boolean, saveFn: (() => void) | null) => void;
 }) {
   const [workoutType, setWorkoutType] = useState<string | null>(null);
   const [duration, setDuration] = useState(30);
   const [effort, setEffort] = useState(0);
-  const canSave = workoutType != null && effort > 0 && !isSaving;
+
+  useEffect(() => {
+    if (workoutType != null && effort > 0) {
+      const t = workoutType; const d = duration; const e = effort;
+      registerSave(true, () => onSave(t, d, e));
+    } else {
+      registerSave(false, null);
+    }
+  }, [workoutType, duration, effort]);
 
   return (
     <View style={{ gap: 20 }}>
@@ -665,28 +648,6 @@ function WorkoutLogger({
         </View>
       </View>
 
-      <TouchableOpacity
-        style={[styles.modalSaveBtn, { backgroundColor: canSave ? colors.primary : colors.muted }]}
-        onPress={() => workoutType && effort > 0 && onSave(workoutType, duration, effort)}
-        disabled={!canSave}
-        activeOpacity={0.8}
-      >
-        {isSaving ? (
-          <ActivityIndicator color={colors.primaryForeground} />
-        ) : (
-          <Text
-            style={[
-              styles.modalSaveBtnText,
-              {
-                color: canSave ? colors.primaryForeground : colors.mutedForeground,
-                fontFamily: "Inter_600SemiBold",
-              },
-            ]}
-          >
-            Save workout
-          </Text>
-        )}
-      </TouchableOpacity>
     </View>
   );
 }
@@ -694,14 +655,23 @@ function WorkoutLogger({
 function SleepLogger({
   colors,
   onSave,
-  isSaving,
+  registerSave,
 }: {
   colors: Colors;
   onSave: (hours: number, quality: number) => void;
-  isSaving: boolean;
+  registerSave: (canSave: boolean, saveFn: (() => void) | null) => void;
 }) {
   const [hours, setHours] = useState(7.5);
   const [quality, setQuality] = useState(0);
+
+  useEffect(() => {
+    if (quality > 0) {
+      const h = hours; const q = quality;
+      registerSave(true, () => onSave(h, q));
+    } else {
+      registerSave(false, null);
+    }
+  }, [hours, quality]);
 
   return (
     <View style={{ gap: 20 }}>
@@ -741,28 +711,6 @@ function SleepLogger({
         </View>
       </View>
 
-      <TouchableOpacity
-        style={[styles.modalSaveBtn, { backgroundColor: quality > 0 ? colors.primary : colors.muted }]}
-        onPress={() => quality > 0 && onSave(hours, quality)}
-        disabled={quality === 0 || isSaving}
-        activeOpacity={0.8}
-      >
-        {isSaving ? (
-          <ActivityIndicator color={colors.primaryForeground} />
-        ) : (
-          <Text
-            style={[
-              styles.modalSaveBtnText,
-              {
-                color: quality > 0 ? colors.primaryForeground : colors.mutedForeground,
-                fontFamily: "Inter_600SemiBold",
-              },
-            ]}
-          >
-            Save sleep
-          </Text>
-        )}
-      </TouchableOpacity>
     </View>
   );
 }
@@ -830,10 +778,10 @@ function HabitsLogger({
 // ─── Smart upload section ─────────────────────────────────────────────────────
 
 const UPLOAD_CARDS: { type: UploadType; icon: string; title: string; subtitle: string }[] = [
-  { type: "food",       icon: "camera",       title: "Food photo",      subtitle: "Log a meal"         },
-  { type: "screentime", icon: "smartphone",   title: "Screen Time",     subtitle: "Upload screenshot"  },
-  { type: "progress",   icon: "trending-up",  title: "Progress photo",  subtitle: "Track your body"    },
-  { type: "labs",       icon: "droplet",      title: "Lab results",     subtitle: "Upload bloodwork"   },
+  { type: "food",       icon: "camera",      title: "Food photo",      subtitle: "Snap your meal, Valo handles the rest"              },
+  { type: "screentime", icon: "smartphone",  title: "Screen Time",     subtitle: "Share your weekly report, we'll find the patterns"  },
+  { type: "progress",   icon: "trending-up", title: "Progress photos", subtitle: "Document your journey, one photo at a time"         },
+  { type: "other",      icon: "paperclip",   title: "Everything else", subtitle: "Bloodwork, receipts, notes — if it matters, log it" },
 ];
 
 function SmartUploadCard({
@@ -884,7 +832,7 @@ function AnalysisResultCard({
     food:       "Meal analysis",
     screentime: "Screen time report",
     progress:   "Progress notes",
-    labs:       "Lab results",
+    other:      "Document analysis",
   };
 
   function renderEntry(key: string, val: unknown, i: number): React.ReactNode {
@@ -1515,7 +1463,7 @@ export default function CheckInScreen() {
     useVapiDebrief(safeUserId, getToken as () => Promise<string | null>, ctx?.first_call_completed ?? true);
 
   const { data: settings } = useGetSettings();
-  const { data: dashboard } = useGetDashboard();
+  const { data: dashboard, refetch: refetchDashboard } = useGetDashboard();
   const { data: habits } = useListHabits();
   const { data: moods } = useListMoods();
   const { data: todayLog } = useGetTodayLog();
@@ -1536,6 +1484,9 @@ export default function CheckInScreen() {
   const [activeModal, setActiveModal] = useState<QuickLogType | null>(null);
   const [isSavingLog, setIsSavingLog] = useState(false);
   const [localHabits, setLocalHabits] = useState<HabitItem[] | null>(null);
+  const [modalCanSave, setModalCanSave] = useState(false);
+  const modalSaveFnRef = useRef<(() => void) | null>(null);
+  const [showScreenTimeInstructions, setShowScreenTimeInstructions] = useState(false);
 
   // ── Smart upload state ──────────────────────────────────────────────────────
   const [analyzingType, setAnalyzingType] = useState<UploadType | null>(null);
@@ -1554,6 +1505,8 @@ export default function CheckInScreen() {
   const liveCardOpacity = useRef(new Animated.Value(1)).current;
   const celebrateScale = useRef(new Animated.Value(1)).current;
   const celebrateOpacity = useRef(new Animated.Value(1)).current;
+  const streakBounce = useRef(new Animated.Value(1)).current;
+  const ringPulseSaved = useRef(new Animated.Value(1)).current;
 
   const topPad = Platform.OS === "web" ? Math.max(insets.top, 67) : insets.top;
   const bottomPad = Platform.OS === "web" ? 34 : insets.bottom;
@@ -1599,6 +1552,12 @@ export default function CheckInScreen() {
   useEffect(() => {
     if (habits) setLocalHabits(habits as HabitItem[]);
   }, [habits]);
+
+  // Reset modal save state when log type changes
+  useEffect(() => {
+    setModalCanSave(false);
+    modalSaveFnRef.current = null;
+  }, [activeModal]);
 
   // Load guided config
   useEffect(() => {
@@ -1737,6 +1696,18 @@ export default function CheckInScreen() {
       .filter((c): c is GuidedCardDef => c !== undefined && !hiddenSet.has(c.id));
   })();
 
+  function doLogSavedAnimations() {
+    void refetchDashboard();
+    Animated.sequence([
+      Animated.spring(streakBounce, { toValue: 1.18, friction: 4, tension: 200, useNativeDriver: true }),
+      Animated.spring(streakBounce, { toValue: 1, friction: 6, tension: 100, useNativeDriver: true }),
+    ]).start();
+    Animated.sequence([
+      Animated.timing(ringPulseSaved, { toValue: 1.1, duration: 150, useNativeDriver: true }),
+      Animated.spring(ringPulseSaved, { toValue: 1, friction: 5, tension: 80, useNativeDriver: true }),
+    ]).start();
+  }
+
   const MOOD_SCORE: Record<string, number> = { Great: 10, Good: 7, Okay: 5, Rough: 3 };
   const SLEEP_HOURS: Record<string, number> = { Great: 8, Good: 7, Fair: 6, Poor: 5 };
   const WORKOUT_TYPE: Record<string, string | null> = { Yes: "logged", No: null, "Rest day": "rest" };
@@ -1779,6 +1750,7 @@ export default function CheckInScreen() {
     try {
       await createMood.mutateAsync({ data: { score, note: note.trim() || null } });
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      doLogSavedAnimations();
       setActiveModal(null);
     } catch { Alert.alert("Could not save. Please try again."); }
     finally { setIsSavingLog(false); }
@@ -1789,6 +1761,7 @@ export default function CheckInScreen() {
     try {
       await createMood.mutateAsync({ data: { score, note: "energy" } });
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      doLogSavedAnimations();
       setActiveModal(null);
     } catch { Alert.alert("Could not save. Please try again."); }
     finally { setIsSavingLog(false); }
@@ -1801,6 +1774,7 @@ export default function CheckInScreen() {
         data: { workoutType: type, workoutDuration: duration, workoutEffort: effort },
       });
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      doLogSavedAnimations();
       setActiveModal(null);
     } catch { Alert.alert("Could not save. Please try again."); }
     finally { setIsSavingLog(false); }
@@ -1816,6 +1790,7 @@ export default function CheckInScreen() {
           : Promise.resolve(),
       ]);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      doLogSavedAnimations();
       setActiveModal(null);
     } catch { Alert.alert("Could not save. Please try again."); }
     finally { setIsSavingLog(false); }
@@ -1834,17 +1809,22 @@ export default function CheckInScreen() {
     }
   }
 
-  // Smart upload handler
-  async function handleSmartUpload(type: UploadType) {
+  // Smart upload handlers
+  function handleSmartUpload(type: UploadType) {
+    if (type === "screentime") {
+      setShowScreenTimeInstructions(true);
+      return;
+    }
+    void doPickAndAnalyze(type);
+  }
+
+  async function doPickAndAnalyze(type: UploadType) {
     const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (!perm.granted) {
       Alert.alert("Permission required", "Please allow access to your photo library.");
       return;
     }
-    const picked = await ImagePicker.launchImageLibraryAsync({
-      quality: 0.7,
-      base64: true,
-    });
+    const picked = await ImagePicker.launchImageLibraryAsync({ quality: 0.7, base64: true });
     if (picked.canceled || !picked.assets[0]?.base64) return;
 
     const base64 = picked.assets[0].base64;
@@ -1888,14 +1868,14 @@ export default function CheckInScreen() {
           <Text style={[styles.header, { color: colors.foreground, fontFamily: "Inter_700Bold" }]}>
             Check in
           </Text>
-          <View style={styles.streakRow}>
+          <Animated.View style={[styles.streakRow, { transform: [{ scale: streakBounce }] }]}>
             <Feather name="zap" size={13} color={colors.primary} />
             <Text style={[styles.streakText, { color: colors.primary, fontFamily: "Inter_600SemiBold" }]}>
               {dashboard?.streak ?? 0} day streak
             </Text>
-          </View>
+          </Animated.View>
         </View>
-        <Animated.View style={{ transform: [{ scale: celebrateScale }], opacity: celebrateOpacity }}>
+        <Animated.View style={{ transform: [{ scale: celebrateScale }, { scale: ringPulseSaved }], opacity: celebrateOpacity }}>
           <CompletionRing pct={completionPct} colors={colors} />
         </Animated.View>
       </View>
@@ -2212,53 +2192,97 @@ export default function CheckInScreen() {
         </View>
       </View>
 
-      {/* Quick log bottom sheet */}
+      {/* Quick log full-screen modal */}
       <Modal
         visible={!!activeModal}
         animationType="slide"
-        transparent
-        statusBarTranslucent
+        presentationStyle="fullScreen"
         onRequestClose={() => setActiveModal(null)}
       >
-        <KeyboardAvoidingView
-          style={{ flex: 1 }}
-          behavior={Platform.OS === "ios" ? "padding" : "height"}
-        >
-          <View style={modalStyles.overlay}>
-            <TouchableOpacity style={{ flex: 1 }} activeOpacity={1} onPress={() => setActiveModal(null)} />
-            <View style={[modalStyles.sheet, { backgroundColor: colors.background, paddingBottom: insets.bottom }]}>
-              <View style={modalStyles.handleWrap}>
-                <View style={[modalStyles.handle, { backgroundColor: colors.border }]} />
-              </View>
-              <View style={[modalStyles.sheetHeader, { borderBottomColor: colors.border }]}>
-                <Text style={[modalStyles.sheetTitle, { color: colors.foreground, fontFamily: "Inter_700Bold" }]}>
-                  {activeModal && QUICK_LOG_CONFIG[activeModal].label}
-                </Text>
-                <TouchableOpacity onPress={() => setActiveModal(null)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-                  <Feather name="x" size={20} color={colors.mutedForeground} />
-                </TouchableOpacity>
-              </View>
-              <ScrollView
-                style={{ flex: 1 }}
-                contentContainerStyle={{ padding: 20, paddingBottom: 32 }}
-                keyboardShouldPersistTaps="handled"
-                showsVerticalScrollIndicator={false}
-              >
-                {activeModal === "mood"    && <MoodLogger    colors={colors} onSave={handleMoodSave}    isSaving={isSavingLog} />}
-                {activeModal === "energy"  && <EnergyLogger  colors={colors} onSave={handleEnergySave}  isSaving={isSavingLog} />}
-                {activeModal === "workout" && <WorkoutLogger  colors={colors} onSave={handleWorkoutSave} isSaving={isSavingLog} />}
-                {activeModal === "sleep"   && <SleepLogger    colors={colors} onSave={handleSleepSave}   isSaving={isSavingLog} />}
-                {activeModal === "habits"  && (
-                  <HabitsLogger
-                    habits={allHabits}
-                    colors={colors}
-                    onToggle={handleHabitToggle}
-                  />
-                )}
-              </ScrollView>
-            </View>
+        <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
+          <View style={[fsModal.header, { borderBottomColor: colors.border }]}>
+            <Text style={[fsModal.title, { color: colors.foreground, fontFamily: "Inter_700Bold" }]}>
+              {activeModal && QUICK_LOG_CONFIG[activeModal].label}
+            </Text>
+            <TouchableOpacity onPress={() => setActiveModal(null)} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}>
+              <Feather name="x" size={22} color={colors.foreground} />
+            </TouchableOpacity>
           </View>
-        </KeyboardAvoidingView>
+          <ScrollView
+            style={{ flex: 1 }}
+            contentContainerStyle={fsModal.content}
+            keyboardShouldPersistTaps="handled"
+            showsVerticalScrollIndicator={false}
+          >
+            {activeModal === "mood" && (
+              <MoodLogger
+                colors={colors}
+                onSave={handleMoodSave}
+                registerSave={(canSave, fn) => { setModalCanSave(canSave); modalSaveFnRef.current = fn; }}
+              />
+            )}
+            {activeModal === "energy" && (
+              <EnergyLogger
+                colors={colors}
+                onSave={handleEnergySave}
+                registerSave={(canSave, fn) => { setModalCanSave(canSave); modalSaveFnRef.current = fn; }}
+              />
+            )}
+            {activeModal === "workout" && (
+              <WorkoutLogger
+                colors={colors}
+                onSave={handleWorkoutSave}
+                registerSave={(canSave, fn) => { setModalCanSave(canSave); modalSaveFnRef.current = fn; }}
+              />
+            )}
+            {activeModal === "sleep" && (
+              <SleepLogger
+                colors={colors}
+                onSave={handleSleepSave}
+                registerSave={(canSave, fn) => { setModalCanSave(canSave); modalSaveFnRef.current = fn; }}
+              />
+            )}
+            {activeModal === "habits" && (
+              <HabitsLogger habits={allHabits} colors={colors} onToggle={handleHabitToggle} />
+            )}
+          </ScrollView>
+          <View style={[fsModal.footer, { borderTopColor: colors.border, paddingBottom: Math.max(insets.bottom, 20) }]}>
+            {activeModal === "habits" ? (
+              <TouchableOpacity
+                style={[fsModal.saveBtn, { backgroundColor: colors.primary }]}
+                onPress={() => setActiveModal(null)}
+                activeOpacity={0.8}
+              >
+                <Text style={[fsModal.saveBtnText, { color: colors.primaryForeground, fontFamily: "Inter_600SemiBold" }]}>
+                  Done
+                </Text>
+              </TouchableOpacity>
+            ) : (
+              <TouchableOpacity
+                style={[fsModal.saveBtn, { backgroundColor: modalCanSave ? colors.primary : colors.muted }]}
+                onPress={() => modalSaveFnRef.current?.()}
+                disabled={!modalCanSave || isSavingLog}
+                activeOpacity={0.8}
+              >
+                {isSavingLog ? (
+                  <ActivityIndicator color={colors.primaryForeground} />
+                ) : (
+                  <Text
+                    style={[
+                      fsModal.saveBtnText,
+                      {
+                        color: modalCanSave ? colors.primaryForeground : colors.mutedForeground,
+                        fontFamily: "Inter_600SemiBold",
+                      },
+                    ]}
+                  >
+                    Save {activeModal && QUICK_LOG_CONFIG[activeModal].label.toLowerCase()}
+                  </Text>
+                )}
+              </TouchableOpacity>
+            )}
+          </View>
+        </SafeAreaView>
       </Modal>
 
       {/* ── Section 3: Smart Upload ────────────────────────────────────────── */}
@@ -2285,6 +2309,85 @@ export default function CheckInScreen() {
           ))}
         </View>
       </View>
+
+      {/* ── Screen Time instructions modal ───────────────────────────────── */}
+      <Modal
+        visible={showScreenTimeInstructions}
+        animationType="slide"
+        presentationStyle="fullScreen"
+        onRequestClose={() => setShowScreenTimeInstructions(false)}
+      >
+        <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
+          <View style={[fsModal.header, { borderBottomColor: colors.border }]}>
+            <Text style={[fsModal.title, { color: colors.foreground, fontFamily: "Inter_700Bold" }]}>
+              Screen Time
+            </Text>
+            <TouchableOpacity
+              onPress={() => setShowScreenTimeInstructions(false)}
+              hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+            >
+              <Feather name="x" size={22} color={colors.foreground} />
+            </TouchableOpacity>
+          </View>
+          <ScrollView style={{ flex: 1 }} contentContainerStyle={fsModal.content} showsVerticalScrollIndicator={false}>
+            <Text style={[styles.sectionLabel, { color: colors.mutedForeground, fontFamily: "Inter_500Medium" }]}>
+              HOW TO GET YOUR REPORT
+            </Text>
+            {[
+              { step: "1", text: "Open the Settings app on your iPhone" },
+              { step: "2", text: "Tap Screen Time" },
+              { step: "3", text: "Tap your name at the top of the page" },
+              { step: "4", text: "Scroll down to the weekly summary section" },
+              { step: "5", text: "Take a screenshot — then come back here" },
+            ].map(({ step, text }) => (
+              <View
+                key={step}
+                style={[styles.promptCard, { backgroundColor: colors.card, borderColor: colors.border }]}
+              >
+                <View
+                  style={[
+                    styles.promptDot,
+                    {
+                      backgroundColor: colors.primary,
+                      width: 24, height: 24, borderRadius: 12,
+                      alignItems: "center", justifyContent: "center",
+                    },
+                  ]}
+                >
+                  <Text style={{ color: colors.primaryForeground, fontFamily: "Inter_700Bold", fontSize: 12 }}>
+                    {step}
+                  </Text>
+                </View>
+                <Text style={[styles.promptText, { color: colors.foreground, fontFamily: "Inter_400Regular" }]}>
+                  {text}
+                </Text>
+              </View>
+            ))}
+            <Text
+              style={[
+                styles.promptText,
+                { color: colors.mutedForeground, fontFamily: "Inter_400Regular", marginTop: 8 },
+              ]}
+            >
+              Once you have the screenshot saved, tap below. Valo will read your report and surface the patterns.
+            </Text>
+          </ScrollView>
+          <View style={[fsModal.footer, { borderTopColor: colors.border, paddingBottom: Math.max(insets.bottom, 20) }]}>
+            <TouchableOpacity
+              style={[fsModal.saveBtn, { backgroundColor: colors.primary }]}
+              onPress={async () => {
+                setShowScreenTimeInstructions(false);
+                await doPickAndAnalyze("screentime");
+              }}
+              activeOpacity={0.8}
+            >
+              <Text style={[fsModal.saveBtnText, { color: colors.primaryForeground, fontFamily: "Inter_600SemiBold" }]}>
+                Upload screenshot
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </SafeAreaView>
+      </Modal>
 
       {/* ── Section 4: Full check-in (collapsible guided) ─────────────────── */}
       <View style={{ gap: 12 }}>
@@ -2340,22 +2443,26 @@ export default function CheckInScreen() {
   );
 }
 
-// ─── Modal styles ─────────────────────────────────────────────────────────────
+// ─── Full-screen modal styles ─────────────────────────────────────────────────
 
-const modalStyles = StyleSheet.create({
-  overlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.4)", justifyContent: "flex-end" },
-  sheet: { borderTopLeftRadius: 24, borderTopRightRadius: 24, maxHeight: "85%", overflow: "hidden" },
-  handleWrap: { alignItems: "center", paddingTop: 10, paddingBottom: 4 },
-  handle: { width: 36, height: 4, borderRadius: 2 },
-  sheetHeader: {
+const fsModal = StyleSheet.create({
+  header: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
     paddingHorizontal: 20,
-    paddingVertical: 16,
+    paddingVertical: 18,
     borderBottomWidth: StyleSheet.hairlineWidth,
   },
-  sheetTitle: { fontSize: 18 },
+  title: { fontSize: 20 },
+  content: { padding: 24, gap: 20, paddingBottom: 32 },
+  footer: {
+    paddingHorizontal: 20,
+    paddingTop: 14,
+    borderTopWidth: StyleSheet.hairlineWidth,
+  },
+  saveBtn: { height: 54, borderRadius: 14, alignItems: "center", justifyContent: "center" },
+  saveBtnText: { fontSize: 17 },
 });
 
 // ─── Styles ───────────────────────────────────────────────────────────────────

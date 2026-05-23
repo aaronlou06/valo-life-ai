@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { requireAuth, type AuthenticatedRequest } from "../middlewares/requireAuth";
+import { requireAuth } from "../middlewares/requireAuth";
 import { anthropic } from "@workspace/integrations-anthropic-ai";
 
 const router: IRouter = Router();
@@ -8,14 +8,14 @@ const ANALYZE_PROMPTS: Record<string, string> = {
   food: 'Analyze this meal photo. Return JSON only (no markdown): { "meal_name": string, "estimated_calories": number, "protein_g": number, "carbs_g": number, "fat_g": number, "meal_type": "breakfast" | "lunch" | "dinner" | "snack", "notes": string }',
   screentime: 'This is a screen time report screenshot. Extract and return JSON only (no markdown): { "total_daily_avg_hours": number, "most_used_apps": [{ "name": string, "daily_avg_minutes": number }], "pickups_per_day": number, "social_media_hours": number, "productivity_hours": number }',
   progress: 'This is a body progress photo. Return JSON only (no markdown): { "notes_for_user": string } — notes_for_user should be encouraging, observational, and non-judgmental (2-3 sentences max).',
-  labs: 'This is a blood test / lab result. Extract key biomarkers and return JSON only (no markdown): { "biomarkers": [{ "name": string, "value": string, "unit": string, "reference_range": string, "status": "normal" | "high" | "low" }] }',
+  other: 'Look at this document or image and extract any useful health, financial, or lifestyle information. Return JSON only (no markdown): { "document_type": string, "key_findings": [{ "label": string, "value": string }], "summary": string, "recommended_action": string }',
 };
 
 router.post("/analyze-image", requireAuth, async (req, res): Promise<void> => {
   const { image, type } = req.body as { image?: string; type?: string };
 
   if (!type || !ANALYZE_PROMPTS[type]) {
-    res.status(400).json({ error: "type must be one of: food, screentime, progress, labs" });
+    res.status(400).json({ error: "type must be one of: food, screentime, progress, other" });
     return;
   }
 

@@ -360,7 +360,7 @@ export const AnalyzeImageBody = zod.object({
   image: zod
     .string()
     .describe("Base64-encoded image data (with or without data-URL prefix)"),
-  type: zod.enum(["food", "screentime", "progress", "labs"]),
+  type: zod.enum(["food", "screentime", "progress", "other"]),
 });
 
 export const AnalyzeImageResponse = zod.object({

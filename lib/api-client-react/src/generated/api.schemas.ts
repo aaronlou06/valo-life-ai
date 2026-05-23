@@ -285,7 +285,7 @@ export const AnalyzeImageInputType = {
   food: "food",
   screentime: "screentime",
   progress: "progress",
-  labs: "labs",
+  other: "other",
 } as const;
 
 export interface AnalyzeImageInput {

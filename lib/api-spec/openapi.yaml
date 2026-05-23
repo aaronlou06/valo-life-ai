@@ -839,7 +839,7 @@ components:
           description: Base64-encoded image data (with or without data-URL prefix)
         type:
           type: string
-          enum: [food, screentime, progress, labs]
+          enum: [food, screentime, progress, other]
 
     AnalyzeImageResult:
       type: object
