@@ -26,6 +26,7 @@ import DraggableFlatList, {
   type RenderItemParams,
 } from "react-native-draggable-flatlist";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
+import { useQueryClient } from "@tanstack/react-query";
 import {
   useUpsertDailyLog,
   useCreateMood,
@@ -35,6 +36,7 @@ import {
   useListMoods,
   useUpdateHabit,
   useGetTodayLog,
+  getListMoodsQueryKey,
 } from "@workspace/api-client-react";
 import { useColors } from "@/hooks/useColors";
 import { useVapiDebrief, type DebriefExtraction } from "@/hooks/useVapiDebrief";
@@ -1609,6 +1611,7 @@ export default function CheckInScreen() {
   const { data: moods } = useListMoods();
   const { data: todayLog } = useGetTodayLog();
 
+  const queryClient = useQueryClient();
   const upsertLog = useUpsertDailyLog();
   const createMood = useCreateMood();
   const updateHabitMutation = useUpdateHabit();
@@ -1889,6 +1892,7 @@ export default function CheckInScreen() {
     setIsSavingLog(true);
     try {
       await createMood.mutateAsync({ data: { score, note: note.trim() || null } });
+      await queryClient.invalidateQueries({ queryKey: getListMoodsQueryKey() });
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       doLogSavedAnimations();
       setActiveModal(null);
@@ -1903,6 +1907,7 @@ export default function CheckInScreen() {
     setIsSavingLog(true);
     try {
       await createMood.mutateAsync({ data: { score, note: "energy" } });
+      await queryClient.invalidateQueries({ queryKey: getListMoodsQueryKey() });
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       doLogSavedAnimations();
       setActiveModal(null);
