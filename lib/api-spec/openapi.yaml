@@ -526,6 +526,8 @@ components:
           type: integer
         category:
           type: string
+        updatedAt:
+          type: ["string", "null"]
 
     GoalInput:
       type: object

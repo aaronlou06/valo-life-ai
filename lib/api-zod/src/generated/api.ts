@@ -89,6 +89,7 @@ export const ListGoalsResponseItem = zod.object({
   targetDate: zod.string().nullish(),
   progressPercent: zod.number(),
   category: zod.string().optional(),
+  updatedAt: zod.string().nullish(),
 });
 export const ListGoalsResponse = zod.array(ListGoalsResponseItem);
 
@@ -147,6 +148,7 @@ export const UpdateGoalResponse = zod.object({
   targetDate: zod.string().nullish(),
   progressPercent: zod.number(),
   category: zod.string().optional(),
+  updatedAt: zod.string().nullish(),
 });
 
 /**

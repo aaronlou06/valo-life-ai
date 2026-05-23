@@ -115,6 +115,19 @@ const CATEGORIES = [
 
 const TOTAL_STEPS = 5;
 
+// ─── Progress Check-in helpers ────────────────────────────────────────────────
+
+function daysSinceUpdate(goal: Goal): number {
+  const raw = goal.updatedAt;
+  if (!raw) return 0;
+  const ms = Date.now() - new Date(raw).getTime();
+  return Math.max(0, Math.floor(ms / 86_400_000));
+}
+
+function todayLabel(): string {
+  return new Date().toLocaleDateString("en-US", { month: "long", day: "numeric" });
+}
+
 // ─── Date Picker ──────────────────────────────────────────────────────────────
 
 const PICKER_ITEM_H = 44;
@@ -1512,6 +1525,7 @@ export default function GoalsScreen() {
   const { data: insights, isLoading: insightsLoading } = useListInsights();
   const createHabit = useCreateHabit();
   const updateHabit = useUpdateHabit();
+  const updateGoal = useUpdateGoal();
   const deleteGoal = useDeleteGoal();
   const deleteHabit = useDeleteHabit();
 
@@ -1519,6 +1533,12 @@ export default function GoalsScreen() {
   const [newHabitName, setNewHabitName] = useState("");
   const [showHabitInput, setShowHabitInput] = useState(false);
   const [menuGoal, setMenuGoal] = useState<Goal | null>(null);
+
+  // Progress check-in state
+  const [checkinGoalId, setCheckinGoalId] = useState<number | null>(null);
+  const [checkinPercent, setCheckinPercent] = useState("");
+  const [checkinNote, setCheckinNote] = useState("");
+  const [checkinSaving, setCheckinSaving] = useState(false);
 
   const topPad = Platform.OS === "web" ? Math.max(insets.top, 67) : insets.top;
   const bottomPad = Platform.OS === "web" ? 34 : insets.bottom;
@@ -1542,6 +1562,28 @@ export default function GoalsScreen() {
   const handleGoalSuccess = useCallback(() => {
     queryClient.invalidateQueries({ queryKey: getListGoalsQueryKey() });
   }, [queryClient]);
+
+  const handleCheckinSave = useCallback(async (goal: Goal) => {
+    const pct = Math.min(100, Math.max(0, parseInt(checkinPercent, 10) || 0));
+    setCheckinSaving(true);
+    try {
+      await updateGoal.mutateAsync({
+        id: goal.id,
+        data: {
+          progressPercent: pct,
+          ...(checkinNote.trim() ? { notes: checkinNote.trim() } : {}),
+        },
+      });
+      await queryClient.invalidateQueries({ queryKey: getListGoalsQueryKey() });
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      setCheckinGoalId(null);
+      setCheckinNote("");
+    } catch {
+      Alert.alert("Could not save. Please try again.");
+    } finally {
+      setCheckinSaving(false);
+    }
+  }, [checkinPercent, checkinNote, updateGoal, queryClient]);
 
   const handleGoalMenuDelete = useCallback(() => {
     const target = menuGoal;
@@ -1580,6 +1622,140 @@ export default function GoalsScreen() {
         contentContainerStyle={{ paddingTop: topPad + 16, paddingBottom: bottomPad + tabBarH + 16, paddingHorizontal: 20 }}
       >
         <Text style={[styles.header, { color: colors.foreground, fontFamily: "Inter_700Bold" }]}>Goals</Text>
+
+        {/* ── Progress Check-in ─────────────────────────────────────────── */}
+        {!goalsLoading && (goals ?? []).filter((g) => g.progressPercent < 100).length > 0 && (() => {
+          const topGoals = (goals ?? []).filter((g) => g.progressPercent < 100).slice(0, 3);
+          return (
+            <View style={{ marginBottom: 28 }}>
+              <View style={styles.sectionHeader}>
+                <Text style={[styles.sectionTitle, { color: colors.foreground, fontFamily: "Inter_600SemiBold" }]}>
+                  Progress Check-in
+                </Text>
+                <Text style={[styles.checkinDateLabel, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
+                  {todayLabel()}
+                </Text>
+              </View>
+
+              {topGoals.map((goal) => {
+                const days = daysSinceUpdate(goal);
+                const isStale = days >= 7;
+                const isOpen = checkinGoalId === goal.id;
+                return (
+                  <View
+                    key={goal.id}
+                    style={[styles.checkinCard, { backgroundColor: colors.card, borderColor: isStale ? "#C49040" : colors.border }]}
+                  >
+                    {/* Card header row */}
+                    <View style={styles.checkinCardTop}>
+                      <Text
+                        style={[styles.checkinGoalTitle, { color: colors.foreground, fontFamily: "Inter_500Medium" }]}
+                        numberOfLines={2}
+                      >
+                        {goal.title}
+                      </Text>
+                      <TouchableOpacity
+                        onPress={() => {
+                          if (isOpen) {
+                            setCheckinGoalId(null);
+                          } else {
+                            setCheckinGoalId(goal.id);
+                            setCheckinPercent(String(goal.progressPercent));
+                            setCheckinNote("");
+                          }
+                        }}
+                        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                        style={{ padding: 2 }}
+                      >
+                        <Feather
+                          name={isOpen ? "x" : "plus-circle"}
+                          size={18}
+                          color={colors.primary}
+                        />
+                      </TouchableOpacity>
+                    </View>
+
+                    {/* Progress bar */}
+                    <View style={[styles.progressRow, { marginTop: 10 }]}>
+                      <View style={[styles.progressTrack, { backgroundColor: colors.muted }]}>
+                        <View
+                          style={[
+                            styles.progressFill,
+                            { backgroundColor: colors.primary, width: `${goal.progressPercent}%` as any },
+                          ]}
+                        />
+                      </View>
+                      <Text style={[styles.progressPct, { color: colors.mutedForeground, fontFamily: "Inter_500Medium" }]}>
+                        {goal.progressPercent}%
+                      </Text>
+                    </View>
+
+                    {/* Staleness / last-update label */}
+                    {isStale ? (
+                      <View style={styles.staleRow}>
+                        <Feather name="clock" size={11} color="#C49040" />
+                        <Text style={[styles.staleText, { fontFamily: "Inter_400Regular" }]}>
+                          No update in {days} day{days !== 1 ? "s" : ""}
+                        </Text>
+                      </View>
+                    ) : days > 0 ? (
+                      <Text style={[styles.lastUpdateText, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
+                        Updated {days === 1 ? "yesterday" : `${days}d ago`}
+                      </Text>
+                    ) : null}
+
+                    {/* Inline update form */}
+                    {isOpen && (
+                      <View style={[styles.checkinForm, { borderTopColor: colors.border }]}>
+                        <View style={styles.checkinPctRow}>
+                          <Text style={[styles.checkinPctLabel, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
+                            Progress %
+                          </Text>
+                          <TextInput
+                            style={[
+                              styles.checkinPctInput,
+                              { color: colors.foreground, borderColor: colors.border, backgroundColor: colors.background, fontFamily: "Inter_600SemiBold" },
+                            ]}
+                            value={checkinPercent}
+                            onChangeText={setCheckinPercent}
+                            keyboardType="numeric"
+                            maxLength={3}
+                            selectTextOnFocus
+                          />
+                        </View>
+                        <TextInput
+                          style={[
+                            styles.checkinNoteInput,
+                            { color: colors.foreground, borderColor: colors.border, backgroundColor: colors.background, fontFamily: "Inter_400Regular" },
+                          ]}
+                          placeholder="Add a note (optional)"
+                          placeholderTextColor={colors.mutedForeground}
+                          value={checkinNote}
+                          onChangeText={setCheckinNote}
+                          multiline
+                        />
+                        <TouchableOpacity
+                          style={[styles.checkinSaveBtn, { backgroundColor: colors.primary }]}
+                          onPress={() => handleCheckinSave(goal)}
+                          disabled={checkinSaving}
+                          activeOpacity={0.8}
+                        >
+                          {checkinSaving ? (
+                            <ActivityIndicator size="small" color={colors.primaryForeground} />
+                          ) : (
+                            <Text style={[styles.checkinSaveBtnText, { color: colors.primaryForeground, fontFamily: "Inter_600SemiBold" }]}>
+                              Save
+                            </Text>
+                          )}
+                        </TouchableOpacity>
+                      </View>
+                    )}
+                  </View>
+                );
+              })}
+            </View>
+          );
+        })()}
 
         {/* Big Goals */}
         <View style={styles.sectionHeader}>
@@ -1785,6 +1961,58 @@ const styles = StyleSheet.create({
   addBtn: { width: 32, height: 32, borderRadius: 8, justifyContent: "center", alignItems: "center" },
   emptyCard: { borderRadius: 14, borderWidth: 1, padding: 24, alignItems: "center", gap: 10, marginBottom: 12 },
   emptyText: { fontSize: 14, textAlign: "center" },
+
+  // Progress Check-in
+  checkinDateLabel: { fontSize: 13 },
+  checkinCard: {
+    borderRadius: 14,
+    borderWidth: 1,
+    padding: 14,
+    marginBottom: 10,
+  },
+  checkinCardTop: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    justifyContent: "space-between",
+    gap: 10,
+  },
+  checkinGoalTitle: { flex: 1, fontSize: 14, lineHeight: 20 },
+  staleRow: { flexDirection: "row", alignItems: "center", gap: 5, marginTop: 8 },
+  staleText: { fontSize: 12, color: "#C49040" },
+  lastUpdateText: { fontSize: 12, marginTop: 8 },
+  checkinForm: {
+    marginTop: 12,
+    paddingTop: 12,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    gap: 10,
+  },
+  checkinPctRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+  checkinPctLabel: { fontSize: 13 },
+  checkinPctInput: {
+    borderWidth: 1,
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    fontSize: 15,
+    width: 64,
+    textAlign: "center",
+  },
+  checkinNoteInput: {
+    borderWidth: 1,
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 9,
+    fontSize: 14,
+    lineHeight: 20,
+    minHeight: 60,
+    textAlignVertical: "top",
+  },
+  checkinSaveBtn: {
+    borderRadius: 10,
+    paddingVertical: 11,
+    alignItems: "center",
+  },
+  checkinSaveBtnText: { fontSize: 14 },
 
   // Modal shell
   modalContainer: { flex: 1, paddingHorizontal: 20 },

@@ -14,4 +14,6 @@ export interface Goal {
   targetDate?: string | null;
   progressPercent: number;
   category?: string;
+  /** @nullable */
+  updatedAt?: string | null;
 }
