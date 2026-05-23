@@ -21,7 +21,6 @@ import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as ImagePicker from "expo-image-picker";
-import * as ImageManipulator from "expo-image-manipulator";
 import DraggableFlatList, {
   ScaleDecorator,
   type RenderItemParams,
@@ -2003,18 +2002,12 @@ export default function CheckInScreen() {
       Alert.alert("Permission required", "Please allow access to your photo library.");
       return;
     }
-    const picked = await ImagePicker.launchImageLibraryAsync({ quality: 1, base64: false });
-    if (picked.canceled || !picked.assets[0]) return;
+    const picked = await ImagePicker.launchImageLibraryAsync({ quality: 0.5, base64: true });
+    if (picked.canceled || !picked.assets[0]?.base64) return;
 
     const asset = picked.assets[0];
-    const compressed = await ImageManipulator.manipulateAsync(
-      asset.uri,
-      [{ resize: { width: 1200 } }],
-      { compress: 0.7, format: ImageManipulator.SaveFormat.JPEG, base64: true },
-    );
-    const base64 = compressed.base64;
-    if (!base64) return;
-    const mediaType = "image/jpeg";
+    const base64 = asset.base64;
+    const mediaType = asset.mimeType ?? "image/jpeg";
     setAnalyzingType(type);
     try {
       const token = await getToken();
