@@ -24,6 +24,7 @@ import {
   useListHabits,
   useListGoals,
   useListMoods,
+  useListInsights,
 } from "@workspace/api-client-react";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -129,74 +130,166 @@ function getFocusSentence(
   return "Your focus today: show up fully.";
 }
 
+// ─── Time-of-day ─────────────────────────────────────────────────────────────
+
+type TimeOfDay = "morning" | "afternoon" | "evening";
+
+function getTimeOfDay(hour: number, override: "morning" | "evening" | null): TimeOfDay {
+  if (override === "morning") return "morning";
+  if (override === "evening") return "evening";
+  if (hour < 12) return "morning";
+  if (hour < 18) return "afternoon";
+  return "evening";
+}
+
+// ─── Dynamic card types & builders ───────────────────────────────────────────
+
+type InsightItem = { id: number; content: string };
+
 interface DynCardData {
   key: string;
   icon: string;
   label: string;
   body: string;
   accent?: boolean;
+  progress?: number;
+}
+
+function buildRecoveryCard(dash: DashData | undefined): DynCardData | null {
+  if (!dash || (dash.hrv == null && dash.sleepHours == null)) return null;
+  const { hrv, sleepHours: sleep } = dash;
+  let body: string;
+  let good = true;
+  if (hrv != null && hrv > 55) {
+    body = "Strong recovery today — your body is ready.";
+  } else if (hrv != null && hrv < 40) {
+    body = "Low recovery today — protect your energy.";
+    good = false;
+  } else if (sleep != null && sleep < 6) {
+    body = "You slept under 6 hours — take it easy today.";
+    good = false;
+  } else {
+    body = "Strong recovery today — your body is ready.";
+  }
+  return {
+    key: "recovery",
+    icon: good ? "battery-charging" : "battery",
+    label: good ? "Strong recovery" : "Low recovery",
+    body,
+    accent: good,
+  };
+}
+
+function buildGoalProgressCard(goals: GoalItem[] | undefined): DynCardData | null {
+  if (!goals || goals.length === 0) return null;
+  const deadlineGoal = goals
+    .filter((g) => g.targetDate != null && daysUntil(g.targetDate) >= 0 && daysUntil(g.targetDate) <= 14)
+    .sort((a, b) => daysUntil(a.targetDate!) - daysUntil(b.targetDate!))[0];
+  const lowestGoal = goals
+    .filter((g) => g.progressPercent > 0 && g.progressPercent < 100)
+    .sort((a, b) => a.progressPercent - b.progressPercent)[0];
+  const goal = deadlineGoal ?? lowestGoal;
+  if (!goal) return null;
+  const days = goal.targetDate != null ? daysUntil(goal.targetDate) : null;
+  const daysStr = days != null ? ` · ${days} day${days !== 1 ? "s" : ""} left` : "";
+  return {
+    key: "goal",
+    icon: "target",
+    label: "Goal progress",
+    body: `${goal.title}${daysStr}`,
+    progress: goal.progressPercent,
+  };
+}
+
+function buildStreakCard(habits: HabitItem[] | undefined): DynCardData | null {
+  if (!habits || habits.length === 0) return null;
+  const best = habits.filter((h) => h.streak >= 3).sort((a, b) => b.streak - a.streak)[0];
+  if (!best) return null;
+  return {
+    key: "streak",
+    icon: "check-circle",
+    label: "Streak",
+    body: `${best.name} — ${best.streak} days straight. Keep it going.`,
+  };
+}
+
+function buildWinCard(habits: HabitItem[] | undefined): DynCardData | null {
+  if (!habits || habits.length === 0) return null;
+  const longStreak = habits.filter((h) => h.streak >= 7).sort((a, b) => b.streak - a.streak)[0];
+  if (longStreak) {
+    return {
+      key: "win",
+      icon: "zap",
+      label: "On a roll",
+      body: `You're on a ${longStreak.streak}-day streak with ${longStreak.name}. Strong work.`,
+      accent: true,
+    };
+  }
+  if (habits.every((h) => h.completedToday)) {
+    return {
+      key: "win",
+      icon: "zap",
+      label: "All done",
+      body: "You've completed all your habits today. Strong work.",
+      accent: true,
+    };
+  }
+  return null;
+}
+
+function buildPatternCard(insights: InsightItem[] | undefined): DynCardData | null {
+  if (!insights || insights.length === 0) return null;
+  const latest = insights[0];
+  if (!latest?.content) return null;
+  return {
+    key: "pattern",
+    icon: "activity",
+    label: "Pattern",
+    body: latest.content,
+  };
 }
 
 function getDynamicCards(
   dash: DashData | undefined,
   goals: GoalItem[] | undefined,
   habits: HabitItem[] | undefined,
-  isEvening: boolean
+  insights: InsightItem[] | undefined,
+  timeOfDay: TimeOfDay
 ): DynCardData[] {
-  const cards: DynCardData[] = [];
+  const builders: Record<string, () => DynCardData | null> = {
+    recovery: () => buildRecoveryCard(dash),
+    goal:     () => buildGoalProgressCard(goals),
+    streak:   () => buildStreakCard(habits),
+    win:      () => buildWinCard(habits),
+    pattern:  () => buildPatternCard(insights),
+  };
+  const priorities: Record<TimeOfDay, string[]> = {
+    morning:   ["recovery", "goal", "streak"],
+    afternoon: ["pattern", "goal", "win"],
+    evening:   ["win", "streak", "pattern"],
+  };
 
-  if (!isEvening && dash) {
-    const goodRecovery = (dash.hrv ?? 0) > 55 || (dash.sleepHours ?? 0) > 7;
-    const hasRecoveryData = dash.hrv != null || dash.sleepHours != null;
-    if (hasRecoveryData) {
-      cards.push({
-        key: "recovery",
-        icon: goodRecovery ? "battery-charging" : "battery",
-        label: goodRecovery ? "Strong recovery" : "Low recovery",
-        body: goodRecovery
-          ? "Strong recovery today — your body is ready."
-          : "Low recovery today — consider lighter effort.",
-        accent: goodRecovery,
-      });
+  const list = priorities[timeOfDay];
+  const result: DynCardData[] = [];
+
+  for (const key of list) {
+    if (result.length >= 3) break;
+    const card = builders[key]?.();
+    if (card) result.push(card);
+  }
+
+  // Fill remaining slots from fallback order if priority list didn't yield 3 cards
+  if (result.length < 3) {
+    const fallback = ["recovery", "goal", "streak", "win", "pattern"];
+    for (const key of fallback) {
+      if (result.length >= 3) break;
+      if (list.includes(key) || result.some((c) => c.key === key)) continue;
+      const card = builders[key]?.();
+      if (card) result.push(card);
     }
   }
 
-  const goalDue = goals
-    ?.filter((g) => g.targetDate && daysUntil(g.targetDate) >= 0 && daysUntil(g.targetDate) <= 14)
-    .sort((a, b) => daysUntil(a.targetDate!) - daysUntil(b.targetDate!))[0];
-  if (goalDue) {
-    const days = daysUntil(goalDue.targetDate!);
-    cards.push({
-      key: "goal",
-      icon: "target",
-      label: "Goal progress",
-      body: `${goalDue.title} — ${goalDue.progressPercent}% complete. ${days} day${days !== 1 ? "s" : ""} left.`,
-    });
-  }
-
-  const bestStreak = habits
-    ?.filter((h) => h.streak > 1)
-    .sort((a, b) => b.streak - a.streak)[0];
-  if (bestStreak) {
-    if (bestStreak.streak > 3) {
-      cards.push({
-        key: "win",
-        icon: "zap",
-        label: "On a roll",
-        body: `You're on a ${bestStreak.streak}-day streak with ${bestStreak.name}. Strong work.`,
-        accent: true,
-      });
-    } else {
-      cards.push({
-        key: "streak",
-        icon: "check-circle",
-        label: "Streak",
-        body: `${bestStreak.name} — ${bestStreak.streak} days straight. Keep it going.`,
-      });
-    }
-  }
-
-  return cards.slice(0, isEvening ? 2 : 3);
+  return result;
 }
 
 function getDebriefPrompt(callTime: string | null, todayEventCount: number): string {
@@ -374,6 +467,16 @@ function DynCard({ card, colors }: { card: DynCardData; colors: Colors }) {
       <Text style={[styles.dynCardBody, { color: colors.foreground, fontFamily: "Inter_400Regular" }]}>
         {card.body}
       </Text>
+      {card.progress != null && (
+        <View style={[styles.progressTrack, { backgroundColor: colors.border }]}>
+          <View
+            style={[
+              styles.progressFill,
+              { width: `${Math.max(2, Math.min(100, card.progress))}%` as any, backgroundColor: colors.primary },
+            ]}
+          />
+        </View>
+      )}
     </View>
   );
 }
@@ -695,6 +798,7 @@ export default function TodayScreen() {
   const { data: goals } = useListGoals();
   const { data: calendarEvents } = useListCalendarEvents();
   const { data: moods } = useListMoods();
+  const { data: insights } = useListInsights();
   const { isSyncing: isHealthSyncing } = useHealthKitSync();
 
   const [modeOverride, setModeOverride] = useState<"morning" | "evening" | null>(null);
@@ -750,10 +854,18 @@ export default function TodayScreen() {
     } catch {}
   }
 
+  const timeOfDay = getTimeOfDay(hour, modeOverride);
+
   const readiness = getReadinessConfig(dashboard?.sleepHours, dashboard?.hrv);
   const sleepSummary = formatSleepSummary(dashboard?.sleepHours, dashboard?.hrv);
   const focusSentence = getFocusSentence(goals, habits, intention);
-  const dynamicCards = getDynamicCards(dashboard, goals, habits, !isMorning);
+  const dynamicCards = getDynamicCards(
+    dashboard,
+    goals,
+    habits,
+    insights as InsightItem[] | undefined,
+    timeOfDay,
+  );
   const debriefPrompt = getDebriefPrompt(callTime, todayEvents.length);
 
   const goToCheckIn = () => {
@@ -1063,6 +1175,8 @@ const styles = StyleSheet.create({
   dynCardHeader: { flexDirection: "row", alignItems: "center", gap: 7 },
   dynCardLabel: { fontSize: 12, letterSpacing: 0.3 },
   dynCardBody: { fontSize: 15, lineHeight: 22 },
+  progressTrack: { height: 4, borderRadius: 2, overflow: "hidden", marginTop: 6 },
+  progressFill: { height: 4, borderRadius: 2 },
   // Check-in button
   checkInBtn: {
     flexDirection: "row",
