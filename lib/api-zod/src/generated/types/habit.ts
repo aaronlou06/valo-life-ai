@@ -13,4 +13,5 @@ export interface Habit {
   streak: number;
   completedToday: boolean;
   category?: string;
+  routineId?: string | null;
 }

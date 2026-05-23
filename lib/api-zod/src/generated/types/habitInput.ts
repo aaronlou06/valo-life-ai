@@ -9,4 +9,5 @@
 export interface HabitInput {
   name: string;
   category?: string;
+  routineId?: string | null;
 }

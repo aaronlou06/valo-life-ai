@@ -20,17 +20,12 @@ import * as Haptics from "expo-haptics";
 import { useColors } from "@/hooks/useColors";
 import {
   useListGoals,
-  useListHabits,
   useListInsights,
   useCreateGoal,
   useUpdateGoal,
   useCreateCalendarEvent,
-  useCreateHabit,
-  useUpdateHabit,
   useDeleteGoal,
-  useDeleteHabit,
   getListGoalsQueryKey,
-  getListHabitsQueryKey,
   type Goal,
   type InsightEntry,
 } from "@workspace/api-client-react";
@@ -1521,17 +1516,11 @@ export default function GoalsScreen() {
   const queryClient = useQueryClient();
 
   const { data: goals, isLoading: goalsLoading } = useListGoals();
-  const { data: habits, isLoading: habitsLoading } = useListHabits();
   const { data: insights, isLoading: insightsLoading } = useListInsights();
-  const createHabit = useCreateHabit();
-  const updateHabit = useUpdateHabit();
   const updateGoal = useUpdateGoal();
   const deleteGoal = useDeleteGoal();
-  const deleteHabit = useDeleteHabit();
 
   const [showModal, setShowModal] = useState(false);
-  const [newHabitName, setNewHabitName] = useState("");
-  const [showHabitInput, setShowHabitInput] = useState(false);
   const [menuGoal, setMenuGoal] = useState<Goal | null>(null);
 
   // Progress check-in state
@@ -1543,21 +1532,6 @@ export default function GoalsScreen() {
   const topPad = Platform.OS === "web" ? Math.max(insets.top, 67) : insets.top;
   const bottomPad = Platform.OS === "web" ? 34 : insets.bottom;
   const tabBarH = Platform.OS === "web" ? 84 : 83;
-
-  const handleAddHabit = async () => {
-    if (!newHabitName.trim()) return;
-    await createHabit.mutateAsync({ data: { name: newHabitName.trim() } });
-    queryClient.invalidateQueries({ queryKey: getListHabitsQueryKey() });
-    setNewHabitName("");
-    setShowHabitInput(false);
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-  };
-
-  const toggleHabit = async (id: number, completed: boolean, streak: number) => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    await updateHabit.mutateAsync({ id, data: { completedToday: !completed, streak: !completed ? streak + 1 : Math.max(0, streak - 1) } });
-    queryClient.invalidateQueries({ queryKey: getListHabitsQueryKey() });
-  };
 
   const handleGoalSuccess = useCallback(() => {
     queryClient.invalidateQueries({ queryKey: getListGoalsQueryKey() });
@@ -1824,65 +1798,6 @@ export default function GoalsScreen() {
           })
         )}
 
-        {/* Daily Habits */}
-        <View style={[styles.sectionHeader, { marginTop: 24 }]}>
-          <Text style={[styles.sectionTitle, { color: colors.foreground, fontFamily: "Inter_600SemiBold" }]}>Daily Habits</Text>
-          <TouchableOpacity onPress={() => setShowHabitInput((v) => !v)}>
-            <Feather name={showHabitInput ? "x" : "plus"} size={20} color={colors.primary} />
-          </TouchableOpacity>
-        </View>
-
-        {showHabitInput && (
-          <View style={[styles.inputRow, { backgroundColor: colors.card, borderColor: colors.border }]}>
-            <TextInput
-              style={[styles.textInput, { color: colors.foreground, fontFamily: "Inter_400Regular" }]}
-              value={newHabitName}
-              onChangeText={setNewHabitName}
-              placeholder="Name this habit..."
-              placeholderTextColor={colors.mutedForeground}
-              onSubmitEditing={handleAddHabit}
-              returnKeyType="done"
-              autoFocus
-            />
-            <TouchableOpacity onPress={handleAddHabit} style={[styles.addBtn, { backgroundColor: colors.primary }]}>
-              <Feather name="check" size={16} color={colors.primaryForeground} />
-            </TouchableOpacity>
-          </View>
-        )}
-
-        {habitsLoading ? (
-          <ActivityIndicator color={colors.primary} style={{ marginTop: 20 }} />
-        ) : habits?.length === 0 ? (
-          <View style={[styles.emptyCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
-            <Feather name="check-circle" size={24} color={colors.mutedForeground} />
-            <Text style={[styles.emptyText, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
-              No habits yet. Small things compound.
-            </Text>
-          </View>
-        ) : (
-          habits?.map((habit) => (
-            <TouchableOpacity
-              key={habit.id}
-              style={[styles.habitRow, { backgroundColor: colors.card, borderColor: colors.border }]}
-              onPress={() => toggleHabit(habit.id, habit.completedToday, habit.streak)}
-            >
-              <View style={[styles.habitCheck, { borderColor: habit.completedToday ? colors.primary : colors.border, backgroundColor: habit.completedToday ? colors.primary : "transparent" }]}>
-                {habit.completedToday && <Feather name="check" size={14} color={colors.primaryForeground} />}
-              </View>
-              <View style={{ flex: 1 }}>
-                <Text style={[styles.habitName, { color: colors.foreground, fontFamily: "Inter_500Medium", textDecorationLine: habit.completedToday ? "line-through" : "none", opacity: habit.completedToday ? 0.6 : 1 }]}>
-                  {habit.name}
-                </Text>
-                <Text style={[styles.habitStreak, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
-                  {habit.streak} day streak
-                </Text>
-              </View>
-              <TouchableOpacity onPress={() => { deleteHabit.mutate({ id: habit.id }); queryClient.invalidateQueries({ queryKey: getListHabitsQueryKey() }); }}>
-                <Feather name="trash-2" size={14} color={colors.mutedForeground} />
-              </TouchableOpacity>
-            </TouchableOpacity>
-          ))
-        )}
         {/* ── Insights ───────────────────────────────────────────────────── */}
         <View style={[styles.sectionHeader, { marginTop: 32 }]}>
           <Text style={[styles.sectionTitle, { color: colors.foreground, fontFamily: "Inter_600SemiBold" }]}>Insights</Text>

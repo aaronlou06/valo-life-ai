@@ -200,6 +200,7 @@ export const ListHabitsResponseItem = zod.object({
   streak: zod.number(),
   completedToday: zod.boolean(),
   category: zod.string().optional(),
+  routineId: zod.string().nullish(),
 });
 export const ListHabitsResponse = zod.array(ListHabitsResponseItem);
 
@@ -209,6 +210,7 @@ export const ListHabitsResponse = zod.array(ListHabitsResponseItem);
 export const CreateHabitBody = zod.object({
   name: zod.string(),
   category: zod.string().optional(),
+  routineId: zod.string().nullish(),
 });
 
 /**
@@ -223,6 +225,7 @@ export const UpdateHabitBody = zod.object({
   completedToday: zod.boolean().optional(),
   streak: zod.number().optional(),
   category: zod.string().optional(),
+  routineId: zod.string().nullish(),
 });
 
 export const UpdateHabitResponse = zod.object({
@@ -232,6 +235,7 @@ export const UpdateHabitResponse = zod.object({
   streak: zod.number(),
   completedToday: zod.boolean(),
   category: zod.string().optional(),
+  routineId: zod.string().nullish(),
 });
 
 /**

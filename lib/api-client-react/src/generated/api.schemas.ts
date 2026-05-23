@@ -180,11 +180,13 @@ export interface Habit {
   streak: number;
   completedToday: boolean;
   category?: string;
+  routineId?: string | null;
 }
 
 export interface HabitInput {
   name: string;
   category?: string;
+  routineId?: string | null;
 }
 
 export interface HabitUpdate {
@@ -192,6 +194,7 @@ export interface HabitUpdate {
   completedToday?: boolean;
   streak?: number;
   category?: string;
+  routineId?: string | null;
 }
 
 export interface InsightEntry {

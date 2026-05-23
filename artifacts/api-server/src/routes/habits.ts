@@ -15,13 +15,13 @@ router.get("/habits", requireAuth, async (req, res): Promise<void> => {
 
 router.post("/habits", requireAuth, async (req, res): Promise<void> => {
   const userId = (req as AuthenticatedRequest).userId;
-  const { name, category } = req.body;
+  const { name, category, routineId } = req.body;
   if (!name) {
     res.status(400).json({ error: "name is required" });
     return;
   }
   const [habit] = await db.insert(habitsTable)
-    .values({ userId, name, streak: 0, completedToday: false, category: category ?? "general" })
+    .values({ userId, name, streak: 0, completedToday: false, category: category ?? "general", routineId: routineId ?? null })
     .returning();
   res.status(201).json(habit);
 });
@@ -31,12 +31,13 @@ router.patch("/habits/:id", requireAuth, async (req, res): Promise<void> => {
   const rawId = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
   const id = parseInt(rawId!, 10);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
-  const { name, completedToday, streak, category } = req.body;
+  const { name, completedToday, streak, category, routineId } = req.body;
   const updates: Record<string, unknown> = {};
   if (name !== undefined) updates.name = name;
   if (completedToday !== undefined) updates.completedToday = completedToday;
   if (streak !== undefined) updates.streak = streak;
   if (category !== undefined) updates.category = category;
+  if (routineId !== undefined) updates.routineId = routineId;
   if (completedToday === true) {
     updates.lastCompletedDate = new Date().toISOString().split("T")[0]!;
   }

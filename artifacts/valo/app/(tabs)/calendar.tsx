@@ -23,7 +23,14 @@ import {
   useListCalendarEvents,
   useCreateCalendarEvent,
   useDeleteCalendarEvent,
+  useListHabits,
+  useCreateHabit,
+  useUpdateHabit,
+  useDeleteHabit,
+  getListHabitsQueryKey,
+  type Habit,
 } from "@workspace/api-client-react";
+import { useQueryClient } from "@tanstack/react-query";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -162,6 +169,37 @@ function getNextFourWeeksDates(days: number[]): string[] {
     if (days.includes(d.getDay())) results.push(toISODate(d));
   }
   return results;
+}
+
+// ─── HabitRow ─────────────────────────────────────────────────────────────────
+
+function HabitRow({
+  habit, colors, onToggle, onDelete,
+}: {
+  habit: Habit; colors: Colors; onToggle: () => void; onDelete: () => void;
+}) {
+  return (
+    <TouchableOpacity
+      style={[calStyles.habitRow, { backgroundColor: colors.card, borderColor: colors.border }]}
+      onPress={onToggle}
+      activeOpacity={0.7}
+    >
+      <View style={[calStyles.habitCheck, { borderColor: habit.completedToday ? colors.primary : colors.border, backgroundColor: habit.completedToday ? colors.primary : "transparent" }]}>
+        {habit.completedToday && <Feather name="check" size={12} color={colors.primaryForeground} />}
+      </View>
+      <View style={{ flex: 1 }}>
+        <Text style={[calStyles.habitName, { color: colors.foreground, fontFamily: "Inter_500Medium", textDecorationLine: habit.completedToday ? "line-through" : "none", opacity: habit.completedToday ? 0.55 : 1 }]}>
+          {habit.name}
+        </Text>
+        <Text style={[calStyles.habitStreak, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
+          {habit.streak} day streak
+        </Text>
+      </View>
+      <TouchableOpacity onPress={onDelete} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+        <Feather name="trash-2" size={13} color={colors.mutedForeground} />
+      </TouchableOpacity>
+    </TouchableOpacity>
+  );
 }
 
 // ─── PickerColumn ─────────────────────────────────────────────────────────────
@@ -876,6 +914,15 @@ export default function CalendarScreen() {
   const { mutateAsync: createEvent } = useCreateCalendarEvent();
   const { mutateAsync: deleteEvent } = useDeleteCalendarEvent();
 
+  const queryClient = useQueryClient();
+  const { data: habits = [] } = useListHabits();
+  const createHabitMutation = useCreateHabit();
+  const updateHabitMutation = useUpdateHabit();
+  const deleteHabitMutation = useDeleteHabit();
+
+  const [newHabitName, setNewHabitName] = useState("");
+  const [addHabitRoutineId, setAddHabitRoutineId] = useState<string | null>(null);
+
   useEffect(() => {
     if (!userId) return;
     setRoutines([]);
@@ -1029,6 +1076,26 @@ export default function CalendarScreen() {
     ? `${MONTH_NAMES[viewMonth]} ${viewYear}`
     : formatWeekLabel(weekStart);
 
+  const handleAddHabit = async (routineId: string | null) => {
+    if (!newHabitName.trim()) return;
+    await createHabitMutation.mutateAsync({ data: { name: newHabitName.trim(), routineId: routineId ?? undefined } });
+    queryClient.invalidateQueries({ queryKey: getListHabitsQueryKey() });
+    setNewHabitName("");
+    setAddHabitRoutineId(null);
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+  };
+
+  const toggleHabit = async (id: number, completed: boolean, streak: number) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    await updateHabitMutation.mutateAsync({ id, data: { completedToday: !completed, streak: !completed ? streak + 1 : Math.max(0, streak - 1) } });
+    queryClient.invalidateQueries({ queryKey: getListHabitsQueryKey() });
+  };
+
+  const handleDeleteHabit = (id: number) => {
+    deleteHabitMutation.mutate({ id });
+    queryClient.invalidateQueries({ queryKey: getListHabitsQueryKey() });
+  };
+
   return (
     <>
       <ScrollView
@@ -1106,7 +1173,7 @@ export default function CalendarScreen() {
         {/* ── Routines ─────────────────────────────────────────────────────── */}
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
-            <Text style={[styles.sectionTitle, { color: colors.foreground, fontFamily: "Inter_600SemiBold" }]}>Routines</Text>
+            <Text style={[styles.sectionTitle, { color: colors.foreground, fontFamily: "Inter_600SemiBold" }]}>Routines & Habits</Text>
             <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
               <TouchableOpacity onPress={handleCleanupOrphanedEvents} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
                 <Text style={{ fontSize: 13, color: colors.mutedForeground, fontFamily: "Inter_400Regular" }}>Clean up</Text>
@@ -1122,14 +1189,116 @@ export default function CalendarScreen() {
               <Text style={[styles.emptyText, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>Add your first routine</Text>
             </TouchableOpacity>
           ) : (
-            routines.map((r) => (
-              <RoutineCard key={r.id} routine={r} colors={colors}
-                onEdit={() => { setEditingRoutine(r); setShowRoutineModal(true); }}
-                onDelete={() => handleDeleteRoutine(r)}
-              />
-            ))
+            routines.map((r) => {
+              const routineHabits = habits.filter((h) => h.routineId === r.id);
+              const isAddingHere = addHabitRoutineId === r.id;
+              return (
+                <View key={r.id}>
+                  <RoutineCard routine={r} colors={colors}
+                    onEdit={() => { setEditingRoutine(r); setShowRoutineModal(true); }}
+                    onDelete={() => handleDeleteRoutine(r)}
+                  />
+                  {routineHabits.length > 0 && (
+                    <View style={calStyles.habitSubList}>
+                      {routineHabits.map((habit) => (
+                        <HabitRow
+                          key={habit.id}
+                          habit={habit}
+                          colors={colors}
+                          onToggle={() => toggleHabit(habit.id, habit.completedToday, habit.streak)}
+                          onDelete={() => handleDeleteHabit(habit.id)}
+                        />
+                      ))}
+                    </View>
+                  )}
+                  {isAddingHere ? (
+                    <View style={[calStyles.habitInputRow, { backgroundColor: colors.card, borderColor: colors.border }]}>
+                      <TextInput
+                        style={[calStyles.habitInput, { color: colors.foreground, fontFamily: "Inter_400Regular" }]}
+                        value={newHabitName}
+                        onChangeText={setNewHabitName}
+                        placeholder="Name this habit..."
+                        placeholderTextColor={colors.mutedForeground}
+                        onSubmitEditing={() => handleAddHabit(r.id)}
+                        returnKeyType="done"
+                        autoFocus
+                      />
+                      <TouchableOpacity onPress={() => handleAddHabit(r.id)} style={[calStyles.habitAddBtn, { backgroundColor: colors.primary }]}>
+                        <Feather name="check" size={14} color={colors.primaryForeground} />
+                      </TouchableOpacity>
+                      <TouchableOpacity onPress={() => { setAddHabitRoutineId(null); setNewHabitName(""); }} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                        <Feather name="x" size={14} color={colors.mutedForeground} />
+                      </TouchableOpacity>
+                    </View>
+                  ) : (
+                    <TouchableOpacity
+                      style={[calStyles.habitAddTrigger, { borderColor: colors.border }]}
+                      onPress={() => { setNewHabitName(""); setAddHabitRoutineId(r.id); }}
+                    >
+                      <Feather name="plus" size={13} color={colors.mutedForeground} />
+                      <Text style={[calStyles.habitAddTriggerText, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>Add habit</Text>
+                    </TouchableOpacity>
+                  )}
+                </View>
+              );
+            })
           )}
         </View>
+
+        {/* ── Standalone Habits ────────────────────────────────────────────── */}
+        {(() => {
+          const standaloneHabits = habits.filter((h) => !h.routineId);
+          const isAddingStandalone = addHabitRoutineId === "";
+          return (
+            <View style={styles.section}>
+              <View style={styles.sectionHeader}>
+                <Text style={[styles.sectionTitle, { color: colors.foreground, fontFamily: "Inter_600SemiBold" }]}>Standalone Habits</Text>
+                <TouchableOpacity
+                  style={[styles.sectionAddBtn, { backgroundColor: colors.primary }]}
+                  onPress={() => { setNewHabitName(""); setAddHabitRoutineId(""); }}
+                >
+                  <Feather name="plus" size={15} color={colors.primaryForeground} />
+                </TouchableOpacity>
+              </View>
+              {standaloneHabits.length === 0 && !isAddingStandalone ? (
+                <View style={[styles.emptyState, { borderColor: colors.border, backgroundColor: colors.card }]}>
+                  <Feather name="check-circle" size={24} color={colors.mutedForeground} />
+                  <Text style={[styles.emptyText, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>No standalone habits yet</Text>
+                </View>
+              ) : (
+                standaloneHabits.map((habit) => (
+                  <HabitRow
+                    key={habit.id}
+                    habit={habit}
+                    colors={colors}
+                    onToggle={() => toggleHabit(habit.id, habit.completedToday, habit.streak)}
+                    onDelete={() => handleDeleteHabit(habit.id)}
+                  />
+                ))
+              )}
+              {isAddingStandalone && (
+                <View style={[calStyles.habitInputRow, { backgroundColor: colors.card, borderColor: colors.border }]}>
+                  <TextInput
+                    style={[calStyles.habitInput, { color: colors.foreground, fontFamily: "Inter_400Regular" }]}
+                    value={newHabitName}
+                    onChangeText={setNewHabitName}
+                    placeholder="Name this habit..."
+                    placeholderTextColor={colors.mutedForeground}
+                    onSubmitEditing={() => handleAddHabit(null)}
+                    returnKeyType="done"
+                    autoFocus
+                  />
+                  <TouchableOpacity onPress={() => handleAddHabit(null)} style={[calStyles.habitAddBtn, { backgroundColor: colors.primary }]}>
+                    <Feather name="check" size={14} color={colors.primaryForeground} />
+                  </TouchableOpacity>
+                  <TouchableOpacity onPress={() => { setAddHabitRoutineId(null); setNewHabitName(""); }} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                    <Feather name="x" size={14} color={colors.mutedForeground} />
+                  </TouchableOpacity>
+                </View>
+              )}
+            </View>
+          );
+        })()}
 
         {/* ── Upcoming events ───────────────────────────────────────────────── */}
         <View style={[styles.section, { marginTop: 8 }]}>
@@ -1232,6 +1401,21 @@ const S = StyleSheet.create({
   activityRemoveBtn: { padding: 4 },
   addActivityBtn: { flexDirection: "row", alignItems: "center", gap: 6, borderWidth: 1, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, borderStyle: "dashed", alignSelf: "flex-start" },
   addActivityText: { fontSize: 14 },
+});
+
+// ─── Habit styles ─────────────────────────────────────────────────────────────
+
+const calStyles = StyleSheet.create({
+  habitSubList: { paddingLeft: 12, marginTop: 6, gap: 6 },
+  habitRow: { flexDirection: "row", alignItems: "center", borderRadius: 12, borderWidth: 1, padding: 12, gap: 12 },
+  habitCheck: { width: 22, height: 22, borderRadius: 11, borderWidth: 2, justifyContent: "center", alignItems: "center" },
+  habitName: { fontSize: 14, marginBottom: 1 },
+  habitStreak: { fontSize: 11 },
+  habitInputRow: { flexDirection: "row", alignItems: "center", borderRadius: 12, borderWidth: 1, padding: 10, marginTop: 6, gap: 8 },
+  habitInput: { flex: 1, fontSize: 14 },
+  habitAddBtn: { width: 30, height: 30, borderRadius: 8, justifyContent: "center", alignItems: "center" },
+  habitAddTrigger: { flexDirection: "row", alignItems: "center", gap: 5, borderWidth: StyleSheet.hairlineWidth, borderStyle: "dashed", borderRadius: 10, paddingHorizontal: 10, paddingVertical: 7, marginTop: 6, alignSelf: "flex-start" },
+  habitAddTriggerText: { fontSize: 12 },
 });
 
 // ─── Screen styles ────────────────────────────────────────────────────────────
