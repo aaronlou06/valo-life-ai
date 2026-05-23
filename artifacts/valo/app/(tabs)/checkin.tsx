@@ -446,16 +446,20 @@ function ValueSlider({
   value,
   onChange,
   anchors,
+  onScrollEnabled,
 }: {
   colors: Colors;
   value: number | null;
   onChange: (v: number) => void;
   anchors: Array<{ label: string; position: number; isEmoji?: boolean }>;
+  onScrollEnabled?: (enabled: boolean) => void;
 }) {
   const [trackWidth, setTrackWidth] = useState(0);
   const trackWidthRef = useRef(0);
   const onChangeRef = useRef(onChange);
   onChangeRef.current = onChange;
+  const onScrollEnabledRef = useRef(onScrollEnabled);
+  onScrollEnabledRef.current = onScrollEnabled;
   const effectiveValue = value ?? 5;
   const valueRef = useRef(effectiveValue);
   valueRef.current = effectiveValue;
@@ -466,6 +470,7 @@ function ValueSlider({
       onStartShouldSetPanResponder: () => true,
       onMoveShouldSetPanResponder: () => true,
       onPanResponderGrant: (e) => {
+        onScrollEnabledRef.current?.(false);
         const tw = trackWidthRef.current;
         const tapX = Math.max(0, Math.min(tw, e.nativeEvent.locationX ?? 0));
         startXRef.current = tapX;
@@ -484,6 +489,12 @@ function ValueSlider({
           valueRef.current = newVal;
           onChangeRef.current(newVal);
         }
+      },
+      onPanResponderRelease: () => {
+        onScrollEnabledRef.current?.(true);
+      },
+      onPanResponderTerminate: () => {
+        onScrollEnabledRef.current?.(true);
       },
     }),
   ).current;
@@ -590,10 +601,12 @@ function MoodLogger({
   colors,
   onSave,
   registerSave,
+  onScrollEnabled,
 }: {
   colors: Colors;
   onSave: (score: number, note: string) => void;
   registerSave: (canSave: boolean, saveFn: (() => void) | null) => void;
+  onScrollEnabled?: (enabled: boolean) => void;
 }) {
   const [selected, setSelected] = useState<number | null>(null);
   const [note, setNote] = useState("");
@@ -625,6 +638,7 @@ function MoodLogger({
         colors={colors}
         value={selected}
         onChange={(v) => { Haptics.selectionAsync(); setSelected(v); }}
+        onScrollEnabled={onScrollEnabled}
         anchors={[
           { label: "😔", position: 1,  isEmoji: true },
           { label: "😕", position: 3,  isEmoji: true },
@@ -652,10 +666,12 @@ function EnergyLogger({
   colors,
   onSave,
   registerSave,
+  onScrollEnabled,
 }: {
   colors: Colors;
   onSave: (score: number) => void;
   registerSave: (canSave: boolean, saveFn: (() => void) | null) => void;
+  onScrollEnabled?: (enabled: boolean) => void;
 }) {
   const [selected, setSelected] = useState<number | null>(null);
 
@@ -684,6 +700,7 @@ function EnergyLogger({
         colors={colors}
         value={selected}
         onChange={(v) => { Haptics.selectionAsync(); setSelected(v); }}
+        onScrollEnabled={onScrollEnabled}
         anchors={[
           { label: "Drained", position: 1  },
           { label: "Low",     position: 3  },
@@ -1627,6 +1644,7 @@ export default function CheckInScreen() {
   const [isSavingLog, setIsSavingLog] = useState(false);
   const [localHabits, setLocalHabits] = useState<HabitItem[] | null>(null);
   const [modalCanSave, setModalCanSave] = useState(false);
+  const [modalScrollEnabled, setModalScrollEnabled] = useState(true);
   const modalSaveFnRef = useRef<(() => void) | null>(null);
   // ── Smart upload state ──────────────────────────────────────────────────────
   const [analyzingType, setAnalyzingType] = useState<UploadType | null>(null);
@@ -2002,11 +2020,12 @@ export default function CheckInScreen() {
       Alert.alert("Permission required", "Please allow access to your photo library.");
       return;
     }
-    const picked = await ImagePicker.launchImageLibraryAsync({ quality: 0.5, base64: true });
+    const picked = await ImagePicker.launchImageLibraryAsync({ quality: 0.3, base64: true });
     if (picked.canceled || !picked.assets[0]?.base64) return;
 
     const asset = picked.assets[0];
-    const base64 = asset.base64;
+    const rawBase64 = asset.base64 ?? "";
+    const base64 = rawBase64.length > 800_000 ? rawBase64.substring(0, 800_000) : rawBase64;
     const mediaType = asset.mimeType ?? "image/jpeg";
     setAnalyzingType(type);
     try {
@@ -2396,12 +2415,14 @@ export default function CheckInScreen() {
             contentContainerStyle={fsModal.content}
             keyboardShouldPersistTaps="handled"
             showsVerticalScrollIndicator={false}
+            scrollEnabled={modalScrollEnabled}
           >
             {activeModal === "mood" && (
               <MoodLogger
                 colors={colors}
                 onSave={handleMoodSave}
                 registerSave={(canSave, fn) => { setModalCanSave(canSave); modalSaveFnRef.current = fn; }}
+                onScrollEnabled={setModalScrollEnabled}
               />
             )}
             {activeModal === "energy" && (
@@ -2409,6 +2430,7 @@ export default function CheckInScreen() {
                 colors={colors}
                 onSave={handleEnergySave}
                 registerSave={(canSave, fn) => { setModalCanSave(canSave); modalSaveFnRef.current = fn; }}
+                onScrollEnabled={setModalScrollEnabled}
               />
             )}
             {activeModal === "workout" && (

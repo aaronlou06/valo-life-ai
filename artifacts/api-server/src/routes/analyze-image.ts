@@ -63,6 +63,11 @@ router.post("/analyze-image", requireAuth, async (req, res): Promise<void> => {
 
   const imageData = image.replace(/^data:image\/\w+;base64,/, "").replace(/\s/g, "");
 
+  if (imageData.length > 1_500_000) {
+    res.status(400).json({ error: "Image too large — please use a smaller screenshot" });
+    return;
+  }
+
   req.log.info(
     { type, subtype, mediaType, imageDataLength: imageData.length },
     "analyze-image: calling Claude",
