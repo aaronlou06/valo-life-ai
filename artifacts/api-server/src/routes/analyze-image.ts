@@ -40,9 +40,9 @@ router.post("/analyze-image", requireAuth, async (req, res): Promise<void> => {
   let imageData = image;
 
   if (image.startsWith("data:")) {
-    const match = image.match(/^data:(image\/\w+);base64,(.+)$/s);
+    const match = image.match(/^data:(image\/[\w+]+);base64,(.+)$/s);
     if (match && match[1] && match[2]) {
-      const mt = match[1];
+      const mt = match[1].toLowerCase();
       if (mt === "image/png" || mt === "image/gif" || mt === "image/webp") {
         mediaType = mt as typeof mediaType;
       }
@@ -50,30 +50,61 @@ router.post("/analyze-image", requireAuth, async (req, res): Promise<void> => {
     }
   }
 
-  const message = await anthropic.messages.create({
-    model: "claude-sonnet-4-20250514",
-    max_tokens: 1024,
-    messages: [
-      {
-        role: "user",
-        content: [
-          {
-            type: "image",
-            source: { type: "base64", media_type: mediaType, data: imageData },
-          },
-          { type: "text", text: prompt },
-        ],
-      },
-    ],
-  });
+  imageData = imageData.replace(/\s/g, "");
 
-  const raw = message.content[0]?.type === "text" ? message.content[0].text : "{}";
-  const jsonMatch = raw.match(/\{[\s\S]*\}/);
-  let data: unknown = {};
+  req.log.info(
+    { type, subtype, imageDataLength: imageData.length, mediaType },
+    "analyze-image: calling Claude",
+  );
+
+  let message: Awaited<ReturnType<typeof anthropic.messages.create>>;
   try {
-    data = jsonMatch ? JSON.parse(jsonMatch[0]) : {};
-  } catch {
-    data = { raw };
+    message = await anthropic.messages.create({
+      model: "claude-sonnet-4-20250514",
+      max_tokens: 1024,
+      messages: [
+        {
+          role: "user",
+          content: [
+            {
+              type: "image",
+              source: { type: "base64", media_type: mediaType, data: imageData },
+            },
+            { type: "text", text: prompt },
+          ],
+        },
+      ],
+    });
+  } catch (err) {
+    req.log.error(
+      { err, type, subtype, imageDataLength: imageData.length },
+      "analyze-image: Claude API call failed",
+    );
+    res.status(502).json({
+      error: "Image analysis failed. Please try again.",
+      detail: err instanceof Error ? err.message : String(err),
+    });
+    return;
+  }
+
+  const raw = message.content[0]?.type === "text" ? message.content[0].text : "";
+  req.log.info(
+    { type, rawLength: raw.length, rawPreview: raw.slice(0, 300) },
+    "analyze-image: Claude response received",
+  );
+
+  const stripped = raw
+    .replace(/^```(?:json)?\s*/i, "")
+    .replace(/\s*```\s*$/i, "")
+    .trim();
+
+  const jsonMatch = stripped.match(/\{[\s\S]*\}/);
+  let data: unknown;
+  try {
+    data = jsonMatch ? JSON.parse(jsonMatch[0]) : JSON.parse(stripped);
+  } catch (parseErr) {
+    req.log.warn({ parseErr, rawPreview: raw.slice(0, 300) }, "analyze-image: JSON parse failed, returning raw as summary");
+    data = { summary: raw };
   }
 
   res.json({ type, data });

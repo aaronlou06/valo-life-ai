@@ -20,6 +20,7 @@ import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as ImagePicker from "expo-image-picker";
+import Slider from "@react-native-community/slider";
 import DraggableFlatList, {
   ScaleDecorator,
   type RenderItemParams,
@@ -443,47 +444,43 @@ function MoodLogger({
   onSave: (score: number, note: string) => void;
   registerSave: (canSave: boolean, saveFn: (() => void) | null) => void;
 }) {
-  const [selected, setSelected] = useState<number | null>(null);
+  const [selected, setSelected] = useState(5);
   const [note, setNote] = useState("");
   const noteRef = useRef(note);
   noteRef.current = note;
 
   useEffect(() => {
-    if (selected != null) {
-      const s = selected;
-      registerSave(true, () => onSave(s, noteRef.current));
-    } else {
-      registerSave(false, null);
-    }
+    const s = selected;
+    registerSave(true, () => onSave(s, noteRef.current));
   }, [selected]);
 
   return (
-    <View style={{ gap: 20 }}>
-      <View style={styles.emojiRow}>
-        {MOOD_OPTIONS.map(({ emoji, score, label }) => (
-          <TouchableOpacity
-            key={score}
-            style={[
-              styles.emojiBtn,
-              selected === score && { borderColor: colors.primary, borderWidth: 2, backgroundColor: colors.primary + "12" },
-            ]}
-            onPress={() => { Haptics.selectionAsync(); setSelected(score); }}
-            activeOpacity={0.75}
-          >
-            <Text style={styles.emojiText}>{emoji}</Text>
-            <Text
-              style={[
-                styles.emojiLabel,
-                {
-                  color: selected === score ? colors.primary : colors.mutedForeground,
-                  fontFamily: selected === score ? "Inter_600SemiBold" : "Inter_400Regular",
-                },
-              ]}
-            >
-              {label}
-            </Text>
-          </TouchableOpacity>
-        ))}
+    <View style={{ gap: 24 }}>
+      <View style={{ gap: 4 }}>
+        <View style={{ flexDirection: "row", justifyContent: "space-between", paddingHorizontal: 10 }}>
+          {MOOD_OPTIONS.map(({ emoji, score, label }) => (
+            <View key={score} style={{ alignItems: "center", width: 44 }}>
+              <Text style={{ fontSize: 22 }}>{emoji}</Text>
+              <Text style={{ fontSize: 10, color: colors.mutedForeground, fontFamily: "Inter_400Regular", marginTop: 2 }}>
+                {label}
+              </Text>
+            </View>
+          ))}
+        </View>
+        <Slider
+          style={{ width: "100%", height: 40 }}
+          minimumValue={1}
+          maximumValue={10}
+          step={1}
+          value={selected}
+          onValueChange={(v) => { Haptics.selectionAsync(); setSelected(v); }}
+          minimumTrackTintColor={colors.primary}
+          maximumTrackTintColor={colors.border}
+          thumbTintColor={colors.primary}
+        />
+        <Text style={{ textAlign: "center", fontSize: 30, fontFamily: "Inter_700Bold", color: colors.primary }}>
+          {selected}
+        </Text>
       </View>
       <TextInput
         style={[
@@ -509,47 +506,38 @@ function EnergyLogger({
   onSave: (score: number) => void;
   registerSave: (canSave: boolean, saveFn: (() => void) | null) => void;
 }) {
-  const [selected, setSelected] = useState<number | null>(null);
+  const [selected, setSelected] = useState(5);
 
   useEffect(() => {
-    if (selected != null) {
-      const s = selected;
-      registerSave(true, () => onSave(s));
-    } else {
-      registerSave(false, null);
-    }
+    const s = selected;
+    registerSave(true, () => onSave(s));
   }, [selected]);
 
   return (
-    <View style={{ gap: 16 }}>
-      <View style={{ gap: 10 }}>
+    <View style={{ gap: 4 }}>
+      <View style={{ flexDirection: "row", justifyContent: "space-between", paddingHorizontal: 10 }}>
         {ENERGY_OPTIONS.map(({ label, score }) => (
-          <TouchableOpacity
-            key={score}
-            style={[
-              styles.energyOption,
-              {
-                backgroundColor: selected === score ? colors.primary : colors.muted,
-                borderColor: selected === score ? colors.primary : colors.border,
-              },
-            ]}
-            onPress={() => { Haptics.selectionAsync(); setSelected(score); }}
-            activeOpacity={0.75}
-          >
-            <Text
-              style={[
-                styles.energyOptionText,
-                {
-                  color: selected === score ? colors.primaryForeground : colors.foreground,
-                  fontFamily: selected === score ? "Inter_600SemiBold" : "Inter_400Regular",
-                },
-              ]}
-            >
+          <View key={score} style={{ alignItems: "center", width: 48 }}>
+            <Text style={{ fontSize: 10, color: colors.mutedForeground, fontFamily: "Inter_400Regular", textAlign: "center" }}>
               {label}
             </Text>
-          </TouchableOpacity>
+          </View>
         ))}
       </View>
+      <Slider
+        style={{ width: "100%", height: 40 }}
+        minimumValue={1}
+        maximumValue={10}
+        step={1}
+        value={selected}
+        onValueChange={(v) => { Haptics.selectionAsync(); setSelected(v); }}
+        minimumTrackTintColor={colors.primary}
+        maximumTrackTintColor={colors.border}
+        thumbTintColor={colors.primary}
+      />
+      <Text style={{ textAlign: "center", fontSize: 30, fontFamily: "Inter_700Bold", color: colors.primary }}>
+        {selected}
+      </Text>
     </View>
   );
 }
