@@ -461,34 +461,25 @@ function ValueSlider({
   const onScrollEnabledRef = useRef(onScrollEnabled);
   onScrollEnabledRef.current = onScrollEnabled;
   const effectiveValue = value ?? 5;
-  const valueRef = useRef(effectiveValue);
-  valueRef.current = effectiveValue;
-  const startXRef = useRef(0);
 
   const panResponder = useRef(
     PanResponder.create({
       onStartShouldSetPanResponder: () => true,
       onMoveShouldSetPanResponder: () => true,
-      onPanResponderGrant: (e) => {
+      onPanResponderGrant: (evt) => {
         onScrollEnabledRef.current?.(false);
         const tw = trackWidthRef.current;
-        const tapX = Math.max(0, Math.min(tw, e.nativeEvent.locationX ?? 0));
-        startXRef.current = tapX;
-        if (tw > 0) {
-          const newVal = Math.max(1, Math.min(10, Math.round((tapX / tw) * 9) + 1));
-          valueRef.current = newVal;
-          onChangeRef.current(newVal);
-        }
+        if (tw === 0) return;
+        const x = Math.max(0, Math.min(tw, evt.nativeEvent.locationX));
+        const newVal = Math.max(1, Math.min(10, Math.round((x / tw) * 9) + 1));
+        onChangeRef.current(newVal);
       },
-      onPanResponderMove: (_, gs) => {
+      onPanResponderMove: (evt) => {
         const tw = trackWidthRef.current;
         if (tw === 0) return;
-        const rawX = Math.max(0, Math.min(tw, startXRef.current + gs.dx));
-        const newVal = Math.max(1, Math.min(10, Math.round((rawX / tw) * 9) + 1));
-        if (newVal !== valueRef.current) {
-          valueRef.current = newVal;
-          onChangeRef.current(newVal);
-        }
+        const x = Math.max(0, Math.min(tw, evt.nativeEvent.locationX));
+        const newVal = Math.max(1, Math.min(10, Math.round((x / tw) * 9) + 1));
+        onChangeRef.current(newVal);
       },
       onPanResponderRelease: () => {
         onScrollEnabledRef.current?.(true);
@@ -499,17 +490,8 @@ function ValueSlider({
     }),
   ).current;
 
-  const thumbLeft =
-    trackWidth > 0
-      ? Math.max(
-          0,
-          Math.min(
-            trackWidth - SLIDER_THUMB,
-            ((effectiveValue - 1) / 9) * trackWidth - SLIDER_THUMB / 2,
-          ),
-        )
-      : 0;
-  const fillWidth = trackWidth > 0 ? ((effectiveValue - 1) / 9) * trackWidth : 0;
+  const thumbLeft = trackWidth > 0 ? ((effectiveValue - 1) / 9) * trackWidth : 0;
+  const fillWidth  = trackWidth > 0 ? ((effectiveValue - 1) / 9) * trackWidth : 0;
 
   return (
     <View style={{ gap: 10 }}>
@@ -1904,6 +1886,7 @@ export default function CheckInScreen() {
 
   // Quick log save handlers
   async function handleMoodSave(score: number, note: string) {
+    Alert.alert("Debug", `Saving mood score: ${score}`);
     setIsSavingLog(true);
     try {
       const token = await getToken();
@@ -1930,6 +1913,7 @@ export default function CheckInScreen() {
   }
 
   async function handleEnergySave(score: number) {
+    Alert.alert("Debug", `Saving energy score: ${score}`);
     setIsSavingLog(true);
     try {
       const token = await getToken();
@@ -2020,12 +2004,17 @@ export default function CheckInScreen() {
       Alert.alert("Permission required", "Please allow access to your photo library.");
       return;
     }
-    const picked = await ImagePicker.launchImageLibraryAsync({ quality: 0.3, base64: true });
+    const isScreentime = type === "screentime";
+    const picked = await ImagePicker.launchImageLibraryAsync({
+      quality: isScreentime ? 0.1 : 0.3,
+      base64: true,
+    });
     if (picked.canceled || !picked.assets[0]?.base64) return;
 
     const asset = picked.assets[0];
     const rawBase64 = asset.base64 ?? "";
-    const base64 = rawBase64.length > 800_000 ? rawBase64.substring(0, 800_000) : rawBase64;
+    const cap = isScreentime ? 400_000 : 800_000;
+    const base64 = rawBase64.length > cap ? rawBase64.substring(0, cap) : rawBase64;
     const mediaType = asset.mimeType ?? "image/jpeg";
     setAnalyzingType(type);
     try {
