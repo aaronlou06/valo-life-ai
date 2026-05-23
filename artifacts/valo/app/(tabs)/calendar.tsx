@@ -165,7 +165,23 @@ function eventColor(ev: { type?: string | null; notes?: string | null }): string
 
 function routineNotesText(notes: string | null | undefined): string {
   if (!notes) return "";
-  return notes.replace(/^routineColor:#[0-9A-Fa-f]{6}\|/, "");
+  return notes
+    .replace(/^routineColor:#[0-9A-Fa-f]{6}\|/, "")
+    .replace(/^time:[^|]+\|/, "");
+}
+
+function extractEventTime(notes: string | null | undefined): string | null {
+  if (!notes) return null;
+  const m = notes.match(/^time:([^|]+)\|/);
+  return m?.[1] ?? null;
+}
+
+function extractTimeDisplay(isoDate: string): string | null {
+  if (!isoDate.includes("T")) return null;
+  const tp = isoDate.split("T")[1]!;
+  const [hs, ms] = tp.split(":");
+  const h24 = Number(hs);
+  return `${h24 % 12 || 12}:${ms} ${h24 < 12 ? "AM" : "PM"}`;
 }
 
 function typeBadgeLabel(type: string | null | undefined): string {
@@ -540,7 +556,9 @@ function AddEventModal({
     setSaving(true);
     try {
       const datePart = date.includes("T") ? date.split("T")[0]! : date;
-      await createEvent({ data: { title: title.trim(), date: datePart, type: eventType, notes: notes.trim() || null } });
+      const timeDisplay = extractTimeDisplay(date);
+      const notesVal = timeDisplay ? `time:${timeDisplay}|${notes.trim()}` : notes.trim();
+      await createEvent({ data: { title: title.trim(), date: datePart, type: eventType, notes: notesVal || null } });
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       onCreated();
       onClose();
@@ -677,13 +695,14 @@ function RecurringEventModal({
   const [endDate, setEndDate]       = useState("");
   const [noEndDate, setNoEndDate]   = useState(true);
   const [saving, setSaving]         = useState(false);
+  const [eventTime, setEventTime]   = useState("");
 
   useEffect(() => {
     if (visible) {
       setTitle(""); setEventType(null); setNotes("");
       setRecurrence("every_week"); setSelectedDays([]);
       setMonthlyNth(0); setMonthlyWeekday(1);
-      setEndDate(""); setNoEndDate(true); setSaving(false);
+      setEndDate(""); setNoEndDate(true); setSaving(false); setEventTime("");
     }
   }, [visible]);
 
@@ -719,8 +738,9 @@ function RecurringEventModal({
     if (dates.length === 0) { Alert.alert("No dates", "No dates match your recurrence settings."); return; }
     setSaving(true);
     try {
+      const notesVal = eventTime ? `time:${eventTime}|${notes.trim()}` : notes.trim();
       await Promise.all(dates.map((date) =>
-        createEvent({ data: { title: title.trim(), date, type: eventType, notes: notes.trim() || null } })
+        createEvent({ data: { title: title.trim(), date, type: eventType, notes: notesVal || null } })
       ));
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       onCreated(); onClose();
@@ -834,6 +854,10 @@ function RecurringEventModal({
                   <Text style={{ color: colors.foreground, fontSize: 14, fontFamily: "Inter_400Regular" }}>No end date</Text>
                 </TouchableOpacity>
                 {!noEndDate && <DatePickerField value={endDate} onChange={setEndDate} placeholder="Pick end date" colors={colors} />}
+              </View>
+              <View style={S.fieldBlock}>
+                <Text style={[S.fieldLabel, { color: colors.mutedForeground, fontFamily: "Inter_500Medium" }]}>Time (optional)</Text>
+                <TimePickerField value={eventTime} onChange={setEventTime} colors={colors} />
               </View>
               <View style={S.fieldBlock}>
                 <Text style={[S.fieldLabel, { color: colors.mutedForeground, fontFamily: "Inter_500Medium" }]}>Notes</Text>
@@ -1100,6 +1124,12 @@ function DayDetailSheet({
                         <Feather name="trash-2" size={16} color={colors.mutedForeground} />
                       </TouchableOpacity>
                     </View>
+                    {(() => { const t = extractEventTime(ev.notes); return t ? (
+                      <View style={{ flexDirection: "row", alignItems: "center", gap: 5, marginTop: 2 }}>
+                        <Feather name="clock" size={11} color={colors.mutedForeground} />
+                        <Text style={{ fontSize: 12, color: colors.mutedForeground, fontFamily: "Inter_400Regular" }}>{t}</Text>
+                      </View>
+                    ) : null; })()}
                     {noteText ? <Text style={[styles.eventNotes, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]} numberOfLines={3}>{noteText}</Text> : null}
                   </View>
                 );
@@ -1395,6 +1425,255 @@ function RoutineModal({
 
 // ─── Main Screen ──────────────────────────────────────────────────────────────
 
+// ─── Manage Schedule Modal ────────────────────────────────────────────────────
+
+function ManageSectionHeader({
+  icon, title, count, open, onToggle, colors,
+}: { icon: string; title: string; count?: number; open: boolean; onToggle: () => void; colors: Colors }) {
+  return (
+    <TouchableOpacity
+      style={[manStyles.sectionHeader, { borderBottomColor: colors.border, backgroundColor: colors.background }]}
+      onPress={onToggle} activeOpacity={0.7}
+    >
+      <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+        <Feather name={icon as never} size={16} color={colors.primary} />
+        <Text style={[manStyles.sectionTitle, { color: colors.foreground, fontFamily: "Inter_600SemiBold" }]}>{title}</Text>
+        {count !== undefined && count > 0 && (
+          <View style={[manStyles.badge, { backgroundColor: colors.muted }]}>
+            <Text style={[manStyles.badgeText, { color: colors.mutedForeground, fontFamily: "Inter_500Medium" }]}>{count}</Text>
+          </View>
+        )}
+      </View>
+      <Feather name={open ? "chevron-up" : "chevron-down"} size={18} color={colors.mutedForeground} />
+    </TouchableOpacity>
+  );
+}
+
+function ManageScheduleModal({
+  visible, onClose, routines, schedule,
+  onEditRoutine, onDeleteRoutine, onEditSchedule, colors,
+}: {
+  visible: boolean;
+  onClose: () => void;
+  routines: Routine[];
+  schedule: WorkSchedule | null;
+  onEditRoutine: (r: Routine) => void;
+  onDeleteRoutine: (r: Routine) => void;
+  onEditSchedule: () => void;
+  colors: Colors;
+}) {
+  const insets = useSafeAreaInsets();
+  const queryClient = useQueryClient();
+  const { data: allEvents = [], refetch: refetchEvents } = useListCalendarEvents();
+  const { data: habits = [] } = useListHabits();
+  const { mutateAsync: deleteCalEvent } = useDeleteCalendarEvent();
+  const deleteHabit = useDeleteHabit();
+
+  const [recurringOpen, setRecurringOpen] = useState(true);
+  const [routinesOpen, setRoutinesOpen]   = useState(true);
+  const [habitsOpen, setHabitsOpen]       = useState(true);
+  const [scheduleOpen, setScheduleOpen]   = useState(true);
+  const [deletingGroup, setDeletingGroup] = useState<string | null>(null);
+
+  const recurringGroups = useMemo(() => {
+    const map: Record<string, CalendarEvent[]> = {};
+    for (const ev of allEvents as CalendarEvent[]) {
+      if (ev.type === "routine" || ev.type === "habit") continue;
+      if (!map[ev.title]) map[ev.title] = [];
+      map[ev.title]!.push(ev);
+    }
+    return Object.entries(map)
+      .filter(([, evs]) => evs.length > 1)
+      .map(([title, evs]) => {
+        const sorted = [...evs].sort((a, b) => {
+          const ad = a.date.includes("T") ? a.date.split("T")[0]! : a.date;
+          const bd = b.date.includes("T") ? b.date.split("T")[0]! : b.date;
+          return ad.localeCompare(bd);
+        });
+        const first = sorted[0]!.date.includes("T") ? sorted[0]!.date.split("T")[0]! : sorted[0]!.date;
+        const last  = sorted[sorted.length - 1]!.date.includes("T") ? sorted[sorted.length - 1]!.date.split("T")[0]! : sorted[sorted.length - 1]!.date;
+        return { title, ids: sorted.map((e) => e.id), count: sorted.length, firstDate: first, lastDate: last };
+      })
+      .sort((a, b) => a.title.localeCompare(b.title));
+  }, [allEvents]);
+
+  function handleDeleteGroup(group: typeof recurringGroups[number]) {
+    Alert.alert("Delete recurring events", `Remove all ${group.count} "${group.title}" event${group.count !== 1 ? "s" : ""}?`, [
+      { text: "Cancel", style: "cancel" },
+      {
+        text: "Delete all", style: "destructive",
+        onPress: async () => {
+          setDeletingGroup(group.title);
+          try {
+            await Promise.all(group.ids.map((id) => deleteCalEvent({ id })));
+            await refetchEvents();
+          } finally { setDeletingGroup(null); }
+        },
+      },
+    ]);
+  }
+
+  function handleDeleteHabit(id: number, name: string) {
+    Alert.alert("Delete Habit", `Remove "${name}"?`, [
+      { text: "Cancel", style: "cancel" },
+      {
+        text: "Delete", style: "destructive",
+        onPress: async () => {
+          try {
+            await (deleteHabit.mutateAsync as (v: unknown) => Promise<unknown>)({ id });
+            queryClient.invalidateQueries({ queryKey: getListHabitsQueryKey() });
+          } catch { Alert.alert("Error", "Failed to delete habit."); }
+        },
+      },
+    ]);
+  }
+
+  return (
+    <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
+      <View style={{ flex: 1, backgroundColor: colors.background }}>
+        {/* ── Header ── */}
+        <View style={[manStyles.header, { paddingTop: insets.top + 14, borderBottomColor: colors.border }]}>
+          <TouchableOpacity onPress={onClose} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+            <Feather name="x" size={22} color={colors.foreground} />
+          </TouchableOpacity>
+          <Text style={[manStyles.headerTitle, { color: colors.foreground, fontFamily: "Inter_700Bold" }]}>Manage Schedule</Text>
+          <View style={{ width: 22 }} />
+        </View>
+
+        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: insets.bottom + 32 }}>
+
+          {/* ── Recurring Events ── */}
+          <ManageSectionHeader icon="repeat" title="Recurring Events" count={recurringGroups.length}
+            open={recurringOpen} onToggle={() => setRecurringOpen((v) => !v)} colors={colors} />
+          {recurringOpen && (
+            <View style={[manStyles.sectionBody, { borderBottomColor: colors.border }]}>
+              {recurringGroups.length === 0 ? (
+                <Text style={[manStyles.emptyText, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
+                  No recurring events found
+                </Text>
+              ) : recurringGroups.map((group) => {
+                const [, fm, fd] = group.firstDate.split("-").map(Number);
+                const [, lm, ld] = group.lastDate.split("-").map(Number);
+                const range = `${PICKER_MONTHS_SHORT[(fm ?? 1) - 1]} ${fd} – ${PICKER_MONTHS_SHORT[(lm ?? 1) - 1]} ${ld}`;
+                return (
+                  <View key={group.title} style={[manStyles.row, { borderBottomColor: colors.border }]}>
+                    <View style={{ flex: 1 }}>
+                      <Text style={[manStyles.rowTitle, { color: colors.foreground, fontFamily: "Inter_500Medium" }]} numberOfLines={1}>{group.title}</Text>
+                      <Text style={[manStyles.rowMeta, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
+                        {group.count} event{group.count !== 1 ? "s" : ""} · {range}
+                      </Text>
+                    </View>
+                    <TouchableOpacity
+                      onPress={() => handleDeleteGroup(group)}
+                      disabled={deletingGroup === group.title}
+                      style={[manStyles.actionBtn, { borderColor: "#E11D4840", backgroundColor: "#E11D480C" }]}
+                    >
+                      {deletingGroup === group.title
+                        ? <ActivityIndicator size="small" color="#E11D48" />
+                        : <Text style={[manStyles.actionBtnText, { color: "#E11D48", fontFamily: "Inter_500Medium" }]}>Delete all</Text>}
+                    </TouchableOpacity>
+                  </View>
+                );
+              })}
+            </View>
+          )}
+
+          {/* ── Routines ── */}
+          <ManageSectionHeader icon="refresh-cw" title="Routines" count={routines.length}
+            open={routinesOpen} onToggle={() => setRoutinesOpen((v) => !v)} colors={colors} />
+          {routinesOpen && (
+            <View style={[manStyles.sectionBody, { borderBottomColor: colors.border }]}>
+              {routines.length === 0 ? (
+                <Text style={[manStyles.emptyText, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>No routines set up</Text>
+              ) : routines.map((r) => (
+                <View key={r.id} style={[manStyles.row, { borderBottomColor: colors.border }]}>
+                  <View style={[manStyles.colorDot, { backgroundColor: r.color }]} />
+                  <View style={{ flex: 1 }}>
+                    <Text style={[manStyles.rowTitle, { color: colors.foreground, fontFamily: "Inter_500Medium" }]} numberOfLines={1}>{r.name}</Text>
+                    <Text style={[manStyles.rowMeta, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
+                      {r.days.map((d) => DAY_LETTERS[d]).join(" ")}{r.time ? ` · ${r.time}` : ""}
+                    </Text>
+                  </View>
+                  <TouchableOpacity onPress={() => { onEditRoutine(r); onClose(); }}
+                    hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }} style={{ padding: 8 }}>
+                    <Feather name="edit-2" size={16} color={colors.mutedForeground} />
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    onPress={() => Alert.alert("Delete Routine", `Remove "${r.name}" and its events?`, [
+                      { text: "Cancel", style: "cancel" },
+                      { text: "Delete", style: "destructive", onPress: () => onDeleteRoutine(r) },
+                    ])}
+                    hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }} style={{ padding: 8 }}
+                  >
+                    <Feather name="trash-2" size={16} color={colors.mutedForeground} />
+                  </TouchableOpacity>
+                </View>
+              ))}
+            </View>
+          )}
+
+          {/* ── Habits ── */}
+          <ManageSectionHeader icon="check-circle" title="Habits" count={habits.length}
+            open={habitsOpen} onToggle={() => setHabitsOpen((v) => !v)} colors={colors} />
+          {habitsOpen && (
+            <View style={[manStyles.sectionBody, { borderBottomColor: colors.border }]}>
+              {habits.length === 0 ? (
+                <Text style={[manStyles.emptyText, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>No habits tracked</Text>
+              ) : (habits as Array<{ id: number; name: string; streakCount?: number | null }>).map((h) => (
+                <View key={h.id} style={[manStyles.row, { borderBottomColor: colors.border }]}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={[manStyles.rowTitle, { color: colors.foreground, fontFamily: "Inter_500Medium" }]} numberOfLines={1}>{h.name}</Text>
+                    {(h.streakCount ?? 0) > 0 && (
+                      <Text style={[manStyles.rowMeta, { color: colors.primary, fontFamily: "Inter_500Medium" }]}>{h.streakCount} day streak</Text>
+                    )}
+                  </View>
+                  <TouchableOpacity onPress={() => handleDeleteHabit(h.id, h.name)}
+                    hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }} style={{ padding: 8 }}>
+                    <Feather name="trash-2" size={16} color={colors.mutedForeground} />
+                  </TouchableOpacity>
+                </View>
+              ))}
+            </View>
+          )}
+
+          {/* ── Work Schedule ── */}
+          <ManageSectionHeader icon="briefcase" title="Work Schedule"
+            open={scheduleOpen} onToggle={() => setScheduleOpen((v) => !v)} colors={colors} />
+          {scheduleOpen && (
+            <View style={[manStyles.sectionBody, { borderBottomColor: colors.border }]}>
+              {schedule ? (
+                <View style={[manStyles.row, { borderBottomColor: colors.border }]}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={[manStyles.rowTitle, { color: colors.foreground, fontFamily: "Inter_500Medium" }]}>{schedule.name}</Text>
+                    <Text style={[manStyles.rowMeta, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
+                      {schedule.days.map((d) => DAY_LETTERS[d]).join(" ")} · {schedule.startTime} – {schedule.endTime}
+                    </Text>
+                  </View>
+                  <TouchableOpacity onPress={() => { onEditSchedule(); onClose(); }}
+                    style={[manStyles.actionBtn, { borderColor: colors.border, backgroundColor: colors.card }]}>
+                    <Feather name="edit-2" size={13} color={colors.foreground} />
+                    <Text style={[manStyles.actionBtnText, { color: colors.foreground, fontFamily: "Inter_500Medium" }]}>Edit</Text>
+                  </TouchableOpacity>
+                </View>
+              ) : (
+                <View style={[manStyles.row, { borderBottomColor: colors.border }]}>
+                  <Text style={{ flex: 1, fontSize: 14, color: colors.mutedForeground, fontFamily: "Inter_400Regular" }}>No schedule set up</Text>
+                  <TouchableOpacity onPress={() => { onEditSchedule(); onClose(); }}
+                    style={[manStyles.actionBtn, { borderColor: colors.border, backgroundColor: colors.card }]}>
+                    <Feather name="plus" size={13} color={colors.primary} />
+                    <Text style={[manStyles.actionBtnText, { color: colors.primary, fontFamily: "Inter_500Medium" }]}>Set up</Text>
+                  </TouchableOpacity>
+                </View>
+              )}
+            </View>
+          )}
+
+        </ScrollView>
+      </View>
+    </Modal>
+  );
+}
+
 export default function CalendarScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
@@ -1421,6 +1700,7 @@ export default function CalendarScreen() {
   // Work/school schedule
   const [schedule, setSchedule] = useState<WorkSchedule | null>(null);
   const [showScheduleSetup, setShowScheduleSetup] = useState(false);
+  const [showManage, setShowManage] = useState(false);
 
   // Routines
   const [routines, setRoutines] = useState<Routine[]>([]);
@@ -1643,9 +1923,17 @@ export default function CalendarScreen() {
         {/* ── Header ─────────────────────────────────────────────────────── */}
         <View style={styles.header}>
           <Text style={[styles.title, { color: colors.foreground, fontFamily: "Inter_700Bold" }]}>Calendar</Text>
-          <TouchableOpacity style={[styles.addBtn, { backgroundColor: colors.primary }]} onPress={() => { setAddEventDate(""); setShowEventTypePicker(true); }}>
-            <Feather name="plus" size={18} color={colors.primaryForeground} />
-          </TouchableOpacity>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+            <TouchableOpacity
+              style={[styles.addBtn, { backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border }]}
+              onPress={() => setShowManage(true)}
+            >
+              <Feather name="list" size={18} color={colors.foreground} />
+            </TouchableOpacity>
+            <TouchableOpacity style={[styles.addBtn, { backgroundColor: colors.primary }]} onPress={() => { setAddEventDate(""); setShowEventTypePicker(true); }}>
+              <Feather name="plus" size={18} color={colors.primaryForeground} />
+            </TouchableOpacity>
+          </View>
         </View>
 
         {/* ── My Schedule ──────────────────────────────────────────────────── */}
@@ -1901,6 +2189,17 @@ export default function CalendarScreen() {
         colors={colors}
       />
 
+      <ManageScheduleModal
+        visible={showManage}
+        onClose={() => setShowManage(false)}
+        routines={routines}
+        schedule={schedule}
+        onEditRoutine={(r) => { setEditingRoutine(r); setShowRoutineModal(true); }}
+        onDeleteRoutine={handleDeleteRoutine}
+        onEditSchedule={() => setShowScheduleSetup(true)}
+        colors={colors}
+      />
+
       <DayDetailSheet
         visible={showDayDetail}
         dateStr={selectedDate}
@@ -1963,6 +2262,25 @@ const S = StyleSheet.create({
   activityRemoveBtn: { padding: 4 },
   addActivityBtn: { flexDirection: "row", alignItems: "center", gap: 6, borderWidth: 1, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, borderStyle: "dashed", alignSelf: "flex-start" },
   addActivityText: { fontSize: 14 },
+});
+
+// ─── Manage modal styles ──────────────────────────────────────────────────────
+
+const manStyles = StyleSheet.create({
+  header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 20, paddingBottom: 14, borderBottomWidth: 1 },
+  headerTitle: { fontSize: 17, letterSpacing: -0.2 },
+  sectionHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 20, paddingVertical: 14, borderBottomWidth: StyleSheet.hairlineWidth },
+  sectionTitle: { fontSize: 15 },
+  sectionBody: { borderBottomWidth: 1, paddingVertical: 4 },
+  badge: { paddingHorizontal: 7, paddingVertical: 2, borderRadius: 10 },
+  badgeText: { fontSize: 12 },
+  row: { flexDirection: "row", alignItems: "center", paddingHorizontal: 20, paddingVertical: 12, gap: 12, borderBottomWidth: StyleSheet.hairlineWidth },
+  colorDot: { width: 10, height: 10, borderRadius: 5, flexShrink: 0 },
+  rowTitle: { fontSize: 14 },
+  rowMeta: { fontSize: 12, marginTop: 2 },
+  emptyText: { fontSize: 14, paddingHorizontal: 20, paddingVertical: 14 },
+  actionBtn: { flexDirection: "row", alignItems: "center", gap: 4, borderWidth: 1, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 6, minWidth: 72, justifyContent: "center" },
+  actionBtnText: { fontSize: 13 },
 });
 
 // ─── Event type / recurrence styles ──────────────────────────────────────────
