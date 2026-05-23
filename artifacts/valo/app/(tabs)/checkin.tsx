@@ -14,6 +14,7 @@ import {
   Alert,
   Modal,
   KeyboardAvoidingView,
+  PanResponder,
 } from "react-native";
 import { useSafeAreaInsets, SafeAreaView } from "react-native-safe-area-context";
 import { Feather } from "@expo/vector-icons";
@@ -434,6 +435,157 @@ const ENERGY_OPTIONS = [
 
 const WORKOUT_TYPES = ["Strength", "Cardio", "Yoga", "Walk", "Sport", "Rest"];
 
+// ─── Custom PanResponder slider ───────────────────────────────────────────────
+
+const SLIDER_THUMB = 24;
+const SLIDER_TRACK_H = 6;
+const SLIDER_ANCHOR_W = 44;
+
+function ValueSlider({
+  colors,
+  value,
+  onChange,
+  anchors,
+}: {
+  colors: Colors;
+  value: number | null;
+  onChange: (v: number) => void;
+  anchors: Array<{ label: string; position: number; isEmoji?: boolean }>;
+}) {
+  const [trackWidth, setTrackWidth] = useState(0);
+  const trackWidthRef = useRef(0);
+  const onChangeRef = useRef(onChange);
+  onChangeRef.current = onChange;
+  const effectiveValue = value ?? 5;
+  const valueRef = useRef(effectiveValue);
+  valueRef.current = effectiveValue;
+  const startXRef = useRef(0);
+
+  const panResponder = useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => true,
+      onMoveShouldSetPanResponder: () => true,
+      onPanResponderGrant: (e) => {
+        const tw = trackWidthRef.current;
+        const tapX = Math.max(0, Math.min(tw, e.nativeEvent.locationX ?? 0));
+        startXRef.current = tapX;
+        if (tw > 0) {
+          const newVal = Math.max(1, Math.min(10, Math.round((tapX / tw) * 9) + 1));
+          valueRef.current = newVal;
+          onChangeRef.current(newVal);
+        }
+      },
+      onPanResponderMove: (_, gs) => {
+        const tw = trackWidthRef.current;
+        if (tw === 0) return;
+        const rawX = Math.max(0, Math.min(tw, startXRef.current + gs.dx));
+        const newVal = Math.max(1, Math.min(10, Math.round((rawX / tw) * 9) + 1));
+        if (newVal !== valueRef.current) {
+          valueRef.current = newVal;
+          onChangeRef.current(newVal);
+        }
+      },
+    }),
+  ).current;
+
+  const thumbLeft =
+    trackWidth > 0
+      ? Math.max(
+          0,
+          Math.min(
+            trackWidth - SLIDER_THUMB,
+            ((effectiveValue - 1) / 9) * trackWidth - SLIDER_THUMB / 2,
+          ),
+        )
+      : 0;
+  const fillWidth = trackWidth > 0 ? ((effectiveValue - 1) / 9) * trackWidth : 0;
+
+  return (
+    <View style={{ gap: 10 }}>
+      <View
+        style={{ height: SLIDER_THUMB, position: "relative" }}
+        onLayout={(e) => {
+          const w = e.nativeEvent.layout.width;
+          trackWidthRef.current = w;
+          setTrackWidth(w);
+        }}
+        {...panResponder.panHandlers}
+      >
+        <View
+          style={{
+            position: "absolute",
+            top: (SLIDER_THUMB - SLIDER_TRACK_H) / 2,
+            left: 0,
+            right: 0,
+            height: SLIDER_TRACK_H,
+            backgroundColor: colors.muted,
+            borderRadius: SLIDER_TRACK_H / 2,
+            overflow: "hidden",
+          }}
+        >
+          <View
+            style={{
+              width: fillWidth,
+              height: SLIDER_TRACK_H,
+              backgroundColor: colors.primary,
+              borderRadius: SLIDER_TRACK_H / 2,
+            }}
+          />
+        </View>
+        <View
+          style={{
+            position: "absolute",
+            top: 0,
+            left: thumbLeft,
+            width: SLIDER_THUMB,
+            height: SLIDER_THUMB,
+            borderRadius: SLIDER_THUMB / 2,
+            backgroundColor: colors.primary,
+            shadowColor: "#000",
+            shadowOffset: { width: 0, height: 2 },
+            shadowOpacity: 0.18,
+            shadowRadius: 4,
+            elevation: 4,
+          }}
+        />
+      </View>
+      {trackWidth > 0 && (
+        <View style={{ height: 36, position: "relative" }}>
+          {anchors.map(({ label, position, isEmoji }) => {
+            const centerX = ((position - 1) / 9) * trackWidth;
+            return (
+              <View
+                key={position}
+                style={{
+                  position: "absolute",
+                  left: centerX - SLIDER_ANCHOR_W / 2,
+                  width: SLIDER_ANCHOR_W,
+                  alignItems: "center",
+                }}
+              >
+                {isEmoji ? (
+                  <Text style={{ fontSize: 18 }}>{label}</Text>
+                ) : (
+                  <Text
+                    style={{
+                      fontSize: 10,
+                      color: colors.mutedForeground,
+                      fontFamily: "Inter_400Regular",
+                      textAlign: "center",
+                    }}
+                  >
+                    {label}
+                  </Text>
+                )}
+              </View>
+            );
+          })}
+        </View>
+      )}
+    </View>
+  );
+}
+
 function MoodLogger({
   colors,
   onSave,
@@ -459,44 +611,28 @@ function MoodLogger({
 
   return (
     <View style={{ gap: 20 }}>
-      <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
-        {MOOD_OPTIONS.map(({ emoji, label, score }) => (
-          <View key={score} style={{ alignItems: "center", flex: 1 }}>
-            <Text style={{ fontSize: 20 }}>{emoji}</Text>
-            <Text style={{ fontSize: 10, color: colors.mutedForeground, fontFamily: "Inter_400Regular", marginTop: 2 }}>
-              {label}
-            </Text>
-          </View>
-        ))}
-      </View>
-      <View style={{ gap: 8 }}>
-        {[[1, 2, 3, 4, 5], [6, 7, 8, 9, 10]].map((row, ri) => (
-          <View key={ri} style={{ flexDirection: "row", justifyContent: "space-between" }}>
-            {row.map((n) => (
-              <TouchableOpacity
-                key={n}
-                onPress={() => { Haptics.selectionAsync(); setSelected(n); }}
-                activeOpacity={0.75}
-                style={{
-                  width: 48, height: 48, borderRadius: 24,
-                  backgroundColor: selected === n ? colors.primary : colors.muted,
-                  borderWidth: 1,
-                  borderColor: selected === n ? colors.primary : colors.border,
-                  alignItems: "center", justifyContent: "center",
-                }}
-              >
-                <Text style={{
-                  fontSize: 15,
-                  fontFamily: selected === n ? "Inter_700Bold" : "Inter_400Regular",
-                  color: selected === n ? colors.primaryForeground : colors.foreground,
-                }}>
-                  {n}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-        ))}
-      </View>
+      <Text
+        style={{
+          textAlign: "center",
+          fontSize: 36,
+          fontFamily: "Inter_700Bold",
+          color: selected != null ? colors.primary : colors.mutedForeground,
+        }}
+      >
+        {selected ?? "—"}
+      </Text>
+      <ValueSlider
+        colors={colors}
+        value={selected}
+        onChange={(v) => { Haptics.selectionAsync(); setSelected(v); }}
+        anchors={[
+          { label: "😔", position: 1,  isEmoji: true },
+          { label: "😕", position: 3,  isEmoji: true },
+          { label: "😐", position: 5,  isEmoji: true },
+          { label: "🙂", position: 7,  isEmoji: true },
+          { label: "😊", position: 10, isEmoji: true },
+        ]}
+      />
       <TextInput
         style={[
           styles.modalInput,
@@ -534,43 +670,28 @@ function EnergyLogger({
 
   return (
     <View style={{ gap: 20 }}>
-      <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
-        {ENERGY_OPTIONS.map(({ label, score }) => (
-          <View key={score} style={{ alignItems: "center", flex: 1 }}>
-            <Text style={{ fontSize: 10, color: colors.mutedForeground, fontFamily: "Inter_400Regular", textAlign: "center" }}>
-              {label}
-            </Text>
-          </View>
-        ))}
-      </View>
-      <View style={{ gap: 8 }}>
-        {[[1, 2, 3, 4, 5], [6, 7, 8, 9, 10]].map((row, ri) => (
-          <View key={ri} style={{ flexDirection: "row", justifyContent: "space-between" }}>
-            {row.map((n) => (
-              <TouchableOpacity
-                key={n}
-                onPress={() => { Haptics.selectionAsync(); setSelected(n); }}
-                activeOpacity={0.75}
-                style={{
-                  width: 48, height: 48, borderRadius: 24,
-                  backgroundColor: selected === n ? colors.primary : colors.muted,
-                  borderWidth: 1,
-                  borderColor: selected === n ? colors.primary : colors.border,
-                  alignItems: "center", justifyContent: "center",
-                }}
-              >
-                <Text style={{
-                  fontSize: 15,
-                  fontFamily: selected === n ? "Inter_700Bold" : "Inter_400Regular",
-                  color: selected === n ? colors.primaryForeground : colors.foreground,
-                }}>
-                  {n}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-        ))}
-      </View>
+      <Text
+        style={{
+          textAlign: "center",
+          fontSize: 36,
+          fontFamily: "Inter_700Bold",
+          color: selected != null ? colors.primary : colors.mutedForeground,
+        }}
+      >
+        {selected ?? "—"}
+      </Text>
+      <ValueSlider
+        colors={colors}
+        value={selected}
+        onChange={(v) => { Haptics.selectionAsync(); setSelected(v); }}
+        anchors={[
+          { label: "Drained", position: 1  },
+          { label: "Low",     position: 3  },
+          { label: "Okay",    position: 5  },
+          { label: "Good",    position: 7  },
+          { label: "High",    position: 10 },
+        ]}
+      />
     </View>
   );
 }
