@@ -1886,22 +1886,9 @@ export default function CheckInScreen() {
 
   // Quick log save handlers
   async function handleMoodSave(score: number, note: string) {
-    Alert.alert("Debug", `Saving mood score: ${score}`);
     setIsSavingLog(true);
     try {
-      const token = await getToken();
-      const resp = await fetch(`${getApiBase()}/api/moods`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
-        body: JSON.stringify({ score, note: note.trim() || null }),
-      });
-      if (!resp.ok) {
-        const errData = await resp.json().catch(() => ({})) as { error?: string };
-        throw new Error(errData.error ?? `HTTP ${resp.status}`);
-      }
+      await createMood.mutateAsync({ data: { score, note: note.trim() || null } });
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       doLogSavedAnimations();
       setActiveModal(null);
@@ -1913,22 +1900,9 @@ export default function CheckInScreen() {
   }
 
   async function handleEnergySave(score: number) {
-    Alert.alert("Debug", `Saving energy score: ${score}`);
     setIsSavingLog(true);
     try {
-      const token = await getToken();
-      const resp = await fetch(`${getApiBase()}/api/moods`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
-        body: JSON.stringify({ score, note: "energy" }),
-      });
-      if (!resp.ok) {
-        const errData = await resp.json().catch(() => ({})) as { error?: string };
-        throw new Error(errData.error ?? `HTTP ${resp.status}`);
-      }
+      await createMood.mutateAsync({ data: { score, note: "energy" } });
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       doLogSavedAnimations();
       setActiveModal(null);
@@ -2028,6 +2002,11 @@ export default function CheckInScreen() {
         body: JSON.stringify({ image: base64, type, mediaType, ...(subtype ? { subtype } : {}) }),
       });
       if (!resp.ok) {
+        if (resp.status === 413) {
+          throw new Error(
+            "Screenshot too large. Please crop just the top portion of your Screen Time report and try again.",
+          );
+        }
         const errData = await resp.json().catch(() => ({})) as { error?: string; detail?: string };
         throw new Error(errData.detail ?? errData.error ?? `HTTP ${resp.status}`);
       }
