@@ -20,7 +20,6 @@ import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as ImagePicker from "expo-image-picker";
-import Slider from "@react-native-community/slider";
 import DraggableFlatList, {
   ScaleDecorator,
   type RenderItemParams,
@@ -444,43 +443,59 @@ function MoodLogger({
   onSave: (score: number, note: string) => void;
   registerSave: (canSave: boolean, saveFn: (() => void) | null) => void;
 }) {
-  const [selected, setSelected] = useState(5);
+  const [selected, setSelected] = useState<number | null>(null);
   const [note, setNote] = useState("");
   const noteRef = useRef(note);
   noteRef.current = note;
 
   useEffect(() => {
-    const s = selected;
-    registerSave(true, () => onSave(s, noteRef.current));
+    if (selected != null) {
+      const s = selected;
+      registerSave(true, () => onSave(s, noteRef.current));
+    } else {
+      registerSave(false, null);
+    }
   }, [selected]);
 
   return (
-    <View style={{ gap: 24 }}>
-      <View style={{ gap: 4 }}>
-        <View style={{ flexDirection: "row", justifyContent: "space-between", paddingHorizontal: 10 }}>
-          {MOOD_OPTIONS.map(({ emoji, score, label }) => (
-            <View key={score} style={{ alignItems: "center", width: 44 }}>
-              <Text style={{ fontSize: 22 }}>{emoji}</Text>
-              <Text style={{ fontSize: 10, color: colors.mutedForeground, fontFamily: "Inter_400Regular", marginTop: 2 }}>
-                {label}
-              </Text>
-            </View>
-          ))}
-        </View>
-        <Slider
-          style={{ width: "100%", height: 40 }}
-          minimumValue={1}
-          maximumValue={10}
-          step={1}
-          value={selected}
-          onValueChange={(v) => { Haptics.selectionAsync(); setSelected(v); }}
-          minimumTrackTintColor={colors.primary}
-          maximumTrackTintColor={colors.border}
-          thumbTintColor={colors.primary}
-        />
-        <Text style={{ textAlign: "center", fontSize: 30, fontFamily: "Inter_700Bold", color: colors.primary }}>
-          {selected}
-        </Text>
+    <View style={{ gap: 20 }}>
+      <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
+        {MOOD_OPTIONS.map(({ emoji, label, score }) => (
+          <View key={score} style={{ alignItems: "center", flex: 1 }}>
+            <Text style={{ fontSize: 20 }}>{emoji}</Text>
+            <Text style={{ fontSize: 10, color: colors.mutedForeground, fontFamily: "Inter_400Regular", marginTop: 2 }}>
+              {label}
+            </Text>
+          </View>
+        ))}
+      </View>
+      <View style={{ gap: 8 }}>
+        {[[1, 2, 3, 4, 5], [6, 7, 8, 9, 10]].map((row, ri) => (
+          <View key={ri} style={{ flexDirection: "row", justifyContent: "space-between" }}>
+            {row.map((n) => (
+              <TouchableOpacity
+                key={n}
+                onPress={() => { Haptics.selectionAsync(); setSelected(n); }}
+                activeOpacity={0.75}
+                style={{
+                  width: 48, height: 48, borderRadius: 24,
+                  backgroundColor: selected === n ? colors.primary : colors.muted,
+                  borderWidth: 1,
+                  borderColor: selected === n ? colors.primary : colors.border,
+                  alignItems: "center", justifyContent: "center",
+                }}
+              >
+                <Text style={{
+                  fontSize: 15,
+                  fontFamily: selected === n ? "Inter_700Bold" : "Inter_400Regular",
+                  color: selected === n ? colors.primaryForeground : colors.foreground,
+                }}>
+                  {n}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        ))}
       </View>
       <TextInput
         style={[
@@ -506,38 +521,56 @@ function EnergyLogger({
   onSave: (score: number) => void;
   registerSave: (canSave: boolean, saveFn: (() => void) | null) => void;
 }) {
-  const [selected, setSelected] = useState(5);
+  const [selected, setSelected] = useState<number | null>(null);
 
   useEffect(() => {
-    const s = selected;
-    registerSave(true, () => onSave(s));
+    if (selected != null) {
+      const s = selected;
+      registerSave(true, () => onSave(s));
+    } else {
+      registerSave(false, null);
+    }
   }, [selected]);
 
   return (
-    <View style={{ gap: 4 }}>
-      <View style={{ flexDirection: "row", justifyContent: "space-between", paddingHorizontal: 10 }}>
+    <View style={{ gap: 20 }}>
+      <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
         {ENERGY_OPTIONS.map(({ label, score }) => (
-          <View key={score} style={{ alignItems: "center", width: 48 }}>
+          <View key={score} style={{ alignItems: "center", flex: 1 }}>
             <Text style={{ fontSize: 10, color: colors.mutedForeground, fontFamily: "Inter_400Regular", textAlign: "center" }}>
               {label}
             </Text>
           </View>
         ))}
       </View>
-      <Slider
-        style={{ width: "100%", height: 40 }}
-        minimumValue={1}
-        maximumValue={10}
-        step={1}
-        value={selected}
-        onValueChange={(v) => { Haptics.selectionAsync(); setSelected(v); }}
-        minimumTrackTintColor={colors.primary}
-        maximumTrackTintColor={colors.border}
-        thumbTintColor={colors.primary}
-      />
-      <Text style={{ textAlign: "center", fontSize: 30, fontFamily: "Inter_700Bold", color: colors.primary }}>
-        {selected}
-      </Text>
+      <View style={{ gap: 8 }}>
+        {[[1, 2, 3, 4, 5], [6, 7, 8, 9, 10]].map((row, ri) => (
+          <View key={ri} style={{ flexDirection: "row", justifyContent: "space-between" }}>
+            {row.map((n) => (
+              <TouchableOpacity
+                key={n}
+                onPress={() => { Haptics.selectionAsync(); setSelected(n); }}
+                activeOpacity={0.75}
+                style={{
+                  width: 48, height: 48, borderRadius: 24,
+                  backgroundColor: selected === n ? colors.primary : colors.muted,
+                  borderWidth: 1,
+                  borderColor: selected === n ? colors.primary : colors.border,
+                  alignItems: "center", justifyContent: "center",
+                }}
+              >
+                <Text style={{
+                  fontSize: 15,
+                  fontFamily: selected === n ? "Inter_700Bold" : "Inter_400Regular",
+                  color: selected === n ? colors.primaryForeground : colors.foreground,
+                }}>
+                  {n}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        ))}
+      </View>
     </View>
   );
 }
@@ -1851,7 +1884,9 @@ export default function CheckInScreen() {
     const picked = await ImagePicker.launchImageLibraryAsync({ quality: 0.7, base64: true });
     if (picked.canceled || !picked.assets[0]?.base64) return;
 
-    const base64 = picked.assets[0].base64;
+    const asset = picked.assets[0];
+    const base64 = asset.base64;
+    const mediaType = asset.mimeType ?? "image/jpeg";
     setAnalyzingType(type);
     try {
       const token = await getToken();
@@ -1861,13 +1896,16 @@ export default function CheckInScreen() {
           "Content-Type": "application/json",
           ...(token ? { Authorization: `Bearer ${token}` } : {}),
         },
-        body: JSON.stringify({ image: base64, type, ...(subtype ? { subtype } : {}) }),
+        body: JSON.stringify({ image: base64, type, mediaType, ...(subtype ? { subtype } : {}) }),
       });
-      if (!resp.ok) throw new Error("Analysis failed");
+      if (!resp.ok) {
+        const errData = await resp.json().catch(() => ({})) as { error?: string; detail?: string };
+        throw new Error(errData.detail ?? errData.error ?? `HTTP ${resp.status}`);
+      }
       const json = (await resp.json()) as { type: UploadType; data: Record<string, unknown> };
       setAnalysisResult(json);
-    } catch {
-      Alert.alert("Analysis failed", "Please try again.");
+    } catch (err) {
+      Alert.alert("Analysis failed", err instanceof Error ? err.message : "Please try again.");
     } finally {
       setAnalyzingType(null);
     }
@@ -2224,7 +2262,7 @@ export default function CheckInScreen() {
         onRequestClose={() => setActiveModal(null)}
       >
         <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
-          <View style={[fsModal.header, { borderBottomColor: colors.border }]}>
+          <View style={[fsModal.header, { borderBottomColor: colors.border, paddingTop: insets.top }]}>
             <Text style={[fsModal.title, { color: colors.foreground, fontFamily: "Inter_700Bold" }]}>
               {activeModal && QUICK_LOG_CONFIG[activeModal].label}
             </Text>

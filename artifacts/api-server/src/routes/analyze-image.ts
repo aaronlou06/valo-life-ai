@@ -15,8 +15,26 @@ const SCREENTIME_PROMPTS: Record<string, string> = {
   weekly: 'Extract data from this weekly Screen Time report screenshot. Return JSON only (no markdown): { "report_type": "weekly", "daily_avg_hours": number, "total_weekly_hours": number, "most_used_apps": [{ "name": string, "daily_avg_minutes": number, "weekly_minutes": number }], "avg_pickups_per_day": number, "social_media_hours": number, "productivity_hours": number, "longest_day": string, "shortest_day": string }',
 };
 
+const ALLOWED_MEDIA_TYPES = new Set(["image/jpeg", "image/png", "image/gif", "image/webp"]);
+
 router.post("/analyze-image", requireAuth, async (req, res): Promise<void> => {
-  const { image, type, subtype } = req.body as { image?: string; type?: string; subtype?: string };
+  const {
+    image,
+    type,
+    subtype,
+    mediaType: clientMediaType,
+  } = req.body as { image?: string; type?: string; subtype?: string; mediaType?: string };
+
+  req.log.info(
+    {
+      bodyKeys: Object.keys(req.body),
+      imageLength: typeof image === "string" ? image.length : 0,
+      type,
+      subtype,
+      clientMediaType,
+    },
+    "analyze-image: request received",
+  );
 
   if (!type || (!ANALYZE_PROMPTS[type] && type !== "screentime")) {
     res.status(400).json({ error: "type must be one of: food, screentime, progress, other" });
@@ -36,24 +54,17 @@ router.post("/analyze-image", requireAuth, async (req, res): Promise<void> => {
     prompt = ANALYZE_PROMPTS[type]!;
   }
 
-  let mediaType: "image/jpeg" | "image/png" | "image/gif" | "image/webp" = "image/jpeg";
-  let imageData = image;
+  const rawMediaType = (clientMediaType ?? "image/jpeg").toLowerCase();
+  const mediaType = (ALLOWED_MEDIA_TYPES.has(rawMediaType) ? rawMediaType : "image/jpeg") as
+    | "image/jpeg"
+    | "image/png"
+    | "image/gif"
+    | "image/webp";
 
-  if (image.startsWith("data:")) {
-    const match = image.match(/^data:(image\/[\w+]+);base64,(.+)$/s);
-    if (match && match[1] && match[2]) {
-      const mt = match[1].toLowerCase();
-      if (mt === "image/png" || mt === "image/gif" || mt === "image/webp") {
-        mediaType = mt as typeof mediaType;
-      }
-      imageData = match[2];
-    }
-  }
-
-  imageData = imageData.replace(/\s/g, "");
+  const imageData = image.replace(/^data:image\/\w+;base64,/, "").replace(/\s/g, "");
 
   req.log.info(
-    { type, subtype, imageDataLength: imageData.length, mediaType },
+    { type, subtype, mediaType, imageDataLength: imageData.length },
     "analyze-image: calling Claude",
   );
 
@@ -68,7 +79,11 @@ router.post("/analyze-image", requireAuth, async (req, res): Promise<void> => {
           content: [
             {
               type: "image",
-              source: { type: "base64", media_type: mediaType, data: imageData },
+              source: {
+                type: "base64",
+                media_type: mediaType,
+                data: imageData,
+              },
             },
             { type: "text", text: prompt },
           ],
@@ -81,7 +96,7 @@ router.post("/analyze-image", requireAuth, async (req, res): Promise<void> => {
       "analyze-image: Claude API call failed",
     );
     res.status(502).json({
-      error: "Image analysis failed. Please try again.",
+      error: "Image analysis failed",
       detail: err instanceof Error ? err.message : String(err),
     });
     return;
@@ -103,7 +118,10 @@ router.post("/analyze-image", requireAuth, async (req, res): Promise<void> => {
   try {
     data = jsonMatch ? JSON.parse(jsonMatch[0]) : JSON.parse(stripped);
   } catch (parseErr) {
-    req.log.warn({ parseErr, rawPreview: raw.slice(0, 300) }, "analyze-image: JSON parse failed, returning raw as summary");
+    req.log.warn(
+      { parseErr, rawPreview: raw.slice(0, 300) },
+      "analyze-image: JSON parse failed, returning raw as summary",
+    );
     data = { summary: raw };
   }
 
