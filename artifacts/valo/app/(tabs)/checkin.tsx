@@ -13,6 +13,7 @@ import {
   TextInput,
   Alert,
   Modal,
+  KeyboardAvoidingView,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Feather } from "@expo/vector-icons";
@@ -1887,14 +1888,12 @@ export default function CheckInScreen() {
           <Text style={[styles.header, { color: colors.foreground, fontFamily: "Inter_700Bold" }]}>
             Check in
           </Text>
-          {(dashboard?.streak ?? 0) > 0 && (
-            <View style={styles.streakRow}>
-              <Feather name="zap" size={13} color={colors.primary} />
-              <Text style={[styles.streakText, { color: colors.primary, fontFamily: "Inter_600SemiBold" }]}>
-                {dashboard!.streak} day streak
-              </Text>
-            </View>
-          )}
+          <View style={styles.streakRow}>
+            <Feather name="zap" size={13} color={colors.primary} />
+            <Text style={[styles.streakText, { color: colors.primary, fontFamily: "Inter_600SemiBold" }]}>
+              {dashboard?.streak ?? 0} day streak
+            </Text>
+          </View>
         </View>
         <Animated.View style={{ transform: [{ scale: celebrateScale }], opacity: celebrateOpacity }}>
           <CompletionRing pct={completionPct} colors={colors} />
@@ -2218,37 +2217,48 @@ export default function CheckInScreen() {
         visible={!!activeModal}
         animationType="slide"
         transparent
+        statusBarTranslucent
         onRequestClose={() => setActiveModal(null)}
       >
-        <View style={modalStyles.overlay}>
-          <TouchableOpacity style={{ flex: 1 }} activeOpacity={1} onPress={() => setActiveModal(null)} />
-          <View style={[modalStyles.sheet, { backgroundColor: colors.background }]}>
-            <View style={modalStyles.handleWrap}>
-              <View style={[modalStyles.handle, { backgroundColor: colors.border }]} />
+        <KeyboardAvoidingView
+          style={{ flex: 1 }}
+          behavior={Platform.OS === "ios" ? "padding" : "height"}
+        >
+          <View style={modalStyles.overlay}>
+            <TouchableOpacity style={{ flex: 1 }} activeOpacity={1} onPress={() => setActiveModal(null)} />
+            <View style={[modalStyles.sheet, { backgroundColor: colors.background, paddingBottom: insets.bottom }]}>
+              <View style={modalStyles.handleWrap}>
+                <View style={[modalStyles.handle, { backgroundColor: colors.border }]} />
+              </View>
+              <View style={[modalStyles.sheetHeader, { borderBottomColor: colors.border }]}>
+                <Text style={[modalStyles.sheetTitle, { color: colors.foreground, fontFamily: "Inter_700Bold" }]}>
+                  {activeModal && QUICK_LOG_CONFIG[activeModal].label}
+                </Text>
+                <TouchableOpacity onPress={() => setActiveModal(null)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                  <Feather name="x" size={20} color={colors.mutedForeground} />
+                </TouchableOpacity>
+              </View>
+              <ScrollView
+                style={{ flex: 1 }}
+                contentContainerStyle={{ padding: 20, paddingBottom: 32 }}
+                keyboardShouldPersistTaps="handled"
+                showsVerticalScrollIndicator={false}
+              >
+                {activeModal === "mood"    && <MoodLogger    colors={colors} onSave={handleMoodSave}    isSaving={isSavingLog} />}
+                {activeModal === "energy"  && <EnergyLogger  colors={colors} onSave={handleEnergySave}  isSaving={isSavingLog} />}
+                {activeModal === "workout" && <WorkoutLogger  colors={colors} onSave={handleWorkoutSave} isSaving={isSavingLog} />}
+                {activeModal === "sleep"   && <SleepLogger    colors={colors} onSave={handleSleepSave}   isSaving={isSavingLog} />}
+                {activeModal === "habits"  && (
+                  <HabitsLogger
+                    habits={allHabits}
+                    colors={colors}
+                    onToggle={handleHabitToggle}
+                  />
+                )}
+              </ScrollView>
             </View>
-            <View style={[modalStyles.sheetHeader, { borderBottomColor: colors.border }]}>
-              <Text style={[modalStyles.sheetTitle, { color: colors.foreground, fontFamily: "Inter_700Bold" }]}>
-                {activeModal && QUICK_LOG_CONFIG[activeModal].label}
-              </Text>
-              <TouchableOpacity onPress={() => setActiveModal(null)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-                <Feather name="x" size={20} color={colors.mutedForeground} />
-              </TouchableOpacity>
-            </View>
-            <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 20, paddingBottom: 40 }} keyboardShouldPersistTaps="handled">
-              {activeModal === "mood"    && <MoodLogger    colors={colors} onSave={handleMoodSave}    isSaving={isSavingLog} />}
-              {activeModal === "energy"  && <EnergyLogger  colors={colors} onSave={handleEnergySave}  isSaving={isSavingLog} />}
-              {activeModal === "workout" && <WorkoutLogger  colors={colors} onSave={handleWorkoutSave} isSaving={isSavingLog} />}
-              {activeModal === "sleep"   && <SleepLogger    colors={colors} onSave={handleSleepSave}   isSaving={isSavingLog} />}
-              {activeModal === "habits"  && (
-                <HabitsLogger
-                  habits={allHabits}
-                  colors={colors}
-                  onToggle={handleHabitToggle}
-                />
-              )}
-            </ScrollView>
           </View>
-        </View>
+        </KeyboardAvoidingView>
       </Modal>
 
       {/* ── Section 3: Smart Upload ────────────────────────────────────────── */}
