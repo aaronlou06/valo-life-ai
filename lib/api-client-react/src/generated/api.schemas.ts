@@ -278,6 +278,29 @@ export interface OnboardingSaveInput {
   callsEnabled?: boolean;
 }
 
+export type AnalyzeImageInputType =
+  (typeof AnalyzeImageInputType)[keyof typeof AnalyzeImageInputType];
+
+export const AnalyzeImageInputType = {
+  food: "food",
+  screentime: "screentime",
+  progress: "progress",
+  labs: "labs",
+} as const;
+
+export interface AnalyzeImageInput {
+  /** Base64-encoded image data (with or without data-URL prefix) */
+  image: string;
+  type: AnalyzeImageInputType;
+}
+
+export type AnalyzeImageResultData = { [key: string]: unknown };
+
+export interface AnalyzeImageResult {
+  type: string;
+  data: AnalyzeImageResultData;
+}
+
 export type SaveOnboarding200 = {
   ok: boolean;
 };

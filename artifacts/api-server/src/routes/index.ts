@@ -14,6 +14,7 @@ import settingsRouter from "./settings";
 import vapiWebhookRouter from "./vapi-webhook";
 import calendarEventsRouter from "./calendar-events";
 import onboardingRouter from "./onboarding";
+import analyzeImageRouter from "./analyze-image";
 
 const router: IRouter = Router();
 
@@ -32,5 +33,6 @@ router.use(settingsRouter);
 router.use(vapiWebhookRouter);
 router.use(calendarEventsRouter);
 router.use(onboardingRouter);
+router.use(analyzeImageRouter);
 
 export default router;

@@ -29,6 +29,8 @@ tags:
     description: Onboarding flow status and progressive field save
   - name: settings
     description: User settings and preferences
+  - name: analyze-image
+    description: AI image analysis via Claude vision
 paths:
   /healthz:
     get:
@@ -406,6 +408,25 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/UserSettings"
+
+  /analyze-image:
+    post:
+      operationId: analyzeImage
+      tags: [analyze-image]
+      summary: Analyze an uploaded image with AI (Claude vision)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AnalyzeImageInput"
+      responses:
+        "200":
+          description: AI analysis result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AnalyzeImageResult"
 
 components:
   schemas:
@@ -808,3 +829,24 @@ components:
           type: string
         callsEnabled:
           type: boolean
+
+    AnalyzeImageInput:
+      type: object
+      required: [image, type]
+      properties:
+        image:
+          type: string
+          description: Base64-encoded image data (with or without data-URL prefix)
+        type:
+          type: string
+          enum: [food, screentime, progress, labs]
+
+    AnalyzeImageResult:
+      type: object
+      required: [type, data]
+      properties:
+        type:
+          type: string
+        data:
+          type: object
+          additionalProperties: true

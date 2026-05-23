@@ -17,6 +17,8 @@ import type {
 } from "@tanstack/react-query";
 
 import type {
+  AnalyzeImageInput,
+  AnalyzeImageResult,
   CalendarEvent,
   CalendarEventInput,
   DailyLog,
@@ -1882,3 +1884,89 @@ export function useGetSettings<
 
   return { ...query, queryKey: queryOptions.queryKey };
 }
+
+/**
+ * @summary Analyze an uploaded image with AI (Claude vision)
+ */
+export const getAnalyzeImageUrl = () => {
+  return `/api/analyze-image`;
+};
+
+export const analyzeImage = async (
+  analyzeImageInput: AnalyzeImageInput,
+  options?: RequestInit,
+): Promise<AnalyzeImageResult> => {
+  return customFetch<AnalyzeImageResult>(getAnalyzeImageUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(analyzeImageInput),
+  });
+};
+
+export const getAnalyzeImageMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof analyzeImage>>,
+    TError,
+    { data: BodyType<AnalyzeImageInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof analyzeImage>>,
+  TError,
+  { data: BodyType<AnalyzeImageInput> },
+  TContext
+> => {
+  const mutationKey = ["analyzeImage"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof analyzeImage>>,
+    { data: BodyType<AnalyzeImageInput> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return analyzeImage(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type AnalyzeImageMutationResult = NonNullable<
+  Awaited<ReturnType<typeof analyzeImage>>
+>;
+export type AnalyzeImageMutationBody = BodyType<AnalyzeImageInput>;
+export type AnalyzeImageMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Analyze an uploaded image with AI (Claude vision)
+ */
+export const useAnalyzeImage = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof analyzeImage>>,
+    TError,
+    { data: BodyType<AnalyzeImageInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof analyzeImage>>,
+  TError,
+  { data: BodyType<AnalyzeImageInput> },
+  TContext
+> => {
+  return useMutation(getAnalyzeImageMutationOptions(options));
+};

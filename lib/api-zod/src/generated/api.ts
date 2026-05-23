@@ -352,3 +352,18 @@ export const GetSettingsResponse = zod.object({
   onboardingCompleted: zod.boolean(),
   firstCallCompleted: zod.boolean(),
 });
+
+/**
+ * @summary Analyze an uploaded image with AI (Claude vision)
+ */
+export const AnalyzeImageBody = zod.object({
+  image: zod
+    .string()
+    .describe("Base64-encoded image data (with or without data-URL prefix)"),
+  type: zod.enum(["food", "screentime", "progress", "labs"]),
+});
+
+export const AnalyzeImageResponse = zod.object({
+  type: zod.string(),
+  data: zod.record(zod.string(), zod.unknown()),
+});

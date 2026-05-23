@@ -1,0 +1,56 @@
+"Redesign app/(tabs)/checkin.tsx with better UX, gamification, and smart uploads. Keep all existing functionality but reorganize the layout completely.
+New layout structure:
+Header row:
+
+Left: current check-in streak (e.g. '🔥 7 day streak') pulled from useGetDashboard
+Right: a completion ring showing today's check-in completeness (calculate as: voice call done = 40%, at least 2 quick logs = 30%, habit completion = 30%). Use a simple circular progress indicator with percentage in the center.
+
+Section 1 — Check in with Valo:
+Keep the existing voice check-in exactly as is (mic button, pulse animation, transcript, summary). Add one line below the mic hint text: 'Valo's question today:' followed by a rotating daily prompt. The prompt rotates daily based on the date — use a hardcoded array of 30 meaningful questions like 'What would make today a win?', 'What are you avoiding right now?', 'Who deserves your attention today?', 'What drained you most this week?', etc.
+Section 2 — Quick Log:
+4 large tappable cards in a 2x2 grid. Each card has an icon, label, and current value if already logged today.
+The 4 cards are determined by user priorities from GET /api/settings:
+
+Always show: Mood (emoji face icon, shows current mood score or '—')
+If health/fitness priority: Workout (dumbbell icon, shows workout type or 'Not logged')
+If health priority: Sleep (moon icon, shows sleep hours or '—')
+If any priority: Energy (lightning icon, shows energy level or '—')
+Fallback if no priorities: Mood, Energy, Workout, Habits
+
+Tapping a card opens a small bottom sheet modal specific to that type:
+
+Mood: 5 emoji options (😔 😕 😐 🙂 😊) that map to scores 2/4/6/8/10, plus optional text note. Saves via POST /api/moods
+Workout: workout type chips (Strength, Cardio, Yoga, Walk, Sport, Rest), duration stepper, effort 1-5 stars. Saves via POST /api/daily-logs
+Sleep: hours slider (4-10 hours in 0.5 increments) and quality rating (1-5). Saves via POST /api/daily-logs
+Energy: 5-level selector (Drained / Low / Okay / Good / High) that maps to scores 2/4/6/8/10. Saves via POST /api/moods with note 'energy'
+Habits: shows today's habits as checkboxes, saves completedToday via PATCH /api/habits/:id
+
+Section 3 — Smart Upload:
+A 2x2 grid of upload cards:
+
+📸 Food photo — 'Log a meal'
+📱 Screen Time — 'Upload screenshot'
+📊 Progress photo — 'Track your body'
+🩸 Lab results — 'Upload bloodwork'
+
+Each card opens an image picker using expo-image-picker. After selecting an image, show a loading state 'Valo is analyzing...' then call POST /api/analyze-image with the image as base64 and a type field ('food', 'screentime', 'progress', 'labs').
+Create the POST /api/analyze-image endpoint in the API server that:
+
+Receives { image: string (base64), type: string, userId: string }
+Sends to Claude claude-sonnet-4-20250514 with type-specific prompts:
+
+food: 'Analyze this meal photo. Return JSON: { meal_name, estimated_calories, protein_g, carbs_g, fat_g, meal_type (breakfast/lunch/dinner/snack), notes }'
+screentime: 'This is an Apple Screen Time report screenshot. Extract: { total_daily_avg_hours, most_used_apps: [{name, daily_avg_minutes}], pickups_per_day, social_media_hours, productivity_hours }'
+progress: 'This is a body progress photo. Return JSON: { date_taken, notes_for_user (encouraging, observational only, no judgments) }'
+labs: 'This is a blood test result. Extract key biomarkers: { biomarkers: [{name, value, unit, reference_range, status (normal/high/low)}] }'
+
+
+Saves the extracted data to the appropriate table and returns the result
+Show the extracted data to the user in a result card after analysis
+
+Section 4 — Full Log (collapsed):
+A single row at the bottom: 'Full check-in →' with a chevron. Tapping expands the existing Guided mode cards. Collapsed by default.
+Remove the Voice/Guided/Manual toggle at the top — it's replaced by this new layout. The Guided cards are now in Section 4.
+Manual mode is removed for now — users log via Quick Log cards instead.
+Add a subtle celebration animation (scale + opacity pulse on the completion ring) when the ring hits 100%.
+Use existing color system, Inter fonts, and match visual style. Install expo-image-picker if not already installed. Run typecheck after."
