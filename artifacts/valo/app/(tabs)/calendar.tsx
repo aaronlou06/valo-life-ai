@@ -68,9 +68,20 @@ const EVENT_TYPES: { key: string; label: string; color: string }[] = [
 
 const ROUTINE_COLORS = ["#C17B3F","#2563EB","#059669","#7C3AED","#D97706","#E11D48"];
 const DAY_LETTERS   = ["S","M","T","W","T","F","S"];
-const ROUTINES_KEY_FOR = (uid: string) => `@valo/routines-${uid}`;
+const ROUTINES_KEY_FOR  = (uid: string) => `@valo/routines-${uid}`;
+const SCHEDULE_KEY_FOR  = (uid: string) => `@valo/work-schedule-${uid}`;
 const CELL_MIN_H    = 80;
 const MAX_CELL_PILLS = 3;
+
+const ORDINAL_LABELS = ["1st", "2nd", "3rd", "4th"] as const;
+
+const RECURRENCE_OPTIONS = [
+  { key: "every_day",        label: "Every day" },
+  { key: "every_week",       label: "Every week" },
+  { key: "every_other_week", label: "Every other week" },
+  { key: "custom_days",      label: "Custom days" },
+  { key: "every_month",      label: "Every month on the…" },
+] as const;
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -85,6 +96,15 @@ interface Routine {
 
 type Colors = ReturnType<typeof useColors>;
 type CalendarEvent = { id: number; userId: string; date: string; title: string; type?: string | null; notes?: string | null };
+type RecurrenceType = "every_day" | "every_week" | "every_other_week" | "custom_days" | "every_month";
+
+interface WorkSchedule {
+  name: string;
+  days: number[];
+  startTime: string;
+  endTime: string;
+  dropDate: string;
+}
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -167,6 +187,53 @@ function getNextFourWeeksDates(days: number[]): string[] {
     const d = new Date(base);
     d.setDate(base.getDate() + i);
     if (days.includes(d.getDay())) results.push(toISODate(d));
+  }
+  return results;
+}
+
+function getNextTwelveWeeksDates(days: number[]): string[] {
+  const results: string[] = [];
+  const base = new Date();
+  base.setHours(0, 0, 0, 0);
+  for (let i = 0; i < 84; i++) {
+    const d = new Date(base);
+    d.setDate(base.getDate() + i);
+    if (days.includes(d.getDay())) results.push(toISODate(d));
+  }
+  return results;
+}
+
+function getEveryOtherWeekDates(days: number[]): string[] {
+  const results: string[] = [];
+  const base = new Date();
+  base.setHours(0, 0, 0, 0);
+  for (let i = 0; i < 84; i++) {
+    const weekNum = Math.floor(i / 7);
+    if (weekNum % 2 !== 0) continue;
+    const d = new Date(base);
+    d.setDate(base.getDate() + i);
+    if (days.includes(d.getDay())) results.push(toISODate(d));
+  }
+  return results;
+}
+
+function getMonthlyNthWeekdayDates(nth: number, weekday: number): string[] {
+  const results: string[] = [];
+  const base = new Date();
+  base.setHours(0, 0, 0, 0);
+  const todayIso = toISODate(base);
+  for (let m = 0; m < 3; m++) {
+    const absMonth = base.getMonth() + m;
+    const year = base.getFullYear() + Math.floor(absMonth / 12);
+    const month = absMonth % 12;
+    const firstDay = new Date(year, month, 1).getDay();
+    const firstTarget = (weekday - firstDay + 7) % 7 + 1;
+    const dayNum = firstTarget + nth * 7;
+    const daysInMonth = new Date(year, month + 1, 0).getDate();
+    if (dayNum <= daysInMonth) {
+      const dateStr = `${year}-${String(month + 1).padStart(2, "0")}-${String(dayNum).padStart(2, "0")}`;
+      if (dateStr >= todayIso) results.push(dateStr);
+    }
   }
   return results;
 }
@@ -504,8 +571,8 @@ function AddEventModal({
                   style={[S.textInput, { color: colors.foreground, borderColor: colors.border, backgroundColor: colors.card, fontFamily: "Inter_400Regular" }]} />
               </View>
               <View style={S.fieldBlock}>
-                <Text style={[S.fieldLabel, { color: colors.mutedForeground, fontFamily: "Inter_500Medium" }]}>Date</Text>
-                <DatePickerField value={date} onChange={setDate} placeholder="Select date" colors={colors} />
+                <Text style={[S.fieldLabel, { color: colors.mutedForeground, fontFamily: "Inter_500Medium" }]}>Date & Time</Text>
+                <DatePickerField value={date} onChange={setDate} placeholder="Select date" showTime colors={colors} />
               </View>
               <View style={S.fieldBlock}>
                 <Text style={[S.fieldLabel, { color: colors.mutedForeground, fontFamily: "Inter_500Medium" }]}>Type</Text>
@@ -535,6 +602,450 @@ function AddEventModal({
         </View>
       </KeyboardAvoidingView>
     </Modal>
+  );
+}
+
+// ─── Event Type Picker Modal ──────────────────────────────────────────────────
+
+function EventTypePickerModal({
+  visible, onClose, onOneTime, onRecurring, colors,
+}: {
+  visible: boolean; onClose: () => void; onOneTime: () => void; onRecurring: () => void; colors: Colors;
+}) {
+  return (
+    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+      <View style={S.sheetOverlay}>
+        <TouchableOpacity style={{ flex: 1 }} activeOpacity={1} onPress={onClose} />
+        <View style={[S.bottomSheet, { backgroundColor: colors.background, paddingBottom: 28 }]}>
+          <View style={[S.sheetHandle, { backgroundColor: colors.border }]} />
+          <View style={S.sheetHeader}>
+            <Text style={[S.sheetTitle, { color: colors.foreground, fontFamily: "Inter_700Bold" }]}>Add Event</Text>
+            <TouchableOpacity onPress={onClose} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+              <Feather name="x" size={22} color={colors.mutedForeground} />
+            </TouchableOpacity>
+          </View>
+          <View style={{ gap: 10, paddingBottom: 4 }}>
+            <TouchableOpacity
+              style={[evStyles.typeCard, { backgroundColor: colors.card, borderColor: colors.primary }]}
+              onPress={onOneTime} activeOpacity={0.75}
+            >
+              <View style={[evStyles.typeCardIcon, { backgroundColor: colors.primary + "18" }]}>
+                <Feather name="calendar" size={22} color={colors.primary} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={[evStyles.typeCardTitle, { color: colors.foreground, fontFamily: "Inter_600SemiBold" }]}>One-time event</Text>
+                <Text style={[evStyles.typeCardDesc, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>A single date with optional time</Text>
+              </View>
+              <Feather name="chevron-right" size={18} color={colors.mutedForeground} />
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[evStyles.typeCard, { backgroundColor: colors.card, borderColor: colors.border }]}
+              onPress={onRecurring} activeOpacity={0.75}
+            >
+              <View style={[evStyles.typeCardIcon, { backgroundColor: colors.muted }]}>
+                <Feather name="repeat" size={22} color={colors.foreground} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={[evStyles.typeCardTitle, { color: colors.foreground, fontFamily: "Inter_600SemiBold" }]}>Recurring event</Text>
+                <Text style={[evStyles.typeCardDesc, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>Repeats on a schedule for 12 weeks</Text>
+              </View>
+              <Feather name="chevron-right" size={18} color={colors.mutedForeground} />
+            </TouchableOpacity>
+          </View>
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
+// ─── Recurring Event Modal ────────────────────────────────────────────────────
+
+function RecurringEventModal({
+  visible, onClose, onCreated, colors,
+}: {
+  visible: boolean; onClose: () => void; onCreated: () => void; colors: Colors;
+}) {
+  const { mutateAsync: createEvent } = useCreateCalendarEvent();
+
+  const [title, setTitle]           = useState("");
+  const [eventType, setEventType]   = useState<string | null>(null);
+  const [notes, setNotes]           = useState("");
+  const [recurrence, setRecurrence] = useState<RecurrenceType>("every_week");
+  const [selectedDays, setSelectedDays] = useState<number[]>([]);
+  const [monthlyNth, setMonthlyNth] = useState(0);
+  const [monthlyWeekday, setMonthlyWeekday] = useState(1);
+  const [endDate, setEndDate]       = useState("");
+  const [noEndDate, setNoEndDate]   = useState(true);
+  const [saving, setSaving]         = useState(false);
+
+  useEffect(() => {
+    if (visible) {
+      setTitle(""); setEventType(null); setNotes("");
+      setRecurrence("every_week"); setSelectedDays([]);
+      setMonthlyNth(0); setMonthlyWeekday(1);
+      setEndDate(""); setNoEndDate(true); setSaving(false);
+    }
+  }, [visible]);
+
+  function toggleDay(day: number) {
+    setSelectedDays((prev) =>
+      prev.includes(day) ? prev.filter((d) => d !== day) : [...prev, day]
+    );
+  }
+
+  function generateDates(): string[] {
+    let dates: string[] = [];
+    const base = new Date(); base.setHours(0, 0, 0, 0);
+    if (recurrence === "every_day") {
+      for (let i = 0; i < 84; i++) {
+        const d = new Date(base); d.setDate(base.getDate() + i); dates.push(toISODate(d));
+      }
+    } else if (recurrence === "every_week" || recurrence === "custom_days") {
+      dates = getNextTwelveWeeksDates(selectedDays);
+    } else if (recurrence === "every_other_week") {
+      dates = getEveryOtherWeekDates(selectedDays);
+    } else if (recurrence === "every_month") {
+      dates = getMonthlyNthWeekdayDates(monthlyNth, monthlyWeekday);
+    }
+    if (!noEndDate && endDate) dates = dates.filter((d) => d <= endDate);
+    return dates;
+  }
+
+  async function handleSave() {
+    if (!title.trim()) { Alert.alert("Required", "Please enter an event title."); return; }
+    const needsDays = recurrence === "every_week" || recurrence === "every_other_week" || recurrence === "custom_days";
+    if (needsDays && selectedDays.length === 0) { Alert.alert("Required", "Please select at least one day."); return; }
+    const dates = generateDates();
+    if (dates.length === 0) { Alert.alert("No dates", "No dates match your recurrence settings."); return; }
+    setSaving(true);
+    try {
+      await Promise.all(dates.map((date) =>
+        createEvent({ data: { title: title.trim(), date, type: eventType, notes: notes.trim() || null } })
+      ));
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      onCreated(); onClose();
+    } catch {
+      Alert.alert("Error", "Failed to save events. Please try again.");
+    } finally { setSaving(false); }
+  }
+
+  const showDaySelector = recurrence === "every_week" || recurrence === "every_other_week" || recurrence === "custom_days";
+
+  return (
+    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : undefined}>
+        <View style={S.sheetOverlay}>
+          <TouchableOpacity style={{ flex: 1 }} activeOpacity={1} onPress={onClose} />
+          <View style={[S.bottomSheet, { backgroundColor: colors.background }]}>
+            <View style={[S.sheetHandle, { backgroundColor: colors.border }]} />
+            <View style={S.sheetHeader}>
+              <Text style={[S.sheetTitle, { color: colors.foreground, fontFamily: "Inter_700Bold" }]}>Recurring Event</Text>
+              <TouchableOpacity onPress={onClose} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                <Feather name="x" size={22} color={colors.mutedForeground} />
+              </TouchableOpacity>
+            </View>
+            <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+              <View style={S.fieldBlock}>
+                <Text style={[S.fieldLabel, { color: colors.mutedForeground, fontFamily: "Inter_500Medium" }]}>Title</Text>
+                <TextInput value={title} onChangeText={setTitle} placeholder="Event title"
+                  placeholderTextColor={colors.mutedForeground}
+                  style={[S.textInput, { color: colors.foreground, borderColor: colors.border, backgroundColor: colors.card, fontFamily: "Inter_400Regular" }]} />
+              </View>
+              <View style={S.fieldBlock}>
+                <Text style={[S.fieldLabel, { color: colors.mutedForeground, fontFamily: "Inter_500Medium" }]}>Type</Text>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingVertical: 4 }}>
+                  {EVENT_TYPES.map((et) => {
+                    const active = eventType === et.key;
+                    return (
+                      <TouchableOpacity key={et.key} onPress={() => setEventType(active ? null : et.key)}
+                        style={[S.typeChip, { backgroundColor: active ? et.color : colors.card, borderColor: active ? et.color : colors.border }]}>
+                        <Text style={[S.typeChipText, { color: active ? "#FFFFFF" : colors.foreground, fontFamily: "Inter_500Medium" }]}>{et.label}</Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </ScrollView>
+              </View>
+              <View style={S.fieldBlock}>
+                <Text style={[S.fieldLabel, { color: colors.mutedForeground, fontFamily: "Inter_500Medium" }]}>Repeats</Text>
+                <View style={{ gap: 6, marginTop: 4 }}>
+                  {RECURRENCE_OPTIONS.map((opt) => {
+                    const active = recurrence === opt.key;
+                    return (
+                      <TouchableOpacity key={opt.key} onPress={() => setRecurrence(opt.key as RecurrenceType)}
+                        style={[evStyles.recurrenceRow, { borderColor: active ? colors.primary : colors.border, backgroundColor: active ? colors.primary + "10" : colors.card }]}>
+                        <View style={[evStyles.recurrenceRadio, { borderColor: active ? colors.primary : colors.border }]}>
+                          {active && <View style={[evStyles.recurrenceRadioInner, { backgroundColor: colors.primary }]} />}
+                        </View>
+                        <Text style={[evStyles.recurrenceLabel, { color: colors.foreground, fontFamily: active ? "Inter_500Medium" : "Inter_400Regular" }]}>{opt.label}</Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+              </View>
+              {showDaySelector && (
+                <View style={S.fieldBlock}>
+                  <Text style={[S.fieldLabel, { color: colors.mutedForeground, fontFamily: "Inter_500Medium" }]}>On these days</Text>
+                  <View style={[S.dayToggleRow, { marginTop: 6 }]}>
+                    {DAY_LETTERS.map((letter, i) => {
+                      const active = selectedDays.includes(i);
+                      return (
+                        <TouchableOpacity key={i} onPress={() => toggleDay(i)}
+                          style={[S.dayTogglePill, { borderColor: active ? colors.primary : colors.border, backgroundColor: active ? colors.primary : colors.card }]}>
+                          <Text style={[S.dayToggleText, { color: active ? colors.primaryForeground : colors.foreground, fontFamily: "Inter_500Medium" }]}>{letter}</Text>
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </View>
+                </View>
+              )}
+              {recurrence === "every_month" && (
+                <View style={S.fieldBlock}>
+                  <Text style={[S.fieldLabel, { color: colors.mutedForeground, fontFamily: "Inter_500Medium" }]}>On the</Text>
+                  <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 6, marginTop: 6, marginBottom: 8 }}>
+                    {ORDINAL_LABELS.map((label, i) => {
+                      const active = monthlyNth === i;
+                      return (
+                        <TouchableOpacity key={i} onPress={() => setMonthlyNth(i)}
+                          style={[S.typeChip, { backgroundColor: active ? colors.primary : colors.card, borderColor: active ? colors.primary : colors.border }]}>
+                          <Text style={[S.typeChipText, { color: active ? colors.primaryForeground : colors.foreground, fontFamily: "Inter_500Medium" }]}>{label}</Text>
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </ScrollView>
+                  <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6 }}>
+                    {FULL_DAY_NAMES.map((name, i) => {
+                      const active = monthlyWeekday === i;
+                      return (
+                        <TouchableOpacity key={i} onPress={() => setMonthlyWeekday(i)}
+                          style={[S.typeChip, { backgroundColor: active ? colors.primary : colors.card, borderColor: active ? colors.primary : colors.border }]}>
+                          <Text style={[S.typeChipText, { color: active ? colors.primaryForeground : colors.foreground, fontFamily: "Inter_500Medium" }]}>{name}</Text>
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </View>
+                </View>
+              )}
+              <View style={S.fieldBlock}>
+                <Text style={[S.fieldLabel, { color: colors.mutedForeground, fontFamily: "Inter_500Medium" }]}>End</Text>
+                <TouchableOpacity style={[evStyles.toggleRow, { borderColor: colors.border }]} onPress={() => setNoEndDate((v) => !v)}>
+                  <View style={[S.timeToggleCheck, { borderColor: colors.primary, backgroundColor: noEndDate ? colors.primary : "transparent" }]}>
+                    {noEndDate && <Feather name="check" size={11} color={colors.primaryForeground} />}
+                  </View>
+                  <Text style={{ color: colors.foreground, fontSize: 14, fontFamily: "Inter_400Regular" }}>No end date</Text>
+                </TouchableOpacity>
+                {!noEndDate && <DatePickerField value={endDate} onChange={setEndDate} placeholder="Pick end date" colors={colors} />}
+              </View>
+              <View style={S.fieldBlock}>
+                <Text style={[S.fieldLabel, { color: colors.mutedForeground, fontFamily: "Inter_500Medium" }]}>Notes</Text>
+                <TextInput value={notes} onChangeText={setNotes} placeholder="Optional notes..."
+                  placeholderTextColor={colors.mutedForeground} multiline
+                  style={[S.textInput, S.textArea, { color: colors.foreground, borderColor: colors.border, backgroundColor: colors.card, fontFamily: "Inter_400Regular" }]} />
+              </View>
+              <TouchableOpacity style={[S.saveBtn, { backgroundColor: colors.primary, opacity: saving ? 0.7 : 1 }]} onPress={handleSave} disabled={saving}>
+                {saving ? <ActivityIndicator color={colors.primaryForeground} size="small" /> : null}
+                <Text style={[S.saveBtnText, { color: colors.primaryForeground, fontFamily: "Inter_600SemiBold" }]}>
+                  {saving ? "Creating events…" : "Create recurring events"}
+                </Text>
+              </TouchableOpacity>
+            </ScrollView>
+          </View>
+        </View>
+      </KeyboardAvoidingView>
+    </Modal>
+  );
+}
+
+// ─── Schedule Setup Modal ─────────────────────────────────────────────────────
+
+function ScheduleSetupModal({
+  visible, onClose, existing, onSave, colors,
+}: {
+  visible: boolean; onClose: () => void; existing: WorkSchedule | null;
+  onSave: (s: WorkSchedule) => Promise<void>; colors: Colors;
+}) {
+  const [name, setName]           = useState("Work");
+  const [days, setDays]           = useState<number[]>([1, 2, 3, 4, 5]);
+  const [startTime, setStartTime] = useState("9:00 AM");
+  const [endTime, setEndTime]     = useState("5:00 PM");
+  const [dropDate, setDropDate]   = useState("");
+  const [saving, setSaving]       = useState(false);
+
+  useEffect(() => {
+    if (!visible) return;
+    if (existing) {
+      setName(existing.name); setDays(existing.days);
+      setStartTime(existing.startTime); setEndTime(existing.endTime);
+      setDropDate(existing.dropDate ?? "");
+    } else {
+      setName("Work"); setDays([1, 2, 3, 4, 5]);
+      setStartTime("9:00 AM"); setEndTime("5:00 PM"); setDropDate("");
+    }
+    setSaving(false);
+  }, [visible, existing]);
+
+  function toggleDay(day: number) {
+    setDays((prev) => prev.includes(day) ? prev.filter((d) => d !== day) : [...prev, day].sort((a, b) => a - b));
+  }
+
+  async function handleSave() {
+    if (!name.trim()) { Alert.alert("Required", "Please enter a schedule name."); return; }
+    if (days.length === 0) { Alert.alert("Required", "Please select at least one day."); return; }
+    setSaving(true);
+    try {
+      await onSave({ name: name.trim(), days, startTime, endTime, dropDate });
+      onClose();
+    } catch {
+      Alert.alert("Error", "Failed to save schedule. Please try again.");
+    } finally { setSaving(false); }
+  }
+
+  return (
+    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : undefined}>
+        <View style={S.sheetOverlay}>
+          <TouchableOpacity style={{ flex: 1 }} activeOpacity={1} onPress={onClose} />
+          <View style={[S.bottomSheet, { backgroundColor: colors.background }]}>
+            <View style={[S.sheetHandle, { backgroundColor: colors.border }]} />
+            <View style={S.sheetHeader}>
+              <Text style={[S.sheetTitle, { color: colors.foreground, fontFamily: "Inter_700Bold" }]}>My Schedule</Text>
+              <TouchableOpacity onPress={onClose} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                <Feather name="x" size={22} color={colors.mutedForeground} />
+              </TouchableOpacity>
+            </View>
+            <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+              <View style={S.fieldBlock}>
+                <Text style={[S.fieldLabel, { color: colors.mutedForeground, fontFamily: "Inter_500Medium" }]}>Schedule name</Text>
+                <TextInput value={name} onChangeText={setName} placeholder="e.g. Work, School, Part-time"
+                  placeholderTextColor={colors.mutedForeground}
+                  style={[S.textInput, { color: colors.foreground, borderColor: colors.border, backgroundColor: colors.card, fontFamily: "Inter_400Regular" }]} />
+              </View>
+              <View style={S.fieldBlock}>
+                <Text style={[S.fieldLabel, { color: colors.mutedForeground, fontFamily: "Inter_500Medium" }]}>Active days</Text>
+                <View style={[S.dayToggleRow, { marginTop: 6 }]}>
+                  {DAY_LETTERS.map((letter, i) => {
+                    const active = days.includes(i);
+                    return (
+                      <TouchableOpacity key={i} onPress={() => toggleDay(i)}
+                        style={[S.dayTogglePill, { borderColor: active ? colors.primary : colors.border, backgroundColor: active ? colors.primary : colors.card }]}>
+                        <Text style={[S.dayToggleText, { color: active ? colors.primaryForeground : colors.foreground, fontFamily: "Inter_500Medium" }]}>{letter}</Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+              </View>
+              <View style={S.fieldBlock}>
+                <Text style={[S.fieldLabel, { color: colors.mutedForeground, fontFamily: "Inter_500Medium" }]}>Start time</Text>
+                <TimePickerField value={startTime} onChange={setStartTime} colors={colors} />
+              </View>
+              <View style={S.fieldBlock}>
+                <Text style={[S.fieldLabel, { color: colors.mutedForeground, fontFamily: "Inter_500Medium" }]}>End time</Text>
+                <TimePickerField value={endTime} onChange={setEndTime} colors={colors} />
+              </View>
+              <View style={S.fieldBlock}>
+                <Text style={[S.fieldLabel, { color: colors.mutedForeground, fontFamily: "Inter_500Medium" }]}>When does your schedule change next?</Text>
+                <Text style={[{ fontSize: 12, color: colors.mutedForeground, fontFamily: "Inter_400Regular", marginBottom: 4 }]}>
+                  Semester start, new job, shift change, etc. Leave blank if not applicable.
+                </Text>
+                <DatePickerField value={dropDate} onChange={setDropDate} placeholder="Pick a date (optional)" colors={colors} />
+                {dropDate ? (
+                  <TouchableOpacity onPress={() => setDropDate("")} style={{ paddingVertical: 6, alignSelf: "flex-start" }}>
+                    <Text style={{ fontSize: 12, color: colors.mutedForeground, fontFamily: "Inter_400Regular" }}>Clear date</Text>
+                  </TouchableOpacity>
+                ) : null}
+              </View>
+              <TouchableOpacity style={[S.saveBtn, { backgroundColor: colors.primary, opacity: saving ? 0.7 : 1 }]} onPress={handleSave} disabled={saving}>
+                {saving ? <ActivityIndicator color={colors.primaryForeground} size="small" /> : null}
+                <Text style={[S.saveBtnText, { color: colors.primaryForeground, fontFamily: "Inter_600SemiBold" }]}>
+                  {saving ? "Saving…" : "Save schedule"}
+                </Text>
+              </TouchableOpacity>
+            </ScrollView>
+          </View>
+        </View>
+      </KeyboardAvoidingView>
+    </Modal>
+  );
+}
+
+// ─── My Schedule Card ─────────────────────────────────────────────────────────
+
+function MyScheduleCard({
+  schedule, onEdit, colors,
+}: {
+  schedule: WorkSchedule | null; onEdit: () => void; colors: Colors;
+}) {
+  const daysUntilDrop = useMemo(() => {
+    if (!schedule?.dropDate) return null;
+    const drop = new Date(schedule.dropDate + "T00:00:00");
+    const diff = Math.ceil((drop.getTime() - Date.now()) / 86400000);
+    return diff;
+  }, [schedule?.dropDate]);
+
+  const showWarning = daysUntilDrop !== null && daysUntilDrop >= 0 && daysUntilDrop <= 7;
+
+  return (
+    <View style={[schedStyles.card, { backgroundColor: colors.card, borderColor: colors.border, marginHorizontal: 16, marginBottom: 16 }]}>
+      <View style={schedStyles.cardHeader}>
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+          <Feather name="briefcase" size={14} color={colors.primary} />
+          <Text style={[schedStyles.cardTitle, { color: colors.foreground, fontFamily: "Inter_600SemiBold" }]}>
+            {schedule ? schedule.name : "My Schedule"}
+          </Text>
+        </View>
+        <TouchableOpacity onPress={onEdit} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+          <Feather name="edit-2" size={15} color={colors.mutedForeground} />
+        </TouchableOpacity>
+      </View>
+
+      {schedule ? (
+        <View style={{ gap: 8 }}>
+          <View style={schedStyles.dayPillsRow}>
+            {DAY_LETTERS.map((letter, i) => {
+              const active = schedule.days.includes(i);
+              return (
+                <View key={i} style={[schedStyles.dayPill, { backgroundColor: active ? colors.primary : colors.muted, borderColor: active ? colors.primary : colors.border }]}>
+                  <Text style={[schedStyles.dayPillText, { color: active ? colors.primaryForeground : colors.mutedForeground, fontFamily: active ? "Inter_600SemiBold" : "Inter_400Regular" }]}>
+                    {letter}
+                  </Text>
+                </View>
+              );
+            })}
+          </View>
+          {(schedule.startTime || schedule.endTime) ? (
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+              <Feather name="clock" size={13} color={colors.mutedForeground} />
+              <Text style={[schedStyles.metaText, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
+                {schedule.startTime}{schedule.endTime ? ` — ${schedule.endTime}` : ""}
+              </Text>
+            </View>
+          ) : null}
+          {schedule.dropDate ? (
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+              <Feather name="bell" size={13} color={showWarning ? "#C49040" : colors.mutedForeground} />
+              <Text style={[schedStyles.metaText, { color: showWarning ? "#C49040" : colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
+                Schedule changes {formatEventDate(schedule.dropDate)}
+              </Text>
+            </View>
+          ) : null}
+          {showWarning ? (
+            <View style={[schedStyles.warningRow, { backgroundColor: "#C4904018", borderColor: "#C4904040" }]}>
+              <Feather name="alert-triangle" size={13} color="#C49040" />
+              <Text style={[schedStyles.warningText, { color: "#C49040", fontFamily: "Inter_500Medium" }]}>
+                {daysUntilDrop === 0
+                  ? "Schedule changes today"
+                  : `Schedule changing in ${daysUntilDrop} day${daysUntilDrop === 1 ? "" : "s"}`}
+              </Text>
+            </View>
+          ) : null}
+        </View>
+      ) : (
+        <TouchableOpacity onPress={onEdit} activeOpacity={0.7}>
+          <Text style={[schedStyles.metaText, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
+            Tap the edit icon to set up your work or school schedule
+          </Text>
+        </TouchableOpacity>
+      )}
+    </View>
   );
 }
 
@@ -902,8 +1413,14 @@ export default function CalendarScreen() {
   const [showDayDetail, setShowDayDetail] = useState(false);
 
   // Add event modal
+  const [showEventTypePicker, setShowEventTypePicker] = useState(false);
   const [showAddEvent, setShowAddEvent] = useState(false);
+  const [showRecurringEvent, setShowRecurringEvent] = useState(false);
   const [addEventDate, setAddEventDate] = useState("");
+
+  // Work/school schedule
+  const [schedule, setSchedule] = useState<WorkSchedule | null>(null);
+  const [showScheduleSetup, setShowScheduleSetup] = useState(false);
 
   // Routines
   const [routines, setRoutines] = useState<Routine[]>([]);
@@ -928,6 +1445,9 @@ export default function CalendarScreen() {
     setRoutines([]);
     AsyncStorage.getItem(ROUTINES_KEY_FOR(userId))
       .then((val) => { if (val) setRoutines(JSON.parse(val)); })
+      .catch(() => {});
+    AsyncStorage.getItem(SCHEDULE_KEY_FOR(userId))
+      .then((val) => { if (val) setSchedule(JSON.parse(val)); })
       .catch(() => {});
   }, [userId]);
 
@@ -1076,6 +1596,22 @@ export default function CalendarScreen() {
     ? `${MONTH_NAMES[viewMonth]} ${viewYear}`
     : formatWeekLabel(weekStart);
 
+  async function handleSaveSchedule(s: WorkSchedule) {
+    setSchedule(s);
+    if (userId) {
+      await AsyncStorage.setItem(SCHEDULE_KEY_FOR(userId), JSON.stringify(s)).catch(() => {});
+    }
+    const dates = getNextTwelveWeeksDates(s.days);
+    const timeNote = s.startTime && s.endTime ? `${s.startTime} — ${s.endTime}` : "";
+    await Promise.all(
+      dates.map((date) =>
+        createEvent({ data: { title: s.name, date, type: "work", notes: timeNote || null } }).catch(() => {})
+      )
+    );
+    refetch();
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+  }
+
   const handleAddHabit = async (routineId: string | null) => {
     if (!newHabitName.trim()) return;
     await createHabitMutation.mutateAsync({ data: { name: newHabitName.trim(), routineId: routineId ?? undefined } });
@@ -1107,10 +1643,13 @@ export default function CalendarScreen() {
         {/* ── Header ─────────────────────────────────────────────────────── */}
         <View style={styles.header}>
           <Text style={[styles.title, { color: colors.foreground, fontFamily: "Inter_700Bold" }]}>Calendar</Text>
-          <TouchableOpacity style={[styles.addBtn, { backgroundColor: colors.primary }]} onPress={() => { setAddEventDate(""); setShowAddEvent(true); }}>
+          <TouchableOpacity style={[styles.addBtn, { backgroundColor: colors.primary }]} onPress={() => { setAddEventDate(""); setShowEventTypePicker(true); }}>
             <Feather name="plus" size={18} color={colors.primaryForeground} />
           </TouchableOpacity>
         </View>
+
+        {/* ── My Schedule ──────────────────────────────────────────────────── */}
+        <MyScheduleCard schedule={schedule} onEdit={() => setShowScheduleSetup(true)} colors={colors} />
 
         {/* ── View mode toggle ────────────────────────────────────────────── */}
         <View style={styles.viewToggleRow}>
@@ -1331,12 +1870,35 @@ export default function CalendarScreen() {
         </View>
       </ScrollView>
 
+      <EventTypePickerModal
+        visible={showEventTypePicker}
+        onClose={() => setShowEventTypePicker(false)}
+        onOneTime={() => { setShowEventTypePicker(false); setTimeout(() => setShowAddEvent(true), 250); }}
+        onRecurring={() => { setShowEventTypePicker(false); setTimeout(() => setShowRecurringEvent(true), 250); }}
+        colors={colors}
+      />
+
       <AddEventModal
         visible={showAddEvent}
         onClose={() => setShowAddEvent(false)}
         onCreated={() => refetch()}
         colors={colors}
         prefilledDate={addEventDate}
+      />
+
+      <RecurringEventModal
+        visible={showRecurringEvent}
+        onClose={() => setShowRecurringEvent(false)}
+        onCreated={() => refetch()}
+        colors={colors}
+      />
+
+      <ScheduleSetupModal
+        visible={showScheduleSetup}
+        onClose={() => setShowScheduleSetup(false)}
+        existing={schedule}
+        onSave={handleSaveSchedule}
+        colors={colors}
       />
 
       <DayDetailSheet
@@ -1401,6 +1963,34 @@ const S = StyleSheet.create({
   activityRemoveBtn: { padding: 4 },
   addActivityBtn: { flexDirection: "row", alignItems: "center", gap: 6, borderWidth: 1, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, borderStyle: "dashed", alignSelf: "flex-start" },
   addActivityText: { fontSize: 14 },
+});
+
+// ─── Event type / recurrence styles ──────────────────────────────────────────
+
+const evStyles = StyleSheet.create({
+  typeCard: { flexDirection: "row", alignItems: "center", borderRadius: 14, borderWidth: 1, padding: 16, gap: 14 },
+  typeCardIcon: { width: 46, height: 46, borderRadius: 12, justifyContent: "center", alignItems: "center" },
+  typeCardTitle: { fontSize: 15, marginBottom: 2 },
+  typeCardDesc: { fontSize: 13 },
+  recurrenceRow: { flexDirection: "row", alignItems: "center", borderRadius: 10, borderWidth: 1, paddingHorizontal: 14, paddingVertical: 12, gap: 12 },
+  recurrenceRadio: { width: 18, height: 18, borderRadius: 9, borderWidth: 2, justifyContent: "center", alignItems: "center" },
+  recurrenceRadioInner: { width: 8, height: 8, borderRadius: 4 },
+  recurrenceLabel: { fontSize: 14 },
+  toggleRow: { flexDirection: "row", alignItems: "center", gap: 10, borderWidth: 1, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, marginBottom: 6 },
+});
+
+// ─── Schedule card styles ─────────────────────────────────────────────────────
+
+const schedStyles = StyleSheet.create({
+  card: { borderRadius: 14, borderWidth: 1, padding: 14, gap: 10 },
+  cardHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+  cardTitle: { fontSize: 15 },
+  dayPillsRow: { flexDirection: "row", gap: 5 },
+  dayPill: { width: 30, height: 30, borderRadius: 15, borderWidth: 1, justifyContent: "center", alignItems: "center" },
+  dayPillText: { fontSize: 11 },
+  metaText: { fontSize: 13 },
+  warningRow: { flexDirection: "row", alignItems: "center", gap: 7, borderRadius: 8, borderWidth: 1, paddingHorizontal: 10, paddingVertical: 8 },
+  warningText: { fontSize: 13, flex: 1 },
 });
 
 // ─── Habit styles ─────────────────────────────────────────────────────────────
