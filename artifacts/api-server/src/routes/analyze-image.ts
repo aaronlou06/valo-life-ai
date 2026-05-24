@@ -76,7 +76,7 @@ router.post("/analyze-image", requireAuth, async (req, res): Promise<void> => {
   let message: Awaited<ReturnType<typeof anthropic.messages.create>>;
   try {
     message = await anthropic.messages.create({
-      model: "claude-sonnet-4-20250514",
+      model: "claude-haiku-4-5",
       max_tokens: 1024,
       messages: [
         {

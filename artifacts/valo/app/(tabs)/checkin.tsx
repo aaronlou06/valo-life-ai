@@ -1893,6 +1893,7 @@ export default function CheckInScreen() {
     try {
       await createMood.mutateAsync({ data: { score, note: note.trim() || null } });
       await queryClient.invalidateQueries({ queryKey: getListMoodsQueryKey() });
+      void refetchDashboard();
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       doLogSavedAnimations();
       setActiveModal(null);
@@ -1908,6 +1909,7 @@ export default function CheckInScreen() {
     try {
       await createMood.mutateAsync({ data: { score, note: "energy" } });
       await queryClient.invalidateQueries({ queryKey: getListMoodsQueryKey() });
+      void refetchDashboard();
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       doLogSavedAnimations();
       setActiveModal(null);
