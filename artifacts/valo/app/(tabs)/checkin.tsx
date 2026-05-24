@@ -15,6 +15,7 @@ import {
   Modal,
   KeyboardAvoidingView,
   PanResponder,
+  Image,
 } from "react-native";
 import { useSafeAreaInsets, SafeAreaView } from "react-native-safe-area-context";
 import { Feather } from "@expo/vector-icons";
@@ -929,12 +930,14 @@ const UPLOAD_CARDS: { type: UploadType; icon: string; title: string; subtitle: s
 
 function SmartUploadCard({
   card,
-  analyzing,
+  saving,
+  thumbnailUri,
   colors,
   onPress,
 }: {
   card: (typeof UPLOAD_CARDS)[number];
-  analyzing: boolean;
+  saving: boolean;
+  thumbnailUri?: string;
   colors: Colors;
   onPress: () => void;
 }) {
@@ -943,20 +946,26 @@ function SmartUploadCard({
       style={[styles.uploadCard, { backgroundColor: colors.card, borderColor: colors.border }]}
       onPress={onPress}
       activeOpacity={0.75}
-      disabled={analyzing}
+      disabled={saving}
     >
-      {analyzing ? (
+      {saving ? (
         <ActivityIndicator color={colors.primary} style={{ marginBottom: 8 }} />
+      ) : thumbnailUri ? (
+        <Image
+          source={{ uri: thumbnailUri }}
+          style={{ width: 44, height: 44, borderRadius: 8, marginBottom: 2 }}
+          resizeMode="cover"
+        />
       ) : (
         <View style={[styles.uploadIconWrap, { backgroundColor: colors.muted }]}>
           <Feather name={card.icon as any} size={20} color={colors.primary} />
         </View>
       )}
       <Text style={[styles.uploadTitle, { color: colors.foreground, fontFamily: "Inter_600SemiBold" }]}>
-        {analyzing ? "Analyzing..." : card.title}
+        {saving ? "Saving..." : card.title}
       </Text>
       <Text style={[styles.uploadSubtitle, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
-        {card.subtitle}
+        {thumbnailUri ? "Tap to update" : card.subtitle}
       </Text>
     </TouchableOpacity>
   );
@@ -1632,8 +1641,10 @@ export default function CheckInScreen() {
   const [modalScrollEnabled, setModalScrollEnabled] = useState(true);
   const modalSaveFnRef = useRef<(() => void) | null>(null);
   // ── Smart upload state ──────────────────────────────────────────────────────
-  const [analyzingType, setAnalyzingType] = useState<UploadType | null>(null);
-  const [analysisResult, setAnalysisResult] = useState<{ type: UploadType; data: Record<string, unknown> } | null>(null);
+  const [todayMood, setTodayMood] = useState<number | null>(null);
+  const [todayEnergy, setTodayEnergy] = useState<number | null>(null);
+  const [savingUpload, setSavingUpload] = useState<UploadType | null>(null);
+  const [uploadedPhotos, setUploadedPhotos] = useState<Partial<Record<UploadType, string>>>({});
 
   // ── Voice call state ────────────────────────────────────────────────────────
   const [callCompletedToday, setCallCompletedToday] = useState(false);
@@ -1671,8 +1682,8 @@ export default function CheckInScreen() {
   const latestEnergy = todayMoods.filter((m) => (m as any).note === "energy").at(-1);
 
   const quickLogValues: Record<QuickLogType, string> = {
-    mood:    latestMood    ? `${(latestMood as any).score}/10` : "—",
-    energy:  latestEnergy  ? `${(latestEnergy as any).score}/10` : "—",
+    mood:    todayMood    != null ? `${todayMood}/10`    : latestMood    ? `${(latestMood as any).score}/10`    : "—",
+    energy:  todayEnergy  != null ? `${todayEnergy}/10`  : latestEnergy  ? `${(latestEnergy as any).score}/10`  : "—",
     workout: (todayLog as any)?.workoutType || "Not logged",
     sleep:   (todayLog as any)?.sleepHours != null ? `${(todayLog as any).sleepHours}h` : "—",
     habits:  habitsTotal > 0 ? `${habitsCompleted}/${habitsTotal}` : "—",
@@ -1701,6 +1712,23 @@ export default function CheckInScreen() {
     setModalCanSave(false);
     modalSaveFnRef.current = null;
   }, [activeModal]);
+
+  // Load today's uploaded photos from AsyncStorage
+  useEffect(() => {
+    if (!safeUserId) return;
+    const key = `@valo/uploads-${safeUserId}-${todayISO}`;
+    AsyncStorage.getItem(key).then((raw) => {
+      if (!raw) return;
+      try {
+        const stored = JSON.parse(raw) as Record<string, { uri: string; timestamp: string }>;
+        const photos: Partial<Record<UploadType, string>> = {};
+        for (const [type, val] of Object.entries(stored)) {
+          photos[type as UploadType] = val.uri;
+        }
+        setUploadedPhotos(photos);
+      } catch {}
+    });
+  }, [safeUserId, todayISO]);
 
   // Load guided config
   useEffect(() => {
@@ -1892,6 +1920,7 @@ export default function CheckInScreen() {
     setIsSavingLog(true);
     try {
       await createMood.mutateAsync({ data: { score, note: note.trim() || null } });
+      setTodayMood(score);
       await queryClient.invalidateQueries({ queryKey: getListMoodsQueryKey() });
       void refetchDashboard();
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -1908,6 +1937,7 @@ export default function CheckInScreen() {
     setIsSavingLog(true);
     try {
       await createMood.mutateAsync({ data: { score, note: "energy" } });
+      setTodayEnergy(score);
       await queryClient.invalidateQueries({ queryKey: getListMoodsQueryKey() });
       void refetchDashboard();
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -1964,65 +1994,33 @@ export default function CheckInScreen() {
 
   // Smart upload handlers
   function handleSmartUpload(type: UploadType) {
-    if (type === "screentime") {
-      Alert.alert(
-        "Screen Time",
-        "Which type of report are you uploading?",
-        [
-          { text: "Daily report", onPress: () => void doPickAndAnalyze("screentime", "daily") },
-          { text: "Weekly report", onPress: () => void doPickAndAnalyze("screentime", "weekly") },
-          { text: "Cancel", style: "cancel" },
-        ],
-      );
-      return;
-    }
-    void doPickAndAnalyze(type);
+    void doPickAndSave(type);
   }
 
-  async function doPickAndAnalyze(type: UploadType, subtype?: string) {
+  async function doPickAndSave(type: UploadType) {
     const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (!perm.granted) {
       Alert.alert("Permission required", "Please allow access to your photo library.");
       return;
     }
-    const isScreentime = type === "screentime";
-    const picked = await ImagePicker.launchImageLibraryAsync({
-      quality: isScreentime ? 0.1 : 0.3,
-      base64: true,
-    });
-    if (picked.canceled || !picked.assets[0]?.base64) return;
+    const picked = await ImagePicker.launchImageLibraryAsync({ quality: 0.7 });
+    if (picked.canceled || !picked.assets[0]) return;
 
-    const asset = picked.assets[0];
-    const rawBase64 = asset.base64 ?? "";
-    const cap = isScreentime ? 400_000 : 800_000;
-    const base64 = rawBase64.length > cap ? rawBase64.substring(0, cap) : rawBase64;
-    const mediaType = asset.mimeType ?? "image/jpeg";
-    setAnalyzingType(type);
+    const uri = picked.assets[0].uri;
+    setSavingUpload(type);
     try {
-      const token = await getToken();
-      const resp = await fetch(`${getApiBase()}/api/analyze-image`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
-        body: JSON.stringify({ image: base64, type, mediaType, ...(subtype ? { subtype } : {}) }),
-      });
-      if (!resp.ok) {
-        if (resp.status === 413) {
-          throw new Error(
-            "Screenshot too large. Please crop just the top portion of your Screen Time report and try again.",
-          );
-        }
-        const errData = await resp.json().catch(() => ({})) as { error?: string; detail?: string };
-        throw new Error(errData.detail ?? errData.error ?? `HTTP ${resp.status}`);
-      }
-      const json = (await resp.json()) as { type: UploadType; data: Record<string, unknown> };
-      setAnalysisResult(json);
-    } catch (err) {
-      Alert.alert("Analysis failed", err instanceof Error ? err.message : "Please try again.");
+      const key = `@valo/uploads-${safeUserId}-${todayISO}`;
+      const existing = await AsyncStorage.getItem(key);
+      const stored: Record<string, { uri: string; timestamp: string }> =
+        existing ? (JSON.parse(existing) as Record<string, { uri: string; timestamp: string }>) : {};
+      stored[type] = { uri, timestamp: new Date().toISOString() };
+      await AsyncStorage.setItem(key, JSON.stringify(stored));
+      setUploadedPhotos((prev) => ({ ...prev, [type]: uri }));
+      Alert.alert("Photo saved", "Valo will reference this in your check-ins.");
+    } catch {
+      Alert.alert("Could not save photo", "Please try again.");
     } finally {
-      setAnalyzingType(null);
+      setSavingUpload(null);
     }
   }
 
@@ -2470,24 +2468,21 @@ export default function CheckInScreen() {
         <Text style={[styles.sectionLabel, { color: colors.mutedForeground, fontFamily: "Inter_500Medium" }]}>
           SMART UPLOAD
         </Text>
-        {analysisResult && (
-          <AnalysisResultCard
-            result={analysisResult}
-            colors={colors}
-            onDismiss={() => setAnalysisResult(null)}
-          />
-        )}
         <View style={styles.uploadGrid}>
           {UPLOAD_CARDS.map((card) => (
             <SmartUploadCard
               key={card.type}
               card={card}
-              analyzing={analyzingType === card.type}
+              saving={savingUpload === card.type}
+              thumbnailUri={uploadedPhotos[card.type]}
               colors={colors}
               onPress={() => handleSmartUpload(card.type)}
             />
           ))}
         </View>
+        <Text style={{ color: colors.mutedForeground, fontFamily: "Inter_400Regular", fontSize: 12, textAlign: "center" }}>
+          AI analysis coming soon
+        </Text>
       </View>
 
       {/* ── Section 4: Full check-in (collapsible guided) ─────────────────── */}
