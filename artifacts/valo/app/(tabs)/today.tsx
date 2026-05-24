@@ -112,6 +112,36 @@ function formatSleepSummary(sleep?: number | null, hrv?: number | null): string 
   return `You slept ${sleepStr} last night. HRV ${hrv} — ${comp}.`;
 }
 
+function getValoSuggestion(
+  tomorrowEvents: { id: number; title: string; type?: string | null }[],
+  urgentGoals: GoalItem[],
+  habits: HabitItem[] | undefined,
+): string {
+  if (tomorrowEvents.length >= 4) {
+    return "Heavy day tomorrow — protect your morning focus time";
+  }
+  const hasWorkBlock = tomorrowEvents.some(
+    (e) => e.type?.toLowerCase().includes("work") || e.title.toLowerCase().includes("work"),
+  );
+  if (hasWorkBlock) {
+    const n = tomorrowEvents.length;
+    return `Work day tomorrow — ${n} ${n === 1 ? "event" : "events"} scheduled`;
+  }
+  const closestGoal = urgentGoals
+    .filter((g) => g.targetDate != null && daysUntil(g.targetDate) >= 0 && daysUntil(g.targetDate) <= 3)
+    .sort((a, b) => daysUntil(a.targetDate!) - daysUntil(b.targetDate!))[0];
+  if (closestGoal) {
+    const days = daysUntil(closestGoal.targetDate!);
+    const dayLabel = days === 0 ? "today" : days === 1 ? "1 day left" : `${days} days left`;
+    return `${closestGoal.title} deadline is approaching — ${dayLabel}`;
+  }
+  const missedHabit = habits?.find((h) => !h.completedToday && h.streak === 0);
+  if (missedHabit) {
+    return `Get back on track with ${missedHabit.name} tomorrow`;
+  }
+  return "What would make tomorrow a win?";
+}
+
 function getFocusSentence(
   goals: GoalItem[] | undefined,
   habits: HabitItem[] | undefined,
@@ -668,6 +698,7 @@ function MoodArc({
 function TomorrowPrep({
   tomorrowEvents,
   urgentGoals,
+  habits,
   intention,
   intentionSaved,
   prominent,
@@ -678,6 +709,7 @@ function TomorrowPrep({
 }: {
   tomorrowEvents: { id: number; title: string; type?: string | null }[];
   urgentGoals: GoalItem[];
+  habits: HabitItem[] | undefined;
   intention: string;
   intentionSaved: boolean;
   prominent: boolean;
@@ -777,10 +809,19 @@ function TomorrowPrep({
 
         {/* Intention */}
         <View style={styles.tomorrowSection}>
-          <View style={styles.tomorrowSubHeader}>
+          <Text style={[styles.valoSuggestLabel, { color: colors.mutedForeground, fontFamily: "Inter_500Medium" }]}>
+            VALO SUGGESTS
+          </Text>
+          <View style={[styles.valoSuggestCard, { backgroundColor: colors.muted, borderColor: colors.border }]}>
+            <Feather name="zap" size={12} color={colors.primary} style={{ marginTop: 1 }} />
+            <Text style={[styles.valoSuggestText, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
+              {getValoSuggestion(tomorrowEvents, urgentGoals, habits)}
+            </Text>
+          </View>
+          <View style={[styles.tomorrowSubHeader, { marginTop: 4 }]}>
             <Feather name="edit-3" size={12} color={colors.mutedForeground} />
             <Text style={[styles.tomorrowSubLabel, { color: colors.mutedForeground, fontFamily: "Inter_500Medium" }]}>
-              Intention
+              Add your own note
             </Text>
             {intentionSaved && (
               <Text style={[styles.savedTag, { color: colors.primary, fontFamily: "Inter_400Regular" }]}>
@@ -792,9 +833,9 @@ function TomorrowPrep({
             value={intention}
             onChangeText={onIntentionChange}
             onBlur={onIntentionBlur}
-            placeholder="Set your intention for tomorrow..."
+            placeholder="Optional"
             placeholderTextColor={colors.mutedForeground}
-            multiline
+            returnKeyType="done"
             style={[
               styles.intentionInput,
               {
@@ -865,7 +906,7 @@ export default function TodayScreen() {
   const tabBarH = Platform.OS === "web" ? 84 : 83;
 
   useEffect(() => {
-    AsyncStorage.getItem(INTENTION_KEY)
+    AsyncStorage.getItem(`@valo/tomorrow-note-${tomorrowISO}`)
       .then((v) => { if (v) setIntention(v); })
       .catch(() => {});
     void loadCallTime();
@@ -887,7 +928,7 @@ export default function TodayScreen() {
 
   async function handleIntentionBlur() {
     try {
-      await AsyncStorage.setItem(INTENTION_KEY, intention);
+      await AsyncStorage.setItem(`@valo/tomorrow-note-${tomorrowISO}`, intention);
       setIntentionSaved(true);
       setTimeout(() => setIntentionSaved(false), 2000);
     } catch {}
@@ -1031,6 +1072,7 @@ export default function TodayScreen() {
           <TomorrowPrep
             tomorrowEvents={tomorrowEvents}
             urgentGoals={urgentGoals}
+            habits={habits as HabitItem[] | undefined}
             intention={intention}
             intentionSaved={intentionSaved}
             prominent={false}
@@ -1084,6 +1126,7 @@ export default function TodayScreen() {
           <TomorrowPrep
             tomorrowEvents={tomorrowEvents}
             urgentGoals={urgentGoals}
+            habits={habits as HabitItem[] | undefined}
             intention={intention}
             intentionSaved={intentionSaved}
             prominent
@@ -1302,14 +1345,23 @@ const styles = StyleSheet.create({
   tomorrowEventRow: { flexDirection: "row", alignItems: "center", gap: 9 },
   tomorrowEventText: { fontSize: 14, flex: 1 },
   daysTag: { fontSize: 12 },
+  valoSuggestLabel: { fontSize: 10, letterSpacing: 0.6 },
+  valoSuggestCard: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 8,
+    borderWidth: 1,
+    borderRadius: 10,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+  },
+  valoSuggestText: { fontSize: 13, fontStyle: "italic", flex: 1, lineHeight: 18 },
   intentionInput: {
     borderWidth: 1,
     borderRadius: 10,
     padding: 12,
     fontSize: 14,
     lineHeight: 20,
-    minHeight: 68,
-    textAlignVertical: "top",
   },
   savedTag: { fontSize: 12 },
   planBtn: {
