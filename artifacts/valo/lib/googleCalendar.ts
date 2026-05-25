@@ -5,7 +5,7 @@ import * as SecureStore from "expo-secure-store";
 // the app binary. Until the next EAS build includes them, the connect flow is
 // stubbed so the module loads safely in the current binary.
 
-const TOKEN_KEY = "@valo/google-calendar-token";
+const TOKEN_KEY = "valo.google.calendar.token";
 
 function getApiBase(): string {
   const domain = process.env.EXPO_PUBLIC_DOMAIN;
