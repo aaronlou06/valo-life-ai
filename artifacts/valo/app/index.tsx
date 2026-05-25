@@ -2,7 +2,7 @@ import { useValoAuth } from "@/contexts/AuthContext";
 import { Redirect } from "expo-router";
 import { View, ActivityIndicator } from "react-native";
 import { useEffect, useState } from "react";
-import { isOnboardingComplete, markOnboardingComplete } from "@/hooks/onboardingState";
+import { isOnboardingComplete, markOnboardingComplete, loadOnboardingState } from "@/hooks/onboardingState";
 
 function getApiBase(): string {
   const domain = process.env.EXPO_PUBLIC_DOMAIN;
@@ -26,6 +26,15 @@ export default function Index() {
     let cancelled = false;
     (async () => {
       try {
+        // AsyncStorage check first — survives hot reloads without a network round-trip.
+        // This is the primary guard against onboarding restarting after a code reload
+        // when the API call in finishOnboarding may have failed silently.
+        const cachedComplete = await loadOnboardingState();
+        if (cachedComplete) {
+          if (!cancelled) setStatus("done");
+          return;
+        }
+
         const token = await getToken();
         const res = await fetch(`${getApiBase()}/api/settings`, {
           headers: token ? { Authorization: `Bearer ${token}` } : {},

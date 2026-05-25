@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from "react";
-import { Alert, AppState, AppStateStatus, Platform } from "react-native";
+import { AppState, AppStateStatus, Platform } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useValoAuth } from "@/contexts/AuthContext";
 import {
@@ -28,6 +28,9 @@ export function useHealthKitSync(): HealthKitSyncState {
   const [lastSynced, setLastSynced] = useState<Date | null>(null);
   const [isPermissionsGranted, setIsPermissionsGranted] = useState(false);
 
+  // Ref-based guard so syncNow doesn't need isSyncing in its deps.
+  // Without this, every isSyncing state flip recreates syncNow, which in turn
+  // restarts the AppState subscription on every sync cycle.
   const isSyncingRef = useRef(false);
   const appState = useRef<AppStateStatus>(AppState.currentState);
 
@@ -35,18 +38,18 @@ export function useHealthKitSync(): HealthKitSyncState {
     if (Platform.OS !== "ios") return;
     if (isSyncingRef.current) return;
 
-    Alert.alert("Sync", "Starting health sync...");
+    console.log("[HealthKit] syncNow called");
 
     isSyncingRef.current = true;
     setIsSyncing(true);
     try {
       const granted = await requestHealthKitPermissions();
-      Alert.alert("Sync", "Permissions: " + String(granted));
+      console.log("[HealthKit] permissions:", granted);
       if (!granted) return;
       setIsPermissionsGranted(true);
 
       const data = await fetchTodayHealthData();
-      Alert.alert("Sync", "Data: " + JSON.stringify(data));
+      console.log("[HealthKit] data:", JSON.stringify(data));
 
       const hasData =
         data.sleepHours !== null ||
@@ -54,10 +57,13 @@ export function useHealthKitSync(): HealthKitSyncState {
         data.restingHeartRate !== null ||
         data.steps !== null;
 
-      if (!hasData) return;
+      if (!hasData) {
+        console.log("[HealthKit] no data to sync");
+        return;
+      }
 
       const token = await getToken();
-      Alert.alert("Token", token ? "has token" : "NO TOKEN");
+      console.log("[HealthKit] token:", token ? "present" : "missing");
       if (!token) return;
 
       const body: Record<string, number> = {};
@@ -74,14 +80,13 @@ export function useHealthKitSync(): HealthKitSyncState {
         },
         body: JSON.stringify(body),
       });
-      Alert.alert("Sync", "Saved to API: " + String(res.status));
+      console.log("[HealthKit] POST /api/daily-logs:", res.status);
 
       const now = new Date();
       setLastSynced(now);
       await AsyncStorage.setItem(LAST_SYNCED_KEY, now.toISOString());
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : String(err);
-      Alert.alert("Sync Error", msg);
+      console.log("[HealthKit] sync error:", err instanceof Error ? err.message : String(err));
     } finally {
       isSyncingRef.current = false;
       setIsSyncing(false);

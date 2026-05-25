@@ -98,7 +98,7 @@ export async function fetchRestingHeartRate(): Promise<number | null> {
   if (!AppleHealthKit) return null;
   return new Promise((resolve) => {
     const options = { date: new Date().toISOString() };
-    AppleHealthKit.getLatestRestingHeartRate(options, (err: any, result: any) => {
+    AppleHealthKit.getRestingHeartRate(options, (err: any, result: any) => {
       if (err) { resolve(null); return; }
       resolve(result?.value ?? null);
     });
