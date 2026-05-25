@@ -21,24 +21,44 @@ import { markOnboardingComplete } from "@/hooks/onboardingState";
 import Step1Identity from "@/components/onboarding/Step1Identity";
 import StepVoiceCall from "@/components/onboarding/StepVoiceCall";
 import StepConnect from "@/components/onboarding/StepConnect";
+import StepPriorities from "@/components/onboarding/StepPriorities";
+import StepWants from "@/components/onboarding/StepWants";
+import StepMotivation from "@/components/onboarding/StepMotivation";
 
-const TOTAL_STEPS = 3;
+type StepName = "identity" | "voice" | "priorities" | "wants" | "motivation" | "connect";
+
+const VOICE_SEQUENCE: StepName[] = ["identity", "voice", "connect"];
+const TEXT_SEQUENCE: StepName[]  = ["identity", "voice", "priorities", "wants", "motivation", "connect"];
+
+function getProgress(step: StepName, voiceCallCompleted: boolean): { current: number; total: number } {
+  const seq = voiceCallCompleted ? VOICE_SEQUENCE : TEXT_SEQUENCE;
+  const idx = seq.indexOf(step);
+  return { current: idx === -1 ? 1 : idx + 1, total: seq.length };
+}
 
 function getApiBase(): string {
   const domain = process.env.EXPO_PUBLIC_DOMAIN;
   return domain ? `https://${domain}` : "";
 }
 
-function ProgressBar({ step, total, colors }: { step: number; total: number; colors: any }) {
-  const progress = useRef(new Animated.Value(step / total)).current;
+function ProgressBar({
+  current,
+  total,
+  colors,
+}: {
+  current: number;
+  total: number;
+  colors: any;
+}) {
+  const progress = useRef(new Animated.Value(current / total)).current;
 
   React.useEffect(() => {
     Animated.timing(progress, {
-      toValue: step / total,
+      toValue: current / total,
       duration: 400,
       useNativeDriver: false,
     }).start();
-  }, [step, total]);
+  }, [current, total]);
 
   return (
     <View style={[styles.progressTrack, { backgroundColor: colors.muted }]}>
@@ -61,7 +81,8 @@ export default function OnboardingScreen() {
   const router = useRouter();
   const { getToken, updateName } = useValoAuth();
 
-  const [step, setStep] = useState(1);
+  const [step, setStep] = useState<StepName>("identity");
+  const [voiceCallCompleted, setVoiceCallCompleted] = useState(false);
   const [saving, setSaving] = useState(false);
   const [allData, setAllData] = useState<Record<string, any>>({});
 
@@ -124,26 +145,25 @@ export default function OnboardingScreen() {
     router.replace("/(tabs)/today");
   }, [patchOnboarding, router]);
 
+  // Used by Step1Identity's parent Continue button
   const handleNext = useCallback(async () => {
     if (!currentValid || saving) return;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     setSaving(true);
-
     const { data } = currentDataRef.current;
-
     try {
       await patchOnboarding(data);
       if (data.name) updateName(data.name);
       setAllData((prev) => ({ ...prev, ...data }));
       animateTransition(() => {
-        setStep((s) => s + 1);
+        setStep("voice");
         setCurrentValid(false);
       });
     } catch {
       if (data.name) updateName(data.name);
       setAllData((prev) => ({ ...prev, ...data }));
       animateTransition(() => {
-        setStep((s) => s + 1);
+        setStep("voice");
         setCurrentValid(false);
       });
     } finally {
@@ -151,29 +171,66 @@ export default function OnboardingScreen() {
     }
   }, [currentValid, saving, patchOnboarding, animateTransition, updateName]);
 
-  const handleBack = useCallback(() => {
-    if (step === 1 || step === 2 || saving) return;
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+  // Voice call completed — go straight to connect
+  const handleVoiceCallComplete = useCallback(() => {
+    setVoiceCallCompleted(true);
     animateTransition(() => {
-      setStep((s) => s - 1);
-      setCurrentValid(false);
-    });
-  }, [step, saving, animateTransition]);
-
-  const advanceToStep3 = useCallback(() => {
-    animateTransition(() => {
-      setStep(3);
+      setStep("connect");
       setCurrentValid(false);
     });
   }, [animateTransition]);
 
+  // Voice call skipped — go to text onboarding
+  const handleSkipVoiceCall = useCallback(() => {
+    animateTransition(() => {
+      setStep("priorities");
+      setCurrentValid(false);
+    });
+  }, [animateTransition]);
+
+  // Text step continue: save data in background, animate to next step
+  const handleTextStepContinue = useCallback(
+    (data: Record<string, any>, nextStep: StepName) => {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      void patchOnboarding(data).catch(() => {});
+      setAllData((prev) => ({ ...prev, ...data }));
+      animateTransition(() => setStep(nextStep));
+    },
+    [patchOnboarding, animateTransition]
+  );
+
+  const handleTextStepSkip = useCallback(
+    (nextStep: StepName) => {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      animateTransition(() => setStep(nextStep));
+    },
+    [animateTransition]
+  );
+
+  const handleBack = useCallback(() => {
+    if (saving) return;
+    const backMap: Partial<Record<StepName, StepName>> = {
+      wants: "priorities",
+      motivation: "wants",
+    };
+    const target = backMap[step];
+    if (!target) return;
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    animateTransition(() => {
+      setStep(target);
+      setCurrentValid(false);
+    });
+  }, [step, saving, animateTransition]);
+
   const topPad = Platform.OS === "web" ? Math.max(insets.top, 67) : insets.top;
   const bottomPad = insets.bottom;
-  const stepProps = { initialValue: allData, onChange: handleStepChange };
 
-  const showHeader = step !== 2;
-  const showContinueBtn = step === 1;
-  const backDisabled = step !== 3;
+  const showHeader = step !== "voice";
+  const showContinueBtn = step === "identity";
+  const backDisabled = step !== "wants" && step !== "motivation";
+  const { current: progressCurrent, total: progressTotal } = getProgress(step, voiceCallCompleted);
+
+  const stepProps = { initialValue: allData, onChange: handleStepChange };
 
   return (
     <KeyboardAvoidingView
@@ -190,9 +247,9 @@ export default function OnboardingScreen() {
           >
             <Feather name="arrow-left" size={20} color={colors.mutedForeground} />
           </TouchableOpacity>
-          <ProgressBar step={step} total={TOTAL_STEPS} colors={colors} />
+          <ProgressBar current={progressCurrent} total={progressTotal} colors={colors} />
           <Text style={[styles.stepLabel, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
-            {step} of {TOTAL_STEPS}
+            {progressCurrent} of {progressTotal}
           </Text>
         </View>
       )}
@@ -209,14 +266,38 @@ export default function OnboardingScreen() {
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >
-          {step === 1 && <Step1Identity {...stepProps} />}
-          {step === 2 && (
+          {step === "identity" && <Step1Identity {...stepProps} />}
+
+          {step === "voice" && (
             <StepVoiceCall
               {...stepProps}
-              onAdvance={advanceToStep3}
+              onAdvance={handleVoiceCallComplete}
+              onSkip={handleSkipVoiceCall}
             />
           )}
-          {step === 3 && (
+
+          {step === "priorities" && (
+            <StepPriorities
+              onContinue={(data) => handleTextStepContinue(data, "wants")}
+              onSkip={() => handleTextStepSkip("wants")}
+            />
+          )}
+
+          {step === "wants" && (
+            <StepWants
+              onContinue={(data) => handleTextStepContinue(data, "motivation")}
+              onSkip={() => handleTextStepSkip("motivation")}
+            />
+          )}
+
+          {step === "motivation" && (
+            <StepMotivation
+              onContinue={(data) => handleTextStepContinue(data, "connect")}
+              onSkip={() => handleTextStepSkip("connect")}
+            />
+          )}
+
+          {step === "connect" && (
             <StepConnect
               name={allData.name ?? ""}
               onComplete={finishOnboarding}

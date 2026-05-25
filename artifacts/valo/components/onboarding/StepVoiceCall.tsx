@@ -20,9 +20,10 @@ interface Props {
   initialValue: Record<string, any>;
   onChange: (data: Record<string, any>, valid: boolean) => void;
   onAdvance: () => void;
+  onSkip: () => void;
 }
 
-export default function StepVoiceCall({ onAdvance }: Props) {
+export default function StepVoiceCall({ onAdvance, onSkip }: Props) {
   const colors = useColors();
   const { userId, getToken } = useValoAuth();
 
@@ -288,7 +289,7 @@ export default function StepVoiceCall({ onAdvance }: Props) {
           <TouchableOpacity
             onPress={() => {
               Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-              onAdvance();
+              onSkip();
             }}
             style={styles.skipBtn}
             activeOpacity={0.7}

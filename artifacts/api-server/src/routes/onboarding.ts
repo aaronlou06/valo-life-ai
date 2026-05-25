@@ -28,6 +28,7 @@ const ALLOWED_FIELDS = [
   "name",
   "onboardingCompleted",
   "firstCallCompleted",
+  "lifePriorities",
   "userIdentity",
   "userPriorities",
   "userWantsMore",
