@@ -16,6 +16,7 @@ import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { useValoAuth } from "@/contexts/AuthContext";
 import { useColors } from "@/hooks/useColors";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { markOnboardingComplete } from "@/hooks/onboardingState";
 
 import Step1Identity from "@/components/onboarding/Step1Identity";
@@ -141,6 +142,9 @@ export default function OnboardingScreen() {
     } catch {
       // proceed even if network fails
     }
+    // Write to AsyncStorage before navigation so _layout.tsx's check
+    // always finds the flag regardless of whether the API call above succeeded.
+    await AsyncStorage.setItem("@valo/onboarding-complete", "true");
     markOnboardingComplete();
     router.replace("/(tabs)/today");
   }, [patchOnboarding, router]);

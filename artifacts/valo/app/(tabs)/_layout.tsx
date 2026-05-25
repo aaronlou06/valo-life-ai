@@ -11,7 +11,7 @@ import { triggerVoiceStart } from "@/lib/voiceTrigger";
 import { setAuthTokenGetter } from "@workspace/api-client-react";
 import { useColors } from "@/hooks/useColors";
 import { useValoAuth } from "@/contexts/AuthContext";
-import { isOnboardingComplete } from "@/hooks/onboardingState";
+import { isOnboardingComplete, loadOnboardingState } from "@/hooks/onboardingState";
 
 function NativeTabLayout() {
   return (
@@ -155,6 +155,15 @@ export default function TabLayout() {
     let cancelled = false;
     (async () => {
       try {
+        // AsyncStorage first — avoids an API round-trip after hot reloads and
+        // prevents the race where the API check runs before the write from
+        // finishOnboarding lands.
+        const cached = await loadOnboardingState();
+        if (cached) {
+          if (!cancelled) setOnboardingChecked(true);
+          return;
+        }
+
         const token = await getToken();
         const apiBase = process.env.EXPO_PUBLIC_DOMAIN
           ? `https://${process.env.EXPO_PUBLIC_DOMAIN}`
@@ -164,7 +173,10 @@ export default function TabLayout() {
         const res = await fetch(`${apiBase}/api/settings`, { headers });
         if (res.ok && !cancelled) {
           const data = await res.json();
-          setNeedsOnboarding(!data.name);
+          // Check onboardingCompleted, not name — name can be set without
+          // onboarding being finished, and absence of name doesn't mean
+          // onboarding is needed.
+          setNeedsOnboarding(!data.onboardingCompleted);
         }
       } catch {
         // network failure — don't block the user
