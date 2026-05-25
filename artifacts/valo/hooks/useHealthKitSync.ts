@@ -27,12 +27,18 @@ export function useHealthKitSync(): HealthKitSyncState {
   const [isSyncing, setIsSyncing] = useState(false);
   const [lastSynced, setLastSynced] = useState<Date | null>(null);
   const [isPermissionsGranted, setIsPermissionsGranted] = useState(false);
+
+  // Ref-based guard so syncNow doesn't need isSyncing in its deps.
+  // Without this, every isSyncing state flip recreates syncNow, which in turn
+  // restarts the AppState subscription on every sync cycle.
+  const isSyncingRef = useRef(false);
   const appState = useRef<AppStateStatus>(AppState.currentState);
 
   const syncNow = useCallback(async (): Promise<void> => {
     if (Platform.OS !== "ios") return;
-    if (isSyncing) return;
+    if (isSyncingRef.current) return;
 
+    isSyncingRef.current = true;
     setIsSyncing(true);
     try {
       const granted = await requestHealthKitPermissions();
@@ -73,9 +79,10 @@ export function useHealthKitSync(): HealthKitSyncState {
     } catch {
       // silent — never block the UI for a health sync failure
     } finally {
+      isSyncingRef.current = false;
       setIsSyncing(false);
     }
-  }, [getToken, isSyncing]);
+  }, [getToken]); // stable — no isSyncing dep needed
 
   useEffect(() => {
     if (Platform.OS !== "ios") return;
@@ -93,14 +100,14 @@ export function useHealthKitSync(): HealthKitSyncState {
           await AsyncStorage.setItem(PERMISSIONS_KEY, "true");
         }
 
-        await syncNow();
+        if (granted) await syncNow();
       } catch {
         // ignore
       }
     }
 
     void init();
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [syncNow]);
 
   useEffect(() => {
     if (Platform.OS !== "ios") return;

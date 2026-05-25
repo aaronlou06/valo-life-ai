@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import {
   View,
   Text,
@@ -12,7 +12,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useValoAuth } from "@/contexts/AuthContext";
-import { useRouter } from "expo-router";
+import { useRouter, useFocusEffect } from "expo-router";
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -879,12 +879,13 @@ export default function TodayScreen() {
   const { data: calendarEvents } = useListCalendarEvents();
   const { data: moods } = useListMoods();
   const { data: insights } = useListInsights();
-  const { isSyncing: isHealthSyncing } = useHealthKitSync();
+  const { isSyncing: isHealthSyncing, syncNow } = useHealthKitSync();
 
   const [modeOverride, setModeOverride] = useState<"morning" | "evening" | null>(null);
   const [intention, setIntention] = useState("");
   const [intentionSaved, setIntentionSaved] = useState(false);
   const [callTime, setCallTime] = useState<string | null>(null);
+  const wasSyncing = useRef(false);
 
   const hour = new Date().getHours();
   const isMorning = modeOverride != null ? modeOverride === "morning" : hour < 18;
@@ -911,6 +912,22 @@ export default function TodayScreen() {
       .catch(() => {});
     void loadCallTime();
   }, []);
+
+  // Re-sync health data every time the Today tab comes into focus.
+  useFocusEffect(
+    useCallback(() => {
+      void syncNow();
+    }, [syncNow])
+  );
+
+  // When a sync completes (isSyncing flips true → false), invalidate the
+  // dashboard cache so the Today screen shows the freshly-written data.
+  useEffect(() => {
+    if (wasSyncing.current && !isHealthSyncing) {
+      void refetch();
+    }
+    wasSyncing.current = isHealthSyncing;
+  }, [isHealthSyncing, refetch]);
 
   async function loadCallTime() {
     const token = await getToken();
