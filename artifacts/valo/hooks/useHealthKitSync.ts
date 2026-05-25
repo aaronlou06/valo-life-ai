@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from "react";
-import { AppState, AppStateStatus, Platform } from "react-native";
+import { Alert, AppState, AppStateStatus, Platform } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useValoAuth } from "@/contexts/AuthContext";
 import {
@@ -28,9 +28,6 @@ export function useHealthKitSync(): HealthKitSyncState {
   const [lastSynced, setLastSynced] = useState<Date | null>(null);
   const [isPermissionsGranted, setIsPermissionsGranted] = useState(false);
 
-  // Ref-based guard so syncNow doesn't need isSyncing in its deps.
-  // Without this, every isSyncing state flip recreates syncNow, which in turn
-  // restarts the AppState subscription on every sync cycle.
   const isSyncingRef = useRef(false);
   const appState = useRef<AppStateStatus>(AppState.currentState);
 
@@ -38,14 +35,18 @@ export function useHealthKitSync(): HealthKitSyncState {
     if (Platform.OS !== "ios") return;
     if (isSyncingRef.current) return;
 
+    Alert.alert("Sync", "Starting health sync...");
+
     isSyncingRef.current = true;
     setIsSyncing(true);
     try {
       const granted = await requestHealthKitPermissions();
+      Alert.alert("Sync", "Permissions: " + String(granted));
       if (!granted) return;
       setIsPermissionsGranted(true);
 
       const data = await fetchTodayHealthData();
+      Alert.alert("Sync", "Data: " + JSON.stringify(data));
 
       const hasData =
         data.sleepHours !== null ||
@@ -56,6 +57,7 @@ export function useHealthKitSync(): HealthKitSyncState {
       if (!hasData) return;
 
       const token = await getToken();
+      Alert.alert("Token", token ? "has token" : "NO TOKEN");
       if (!token) return;
 
       const body: Record<string, number> = {};
@@ -64,7 +66,7 @@ export function useHealthKitSync(): HealthKitSyncState {
       if (data.restingHeartRate !== null) body.restingHeartRate = data.restingHeartRate;
       if (data.steps !== null) body.steps = Math.round(data.steps);
 
-      await fetch(`${getApiBase()}/api/daily-logs`, {
+      const res = await fetch(`${getApiBase()}/api/daily-logs`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -72,17 +74,19 @@ export function useHealthKitSync(): HealthKitSyncState {
         },
         body: JSON.stringify(body),
       });
+      Alert.alert("Sync", "Saved to API: " + String(res.status));
 
       const now = new Date();
       setLastSynced(now);
       await AsyncStorage.setItem(LAST_SYNCED_KEY, now.toISOString());
-    } catch {
-      // silent — never block the UI for a health sync failure
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      Alert.alert("Sync Error", msg);
     } finally {
       isSyncingRef.current = false;
       setIsSyncing(false);
     }
-  }, [getToken]); // stable — no isSyncing dep needed
+  }, [getToken]);
 
   useEffect(() => {
     if (Platform.OS !== "ios") return;
