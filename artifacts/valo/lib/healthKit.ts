@@ -88,7 +88,12 @@ export async function fetchSteps(): Promise<number | null> {
       includeManuallyAdded: true,
     };
     AppleHealthKit.getStepCount(options, (err: any, result: any) => {
-      if (err) { resolve(null); return; }
+      if (err) {
+        console.log('[HealthKit] getStepCount error:', JSON.stringify(err));
+        resolve(null);
+        return;
+      }
+      console.log('[HealthKit] getStepCount raw:', JSON.stringify(result));
       resolve(result?.value ?? null);
     });
   });
@@ -97,10 +102,32 @@ export async function fetchSteps(): Promise<number | null> {
 export async function fetchRestingHeartRate(): Promise<number | null> {
   if (!AppleHealthKit) return null;
   return new Promise((resolve) => {
-    const options = { date: new Date().toISOString() };
-    AppleHealthKit.getRestingHeartRate(options, (err: any, result: any) => {
-      if (err) { resolve(null); return; }
-      resolve(result?.value ?? null);
+    // getRestingHeartRate returns an array of samples — newest first when
+    // ascending: false. We want the most recent reading, which is typically
+    // last night's Apple Watch measurement. Look back 48 h to account for
+    // days when the watch wasn't worn overnight.
+    const now = new Date();
+    const twoDaysAgo = new Date(now);
+    twoDaysAgo.setDate(twoDaysAgo.getDate() - 2);
+    const options = {
+      startDate: twoDaysAgo.toISOString(),
+      endDate: now.toISOString(),
+      ascending: false,
+      limit: 1,
+    };
+    AppleHealthKit.getRestingHeartRate(options, (err: any, results: any) => {
+      if (err) {
+        console.log('[HealthKit] getRestingHeartRate error:', JSON.stringify(err));
+        resolve(null);
+        return;
+      }
+      console.log('[HealthKit] getRestingHeartRate raw:', JSON.stringify(results));
+      // Some versions return a single object, others return an array.
+      if (Array.isArray(results)) {
+        resolve(results[0]?.value ?? null);
+      } else {
+        resolve(results?.value ?? null);
+      }
     });
   });
 }
@@ -108,17 +135,26 @@ export async function fetchRestingHeartRate(): Promise<number | null> {
 export async function fetchHRV(): Promise<number | null> {
   if (!AppleHealthKit) return null;
   return new Promise((resolve) => {
+    // HRV is measured during sleep and written by Apple Watch in the morning.
+    // Look back 48 h so we always capture last night's reading regardless of
+    // what time of day the sync runs.
     const now = new Date();
-    const yesterday = new Date(now);
-    yesterday.setDate(yesterday.getDate() - 1);
+    const twoDaysAgo = new Date(now);
+    twoDaysAgo.setDate(twoDaysAgo.getDate() - 2);
     const options = {
-      startDate: yesterday.toISOString(),
+      startDate: twoDaysAgo.toISOString(),
       endDate: now.toISOString(),
       ascending: false,
       limit: 1,
     };
     AppleHealthKit.getHeartRateVariabilitySamples(options, (err: any, results: any) => {
-      if (err || !results?.length) { resolve(null); return; }
+      if (err) {
+        console.log('[HealthKit] getHeartRateVariabilitySamples error:', JSON.stringify(err));
+        resolve(null);
+        return;
+      }
+      console.log('[HealthKit] getHeartRateVariabilitySamples raw:', JSON.stringify(results));
+      if (!results?.length) { resolve(null); return; }
       resolve(results[0]?.value ?? null);
     });
   });
@@ -127,16 +163,28 @@ export async function fetchHRV(): Promise<number | null> {
 export async function fetchSleepHours(): Promise<number | null> {
   if (!AppleHealthKit) return null;
   return new Promise((resolve) => {
+    // Sleep window: yesterday 6 pm → now. This captures a full overnight
+    // session even for late sleepers. We look for ASLEEP_* stages (Apple
+    // Watch sleep tracking) and fall back to the legacy ASLEEP category for
+    // third-party apps and older watchOS versions.
     const now = new Date();
-    const yesterday = new Date(now);
-    yesterday.setDate(yesterday.getDate() - 1);
-    yesterday.setHours(18, 0, 0, 0);
+    const windowStart = new Date(now);
+    windowStart.setDate(windowStart.getDate() - 1);
+    windowStart.setHours(18, 0, 0, 0);
     const options = {
-      startDate: yesterday.toISOString(),
+      startDate: windowStart.toISOString(),
       endDate: now.toISOString(),
     };
     AppleHealthKit.getSleepSamples(options, (err: any, results: any) => {
-      if (err || !results?.length) { resolve(null); return; }
+      if (err) {
+        console.log('[HealthKit] getSleepSamples error:', JSON.stringify(err));
+        resolve(null);
+        return;
+      }
+      console.log('[HealthKit] getSleepSamples raw count:', results?.length ?? 0, 'first:', JSON.stringify(results?.[0]));
+      if (!results?.length) { resolve(null); return; }
+
+      // Sum only confirmed-asleep stages (exclude INBED / AWAKE).
       const asleepSamples = results.filter(
         (s: any) =>
           s.value === "ASLEEP" ||
@@ -144,6 +192,8 @@ export async function fetchSleepHours(): Promise<number | null> {
           s.value === "ASLEEP_DEEP" ||
           s.value === "ASLEEP_REM"
       );
+      console.log('[HealthKit] getSleepSamples asleep count:', asleepSamples.length);
+
       const totalMs = asleepSamples.reduce((sum: number, s: any) => {
         const start = new Date(s.startDate).getTime();
         const end = new Date(s.endDate).getTime();
@@ -158,10 +208,25 @@ export async function fetchSleepHours(): Promise<number | null> {
 export async function fetchActiveCalories(): Promise<number | null> {
   if (!AppleHealthKit) return null;
   return new Promise((resolve) => {
-    const options = { date: new Date().toISOString() };
-    AppleHealthKit.getActiveEnergyBurned(options, (err: any, result: any) => {
-      if (err) { resolve(null); return; }
-      resolve(result?.value ?? null);
+    // getActiveEnergyBurned returns an array of samples for the given range.
+    // We want today's total, so query midnight → now and sum all sample values.
+    const now = new Date();
+    const midnight = new Date(now);
+    midnight.setHours(0, 0, 0, 0);
+    const options = {
+      startDate: midnight.toISOString(),
+      endDate: now.toISOString(),
+    };
+    AppleHealthKit.getActiveEnergyBurned(options, (err: any, results: any) => {
+      if (err) {
+        console.log('[HealthKit] getActiveEnergyBurned error:', JSON.stringify(err));
+        resolve(null);
+        return;
+      }
+      console.log('[HealthKit] getActiveEnergyBurned raw count:', results?.length ?? 0);
+      if (!results?.length) { resolve(null); return; }
+      const total = results.reduce((sum: number, s: any) => sum + (s.value ?? 0), 0);
+      resolve(total > 0 ? Math.round(total) : null);
     });
   });
 }
