@@ -8,6 +8,10 @@ function getApiBase(): string {
   return domain ? `https://${domain}` : "";
 }
 
+function sleep(ms: number): Promise<void> {
+  return new Promise((r) => setTimeout(r, ms));
+}
+
 interface StoredSession {
   token: string;
   userId: string;
@@ -26,10 +30,43 @@ export interface AuthContextType {
   signIn: (email: string, password: string) => Promise<void>;
   signUp: (email: string, password: string) => Promise<void>;
   signOut: () => Promise<void>;
+  handleUnauthorized: () => Promise<void>;
   updateName: (name: string) => void;
 }
 
 const AuthContext = createContext<AuthContextType | null>(null);
+
+// Validate the stored session token against the server on startup.
+// Retries on network errors (device may not have a stable connection yet).
+// Returns true if the session is valid, false if the server rejected it.
+// Throws if all retry attempts were network errors (caller should trust the
+// local session rather than signing the user out on a connectivity blip).
+async function validateTokenWithServer(token: string): Promise<boolean | "network-error"> {
+  const RETRIES = 3;
+  const DELAY_MS = 1500;
+
+  for (let attempt = 1; attempt <= RETRIES; attempt++) {
+    try {
+      const res = await fetch(`${getApiBase()}/api/auth/me`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      console.log(`[Auth] /api/auth/me attempt ${attempt}: ${res.status}`);
+      // Any definitive HTTP response (200 or 401) is reliable; return it.
+      return res.ok;
+    } catch (err: unknown) {
+      console.log(
+        `[Auth] /api/auth/me attempt ${attempt} network error:`,
+        err instanceof Error ? err.message : String(err)
+      );
+      if (attempt < RETRIES) {
+        await sleep(DELAY_MS);
+      }
+    }
+  }
+
+  // All attempts were network errors — cannot determine validity.
+  return "network-error";
+}
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [isLoaded, setIsLoaded] = useState(false);
@@ -42,15 +79,41 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const raw = await AsyncStorage.getItem(STORAGE_KEY);
         if (raw) {
           const parsed: StoredSession = JSON.parse(raw);
-          if (!parsed.expiresAt || new Date(parsed.expiresAt) > new Date()) {
-            sessionRef.current = parsed;
-            setSession(parsed);
-          } else {
+          const clientExpired =
+            parsed.expiresAt && new Date(parsed.expiresAt) <= new Date();
+
+          if (clientExpired) {
+            console.log("[Auth] stored session expired client-side — clearing");
             await AsyncStorage.removeItem(STORAGE_KEY);
+          } else {
+            // Validate against the server. Every login rotates the DB token,
+            // so a token from a previous session (or invalidated by logout from
+            // another device) causes silent 401s on every request. Catching it
+            // here at startup ensures the user is sent to sign-in immediately
+            // rather than silently operating in a broken state.
+            const valid = await validateTokenWithServer(parsed.token);
+
+            if (valid === true) {
+              console.log("[Auth] session token valid — restoring session");
+              sessionRef.current = parsed;
+              setSession(parsed);
+            } else if (valid === false) {
+              // Server definitively rejected the token (DB token is NULL or
+              // was rotated). Clear it so the app routes to sign-in.
+              console.log("[Auth] server rejected stored token — clearing session");
+              await AsyncStorage.removeItem(STORAGE_KEY);
+            } else {
+              // Network error on all attempts — trust the local session. The
+              // individual request retry logic in hooks will handle 401s, and
+              // handleUnauthorized() will clean up if needed.
+              console.log("[Auth] could not reach server at startup — trusting local session");
+              sessionRef.current = parsed;
+              setSession(parsed);
+            }
           }
         }
       } catch {
-        // storage error — start unauthenticated
+        // Storage error — start unauthenticated
       } finally {
         setIsLoaded(true);
       }
@@ -111,8 +174,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         });
       }
     } catch {
-      // ignore network errors — still clear local session
+      // Ignore network errors — still clear local session
     }
+    sessionRef.current = null;
+    setSession(null);
+    await AsyncStorage.multiRemove([
+      STORAGE_KEY,
+      "@valo/tomorrow-intention",
+      "@valo/notification-prefs",
+    ]);
+  }, []);
+
+  // Called by any hook or screen that receives a 401 for a non-auth endpoint.
+  // Clears the local session so the app routes to sign-in. Does NOT hit the
+  // logout endpoint (the token is already invalid server-side).
+  const handleUnauthorized = useCallback(async () => {
+    console.log("[Auth] handleUnauthorized called — clearing stale session");
     sessionRef.current = null;
     setSession(null);
     await AsyncStorage.multiRemove([
@@ -142,6 +219,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         signIn,
         signUp,
         signOut,
+        handleUnauthorized,
         updateName,
       }}
     >
