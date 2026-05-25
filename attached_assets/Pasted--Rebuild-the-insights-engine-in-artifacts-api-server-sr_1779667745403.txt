@@ -1,0 +1,46 @@
+"Rebuild the insights engine in artifacts/api-server/src/routes/insights.ts to generate real AI-powered insights from the user's actual data.
+New endpoint logic for GET /api/insights:
+
+Fetch the user's last 30 days of data in parallel:
+
+Daily logs (sleep, HRV, steps, workout, mood)
+Mood entries
+Habits (name, streak, completedToday)
+Goals (title, progressPercent, targetDate)
+
+
+Check if insights were already generated today (check insightsTable for entries with today's date). If yes, return them without regenerating.
+If no insights today, build a data summary string and send to Claude:
+
+typescriptconst dataSummary = `
+User's last 30 days of data:
+
+Daily logs: ${JSON.stringify(logs.slice(0, 30))}
+Mood entries: ${JSON.stringify(moods.slice(0, 30))}
+Habits: ${JSON.stringify(habits)}
+Goals: ${JSON.stringify(goals)}
+`;
+
+const prompt = `You are Valo's insight engine. Analyze this user's health and lifestyle data and generate 3-5 meaningful, personalized insights.
+
+${dataSummary}
+
+For each insight return a JSON array with objects containing:
+- label: short category name (e.g. "Sleep Pattern", "Habit Streak", "Mood Trend", "Goal Progress", "Recovery")
+- content: 2-3 sentences describing a real pattern you found in their data. Be specific with numbers when available. If data is sparse, note what you'd expect to see with more data.
+- followUpQuestion: one thoughtful question Valo could ask in a check-in related to this insight
+
+Return only valid JSON array, no markdown.`;
+
+const response = await anthropic.messages.create({
+  model: 'claude-haiku-4-5',
+  max_tokens: 1000,
+  messages: [{ role: 'user', content: prompt }]
+});
+
+Parse the response, save each insight to insightsTable with today's date, return them.
+If Claude fails or data is too sparse (less than 3 days of logs), fall back to the existing seed insights.
+Add a POST /api/insights/refresh endpoint that forces regeneration by deleting today's insights and regenerating — useful for testing.
+
+Use the existing Anthropic client from @workspace/integrations-anthropic-ai. Check how processDebrief.ts imports and uses it and follow the same pattern.
+Run typecheck after."
