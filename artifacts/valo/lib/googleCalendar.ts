@@ -1,17 +1,11 @@
-import * as AuthSession from "expo-auth-session";
+import { Alert } from "react-native";
 import * as SecureStore from "expo-secure-store";
 
-const CLIENT_ID =
-  "421092683856-11b3biji2mcf9a1v8pjqbo0broed0m3u.apps.googleusercontent.com";
-const DISCOVERY_URL = "https://accounts.google.com";
-const SCOPES = ["https://www.googleapis.com/auth/calendar.readonly"];
-const TOKEN_KEY = "@valo/google-calendar-token";
+// expo-auth-session / expo-web-browser require native modules compiled into
+// the app binary. Until the next EAS build includes them, the connect flow is
+// stubbed so the module loads safely in the current binary.
 
-function getRedirectUri(): string {
-  return AuthSession.makeRedirectUri({
-    native: "com.aaronlou06.valo:/oauth2redirect/google",
-  });
-}
+const TOKEN_KEY = "@valo/google-calendar-token";
 
 function getApiBase(): string {
   const domain = process.env.EXPO_PUBLIC_DOMAIN;
@@ -24,38 +18,11 @@ export async function isGoogleCalendarConnected(): Promise<boolean> {
 }
 
 export async function connectGoogleCalendar(): Promise<boolean> {
-  try {
-    const discovery = await AuthSession.fetchDiscoveryAsync(DISCOVERY_URL);
-    const redirectUri = getRedirectUri();
-
-    const request = new AuthSession.AuthRequest({
-      clientId: CLIENT_ID,
-      redirectUri,
-      scopes: SCOPES,
-      usePKCE: true,
-      extraParams: { access_type: "offline" },
-    });
-
-    const result = await request.promptAsync(discovery);
-    if (result.type !== "success") return false;
-
-    const tokenResponse = await AuthSession.exchangeCodeAsync(
-      {
-        clientId: CLIENT_ID,
-        code: result.params.code ?? "",
-        redirectUri,
-        extraParams: { code_verifier: request.codeVerifier ?? "" },
-      },
-      discovery,
-    );
-
-    if (!tokenResponse.accessToken) return false;
-
-    await SecureStore.setItemAsync(TOKEN_KEY, tokenResponse.accessToken);
-    return true;
-  } catch {
-    return false;
-  }
+  Alert.alert(
+    "Coming soon",
+    "Google Calendar sync will be available in the next update.",
+  );
+  return false;
 }
 
 export type GoogleCalendarEvent = {
