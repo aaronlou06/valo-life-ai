@@ -1,19 +1,25 @@
-import { Platform } from "react-native";
+import { Platform, NativeModules } from "react-native";
 
 let AppleHealthKit: any = null;
 
 if (Platform.OS === "ios") {
   try {
+    // react-native-health does `module.exports = Object.assign({}, NativeModules.AppleHealthKit, { Constants })`
+    // Object.assign only copies own-enumerable props; if the native module exposes methods as
+    // non-enumerable the spread silently loses them. Try the package export first, then fall back
+    // to NativeModules.AppleHealthKit directly which always has the live method references.
     const mod = require("react-native-health");
-    const kit = mod?.default ?? mod;
-    if (kit && typeof kit.initHealthKit === "function") {
-      AppleHealthKit = kit;
-      console.log("[HealthKit] loaded successfully");
+    const fromPackage = mod?.default ?? mod;
+    if (fromPackage && typeof fromPackage.initHealthKit === "function") {
+      AppleHealthKit = fromPackage;
     } else {
-      console.warn("[HealthKit] module loaded but API not available:", Object.keys(mod ?? {}));
+      const native = NativeModules.AppleHealthKit;
+      if (native && typeof native.initHealthKit === "function") {
+        AppleHealthKit = native;
+      }
     }
-  } catch (e) {
-    console.warn("[HealthKit] failed to load:", e);
+  } catch {
+    // Native module absent (Expo Go without dev client, simulator without entitlement, etc.)
   }
 }
 
