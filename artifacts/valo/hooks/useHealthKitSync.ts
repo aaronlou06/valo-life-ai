@@ -23,7 +23,7 @@ export interface HealthKitSyncState {
 }
 
 export function useHealthKitSync(): HealthKitSyncState {
-  const { getToken } = useValoAuth();
+  const { getToken, isSignedIn } = useValoAuth();
   const [isSyncing, setIsSyncing] = useState(false);
   const [lastSynced, setLastSynced] = useState<Date | null>(null);
   const [isPermissionsGranted, setIsPermissionsGranted] = useState(false);
@@ -33,6 +33,7 @@ export function useHealthKitSync(): HealthKitSyncState {
   // restarts the AppState subscription on every sync cycle.
   const isSyncingRef = useRef(false);
   const appState = useRef<AppStateStatus>(AppState.currentState);
+  const prevSignedIn = useRef(false);
 
   const syncNow = useCallback(async (): Promise<void> => {
     if (Platform.OS !== "ios") return;
@@ -117,6 +118,18 @@ export function useHealthKitSync(): HealthKitSyncState {
 
     void init();
   }, [syncNow]);
+
+  // Re-trigger sync when the user signs in (or auth transitions from stale →
+  // valid). This handles the common case where the app fires syncNow() at
+  // startup with an expired/rejected session token (401), then the user
+  // re-authenticates — without this effect, nothing would re-attempt the sync.
+  useEffect(() => {
+    if (Platform.OS !== "ios") return;
+    if (isSignedIn && !prevSignedIn.current) {
+      void syncNow();
+    }
+    prevSignedIn.current = isSignedIn;
+  }, [isSignedIn, syncNow]);
 
   useEffect(() => {
     if (Platform.OS !== "ios") return;
