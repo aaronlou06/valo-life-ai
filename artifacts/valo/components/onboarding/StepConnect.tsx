@@ -1,10 +1,16 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { View, Text, TouchableOpacity, StyleSheet, Alert } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { useColors } from "@/hooks/useColors";
 import { requestHealthKitPermissions } from "@/lib/healthKit";
 import { useHealthKitSync } from "@/hooks/useHealthKitSync";
+import {
+  connectGoogleCalendar,
+  syncGoogleCalendarEvents,
+  isGoogleCalendarConnected,
+} from "@/lib/googleCalendar";
+import { useValoAuth } from "@/contexts/AuthContext";
 
 interface Props {
   name: string;
@@ -14,7 +20,14 @@ interface Props {
 export default function StepConnect({ name, onComplete }: Props) {
   const colors = useColors();
   const { syncNow, isSyncing, isPermissionsGranted } = useHealthKitSync();
+  const { getToken } = useValoAuth();
   const [healthConnected, setHealthConnected] = useState(false);
+  const [gCalConnected, setGCalConnected] = useState(false);
+  const [gCalSyncing, setGCalSyncing] = useState(false);
+
+  useEffect(() => {
+    void isGoogleCalendarConnected().then(setGCalConnected);
+  }, []);
 
   const firstName = name.split(" ")[0] || "there";
 
@@ -27,6 +40,19 @@ export default function StepConnect({ name, onComplete }: Props) {
       setHealthConnected(true);
       await syncNow();
     }
+  };
+
+  const handleGCal = async () => {
+    const connected = await connectGoogleCalendar();
+    if (!connected) return;
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    setGCalConnected(true);
+    setGCalSyncing(true);
+    const token = await getToken();
+    if (token) {
+      await syncGoogleCalendarEvents(token);
+    }
+    setGCalSyncing(false);
   };
 
   const connections = [
@@ -49,8 +75,9 @@ export default function StepConnect({ name, onComplete }: Props) {
       icon: "globe" as const,
       name: "Google Calendar",
       description: "Your Google schedule",
-      connected: false,
-      onConnect: () => Alert.alert("Coming soon", "Google Calendar integration is coming soon."),
+      connected: gCalConnected,
+      syncing: gCalSyncing,
+      onConnect: handleGCal,
     },
   ];
 

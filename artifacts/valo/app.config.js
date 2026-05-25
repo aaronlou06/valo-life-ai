@@ -5,7 +5,7 @@ export default {
     version: "1.0.0",
     orientation: "portrait",
     icon: "./assets/images/icon.png",
-    scheme: "valo",
+    scheme: ["valo", "com.aaronlou06.valo"],
     userInterfaceStyle: "automatic",
     newArchEnabled: true,
     splash: {

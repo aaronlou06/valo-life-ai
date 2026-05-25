@@ -20,6 +20,11 @@ import { useColors } from "@/hooks/useColors";
 import { useValoAuth } from "@/contexts/AuthContext";
 import { useHealthKitSync } from "@/hooks/useHealthKitSync";
 import { requestHealthKitPermissions } from "@/lib/healthKit";
+import {
+  connectGoogleCalendar,
+  syncGoogleCalendarEvents,
+  isGoogleCalendarConnected,
+} from "@/lib/googleCalendar";
 import { useListGoals, useListHabits, useGetDashboard } from "@workspace/api-client-react";
 
 function getApiBase(): string {
@@ -61,6 +66,7 @@ const TREND_DOMAINS = [
 
 const INTEGRATIONS = [
   { key: "apple-health", label: "Apple Health", icon: "heart" },
+  { key: "google-calendar", label: "Google Calendar", icon: "grid" },
   { key: "apple-calendar", label: "Apple Calendar", icon: "calendar" },
   { key: "garmin", label: "Garmin", icon: "activity" },
   { key: "whoop", label: "Whoop", icon: "zap" },
@@ -513,6 +519,10 @@ export default function ProfileScreen() {
 
   const [connectingHealth, setConnectingHealth] = useState(false);
   const [healthDenied, setHealthDenied] = useState(false);
+  const [isGCalConnected, setIsGCalConnected] = useState(false);
+  const [connectingGCal, setConnectingGCal] = useState(false);
+  const [gCalSyncing, setGCalSyncing] = useState(false);
+  const [gCalCount, setGCalCount] = useState<number | null>(null);
 
   const handleLogOut = async () => {
     try {
@@ -568,12 +578,29 @@ export default function ProfileScreen() {
       if (c.user_identity) setUserIdentity(c.user_identity);
       if (c.user_motivation) setUserMotivation(c.user_motivation);
     }
+    setIsGCalConnected(await isGoogleCalendarConnected());
   }
 
   // ── Saved indicator ───────────────────────────────────────────────────────
   function showSaved(field: string) {
     setSavedField(field);
     setTimeout(() => setSavedField((cur) => (cur === field ? null : cur)), 2000);
+  }
+
+  // ── Google Calendar connect ────────────────────────────────────────────────
+  async function handleGCalConnect() {
+    setConnectingGCal(true);
+    const connected = await connectGoogleCalendar();
+    setConnectingGCal(false);
+    if (!connected) return;
+    setIsGCalConnected(true);
+    setGCalSyncing(true);
+    const token = await getToken();
+    if (token) {
+      const count = await syncGoogleCalendarEvents(token);
+      setGCalCount(count);
+    }
+    setGCalSyncing(false);
   }
 
   // ── PATCH helpers ─────────────────────────────────────────────────────────
@@ -965,9 +992,55 @@ export default function ProfileScreen() {
             )}
           </TouchableOpacity>
 
+          {/* Google Calendar — standalone row */}
+          <TouchableOpacity
+            activeOpacity={0.7}
+            style={[styles.integrationStandalone, { backgroundColor: colors.card, borderColor: colors.border }]}
+            onPress={handleGCalConnect}
+            disabled={isGCalConnected || connectingGCal || gCalSyncing}
+          >
+            <View style={styles.chevronLeft}>
+              <Feather
+                name="grid"
+                size={17}
+                color={isGCalConnected ? "#059669" : colors.mutedForeground}
+              />
+              <View>
+                <Text style={[styles.chevronLabel, { color: colors.foreground, fontFamily: "Inter_400Regular" }]}>
+                  Google Calendar
+                </Text>
+                {isGCalConnected && gCalCount !== null && (
+                  <Text style={{ fontSize: 11, color: colors.mutedForeground, fontFamily: "Inter_400Regular", marginTop: 1 }}>
+                    {gCalCount} {gCalCount === 1 ? "event" : "events"} synced
+                  </Text>
+                )}
+              </View>
+            </View>
+            {isGCalConnected ? (
+              <View style={[styles.statusBadge, { backgroundColor: "#DCFCE7" }]}>
+                <Feather name="check" size={12} color="#059669" />
+                <Text style={[styles.statusText, { color: "#059669", fontFamily: "Inter_500Medium" }]}>
+                  Connected
+                </Text>
+              </View>
+            ) : connectingGCal || gCalSyncing ? (
+              <View style={[styles.statusBadge, { backgroundColor: colors.muted }]}>
+                <Text style={[styles.statusText, { color: colors.mutedForeground, fontFamily: "Inter_500Medium" }]}>
+                  {gCalSyncing ? "Syncing…" : "Connecting…"}
+                </Text>
+              </View>
+            ) : (
+              <View style={[styles.connectActionBtn, { backgroundColor: colors.primary }]}>
+                <Text style={[styles.connectActionText, { color: colors.primaryForeground, fontFamily: "Inter_600SemiBold" }]}>
+                  Connect
+                </Text>
+              </View>
+            )}
+          </TouchableOpacity>
+
           {/* Other integrations */}
           <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border, padding: 0, overflow: "hidden" }]}>
-            {INTEGRATIONS.filter((i) => i.key !== "apple-health").map((integration, idx, arr) => (
+            {INTEGRATIONS.filter((i) => i.key !== "apple-health" && i.key !== "google-calendar").map((integration, idx, arr) => (
               <TouchableOpacity
                 key={integration.key}
                 onPress={() => Alert.alert("Coming soon")}
