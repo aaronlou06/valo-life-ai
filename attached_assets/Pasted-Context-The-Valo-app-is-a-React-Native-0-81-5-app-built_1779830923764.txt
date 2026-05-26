@@ -1,0 +1,28 @@
+Context: The Valo app is a React Native 0.81.5 app built with Expo SDK 54. The API server is a Node.js/Express app running inside a Replit workspace. Currently, the Replit container goes to sleep or requires manually clicking the "Run" button before the iPhone development client can connect. The API runs on port 8080. There is a public Replit deployment URL but it may not stay warm.
+
+Goal: Implement a reliable dev server connection strategy so the iPhone always reaches the API without manual intervention in Replit.
+
+Current State:
+
+API is inside Replit project
+iPhone connects to Replit URL on port 8081/8080
+Container sleeps after inactivity
+Manual "Run" click required
+Implementation Requirements:
+
+Add a lightweight health-check ping endpoint GET /health to the Express server that returns { status: 'ok', timestamp: new Date().toISOString() }. This should bypass all auth middleware.
+Create a keep-alive cron job inside the Express app using node-cron that hits its own /health endpoint or a lightweight internal heartbeat every 4 minutes. This keeps the Replit container awake during active development hours (8 AM – 10 PM local time).
+In the React Native app, find the API base URL configuration (likely in an API client file, context provider, or generated OpenAPI client config). Add a startup connection retry loop: on app launch, attempt to GET /health up to 5 times with 2-second intervals before declaring the server unreachable. Show a non-blocking toast/alert only after all retries fail: "Dev server is waking up, please wait..."
+Ensure the API server's package.json start script explicitly binds to 0.0.0.0 (not localhost) and uses process.env.PORT || 8080.
+If the app is in development mode, log the final API base URL to the console on startup for debugging.
+Files to Modify:
+
+server/index.js or api/index.js (Express entry point)
+server/package.json (add node-cron if missing)
+React Native API client config file (search for baseURL, apiClient, or generated client initialization)
+Acceptance Criteria:
+
+ GET /health returns 200 in browser without JWT
+ iPhone app launches and connects automatically even if Replit container was asleep (may take 8–10 seconds but succeeds without manual Run click)
+ No manual "Run" button press needed during active dev hours
+ If server is truly offline, app shows friendly "Dev server waking up" instead of hanging silently

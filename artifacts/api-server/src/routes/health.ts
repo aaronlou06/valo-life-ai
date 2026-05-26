@@ -1,11 +1,14 @@
 import { Router, type IRouter } from "express";
-import { HealthCheckResponse } from "@workspace/api-zod";
 
 const router: IRouter = Router();
 
-router.get("/healthz", (_req, res) => {
-  const data = HealthCheckResponse.parse({ status: "ok" });
-  res.json(data);
-});
+function healthHandler(_req: any, res: any) {
+  res.json({ status: "ok", timestamp: new Date().toISOString() });
+}
+
+// /api/health  — primary endpoint documented in the brief
+// /api/healthz — existing alias kept for backwards compatibility
+router.get("/health", healthHandler);
+router.get("/healthz", healthHandler);
 
 export default router;

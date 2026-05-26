@@ -8,8 +8,8 @@ import {
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Stack } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
-import React, { useEffect } from "react";
-import { ActivityIndicator, Text, View } from "react-native";
+import React, { useEffect, useRef, useState } from "react";
+import { ActivityIndicator, StyleSheet, Text, View } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { KeyboardProvider } from "react-native-keyboard-controller";
 import { SafeAreaProvider } from "react-native-safe-area-context";
@@ -21,11 +21,34 @@ import { AuthProvider } from "@/contexts/AuthContext";
 console.log("[Valo] _layout module loaded");
 
 const domain = process.env.EXPO_PUBLIC_DOMAIN;
-if (domain) setBaseUrl(`https://${domain}`);
+const apiBase = domain ? `https://${domain}` : "";
+if (apiBase) setBaseUrl(apiBase);
+
+if (__DEV__) {
+  console.log("[Valo] API base URL:", apiBase || "(relative — no EXPO_PUBLIC_DOMAIN set)");
+}
 
 SplashScreen.preventAutoHideAsync();
 
 const queryClient = new QueryClient();
+
+const HEALTH_URL = `${apiBase}/api/health`;
+const RETRY_COUNT = 5;
+const RETRY_DELAY_MS = 2000;
+const RECHECK_INTERVAL_MS = 15000;
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((r) => setTimeout(r, ms));
+}
+
+async function checkServer(): Promise<boolean> {
+  try {
+    const res = await fetch(HEALTH_URL, { method: "GET" });
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
 
 function RootLayoutNav() {
   return (
@@ -40,6 +63,8 @@ function RootLayoutNav() {
   );
 }
 
+type ServerStatus = "checking" | "ok" | "offline";
+
 export default function RootLayout() {
   console.log("[Valo] RootLayout rendering");
 
@@ -50,6 +75,52 @@ export default function RootLayout() {
     Inter_700Bold,
   });
 
+  const [serverStatus, setServerStatus] = useState<ServerStatus>("checking");
+  const recheckRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    if (!apiBase) {
+      // Running in a context with no base URL (web preview) — skip check.
+      setServerStatus("ok");
+      return;
+    }
+
+    let cancelled = false;
+
+    async function runCheck() {
+      // Try up to RETRY_COUNT times with a delay between each attempt.
+      for (let attempt = 1; attempt <= RETRY_COUNT; attempt++) {
+        if (cancelled) return;
+        const ok = await checkServer();
+        if (ok) {
+          if (!cancelled) {
+            console.log(`[Valo] server reachable on attempt ${attempt}`);
+            setServerStatus("ok");
+          }
+          return;
+        }
+        console.log(`[Valo] server not reachable, attempt ${attempt}/${RETRY_COUNT}`);
+        if (attempt < RETRY_COUNT) await sleep(RETRY_DELAY_MS);
+      }
+
+      // All retries exhausted — declare offline and schedule a recheck.
+      if (!cancelled) {
+        console.log("[Valo] server unreachable after all retries — showing banner");
+        setServerStatus("offline");
+        recheckRef.current = setTimeout(() => {
+          if (!cancelled) void runCheck();
+        }, RECHECK_INTERVAL_MS);
+      }
+    }
+
+    void runCheck();
+
+    return () => {
+      cancelled = true;
+      if (recheckRef.current) clearTimeout(recheckRef.current);
+    };
+  }, []);
+
   useEffect(() => {
     console.log("[Valo] fonts state — loaded:", fontsLoaded, "error:", fontError);
     if (fontsLoaded || fontError) {
@@ -59,8 +130,8 @@ export default function RootLayout() {
 
   if (!fontsLoaded && !fontError) {
     return (
-      <View style={{ flex: 1, backgroundColor: "#F7F5F2", justifyContent: "center", alignItems: "center" }}>
-        <Text style={{ color: "#C17B3F", fontSize: 16, marginBottom: 12 }}>Valo is loading</Text>
+      <View style={styles.loading}>
+        <Text style={styles.loadingText}>Valo is loading</Text>
         <ActivityIndicator color="#C17B3F" />
       </View>
     );
@@ -80,7 +151,16 @@ export default function RootLayout() {
           <QueryClientProvider client={queryClient}>
             <GestureHandlerRootView style={{ flex: 1 }}>
               <KeyboardProvider>
-                <RootLayoutNav />
+                <>
+                  <RootLayoutNav />
+                  {serverStatus === "offline" && (
+                    <View style={styles.offlineBanner} pointerEvents="none">
+                      <Text style={styles.offlineBannerText}>
+                        Dev server is waking up, please wait...
+                      </Text>
+                    </View>
+                  )}
+                </>
               </KeyboardProvider>
             </GestureHandlerRootView>
           </QueryClientProvider>
@@ -89,3 +169,32 @@ export default function RootLayout() {
     </ErrorBoundary>
   );
 }
+
+const styles = StyleSheet.create({
+  loading: {
+    flex: 1,
+    backgroundColor: "#F7F5F2",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  loadingText: {
+    color: "#C17B3F",
+    fontSize: 16,
+    marginBottom: 12,
+  },
+  offlineBanner: {
+    position: "absolute",
+    bottom: 0,
+    left: 0,
+    right: 0,
+    backgroundColor: "#C17B3F",
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    alignItems: "center",
+  },
+  offlineBannerText: {
+    color: "#FFFFFF",
+    fontSize: 13,
+    fontFamily: "Inter_500Medium",
+  },
+});

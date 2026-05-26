@@ -1,6 +1,7 @@
 import app from "./app";
 import { logger } from "./lib/logger";
 import { startOutboundCallScheduler } from "./lib/outboundCaller";
+import { startKeepAlive } from "./lib/keepAlive";
 
 const rawPort = process.env["PORT"];
 
@@ -24,4 +25,5 @@ app.listen(port, (err) => {
 
   logger.info({ port }, "Server listening");
   startOutboundCallScheduler();
+  startKeepAlive(port);
 });
