@@ -3,8 +3,26 @@ import { eq } from "drizzle-orm";
 import { db, goalsTable, userProfilesTable } from "@workspace/db";
 import { requireAuth, type AuthenticatedRequest } from "../middlewares/requireAuth";
 import { buildVapiContext } from "../lib/buildVapiContext";
+import { processDebriefTranscript, type TranscriptEntry } from "../lib/processDebrief";
 
 const router: IRouter = Router();
+
+// ── System prompt templates ───────────────────────────────────────────────────
+// These are intended for VAPI dashboard configuration. The assistant system
+// prompt should end with {{context_string}}, which VAPI interpolates from the
+// variableValues passed when the call starts (populated by buildVapiContext).
+
+const SYSTEM_PROMPTS: Record<string, string> = {
+  checkin: `You are Valo, a warm, perceptive life-management coach. You talk like a smart friend — not a therapist, not a robot. You already have the user's full context below and you lead with what you know. Reference their recovery score, a calendar event, or a streak naturally rather than asking for information you already have. Ask ONE question at a time and wait for the answer before moving on. Use their own motivational language verbatim when encouraging them. If they follow a specific diet, ask about variances from it today; if not, ask about general nutrition quality. When the core areas have been covered (recovery, work, relationships, nutrition), offer a soft close: "Sounds like we've covered the main ground today. Anything else on your mind before we wrap up?" Keep the session to 10–15 minutes. Every response must be grounded in the user's actual data — never give generic wellness tips.
+
+{{context_string}}`,
+
+  onboarding: `You are Valo, a warm and genuinely curious AI companion beginning your first conversation with this person. Your goal is to understand them well enough to personalize every future interaction. Cover: what their life priorities are right now, what they want more of, what drains them, what motivates them on hard days, and their most important current goal. Speak conversationally — one question at a time. Do not rush. At the end, confirm their preferred time for evening check-ins and let them know Valo will reach out then. Keep it to 10–12 minutes.
+
+{{context_string}}`,
+};
+
+// ── Helpers ──────────────────────────────────────────────────────────────────
 
 function formatCallTime(hhmm: string | null | undefined): string {
   if (!hhmm) return "not set";
@@ -22,6 +40,8 @@ function resolveUserId(req: any): string | null {
   if (authUserId !== rawUserId) return null;
   return authUserId;
 }
+
+// ── Handlers ─────────────────────────────────────────────────────────────────
 
 async function handleVapiContext(req: any, res: any): Promise<void> {
   const userId = resolveUserId(req);
@@ -79,8 +99,48 @@ async function handleFirstCallContext(req: any, res: any): Promise<void> {
   }
 }
 
+// Returns the system prompt template for a given assistant type.
+// Use this in the VAPI dashboard as the assistant system prompt —
+// VAPI will interpolate {{context_string}} from the variableValues
+// passed at call-start time.
+async function handleSystemPrompt(req: any, res: any): Promise<void> {
+  const type = req.params.type as string;
+  const prompt = SYSTEM_PROMPTS[type];
+  if (!prompt) {
+    res.status(404).json({ error: `Unknown assistant type: ${type}` });
+    return;
+  }
+  res.json({ assistantType: type, systemPrompt: prompt });
+}
+
+// Mobile-initiated post-call debrief endpoint. Called by useVapiDebrief after
+// the call ends, with the accumulated transcript from the VAPI JS SDK.
+// The VAPI webhook also processes debrief for outbound (server-initiated) calls,
+// so both flows are covered without double-processing.
+async function handleVapiDebrief(req: any, res: any): Promise<void> {
+  const userId = (req as AuthenticatedRequest).userId;
+  const { transcript } = req.body as { transcript: TranscriptEntry[] };
+
+  if (!Array.isArray(transcript)) {
+    res.status(400).json({ error: "transcript must be an array" });
+    return;
+  }
+
+  try {
+    const extraction = await processDebriefTranscript(userId, transcript);
+    res.status(200).json({ ok: true, extraction });
+  } catch (err: any) {
+    req.log.error({ err, userId }, "vapi/debrief process failed");
+    res.status(500).json({ error: "Debrief processing failed" });
+  }
+}
+
+// ── Routes ───────────────────────────────────────────────────────────────────
+
 router.get("/vapi/context/:userId", requireAuth, handleVapiContext);
 router.post("/vapi/context/:userId", requireAuth, handleVapiContext);
 router.get("/vapi/first-call-context/:userId", requireAuth, handleFirstCallContext);
+router.get("/vapi/system-prompt/:type", handleSystemPrompt);
+router.post("/vapi/debrief", requireAuth, handleVapiDebrief);
 
 export default router;

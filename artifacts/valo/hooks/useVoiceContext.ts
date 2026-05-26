@@ -29,6 +29,7 @@ export type VoiceContextData = {
   recovery_score: number | null;
   stress_score: number | null;
   readiness_score: number | null;
+  readiness_label: "Good" | "Fair" | "Low" | "Unknown";
   mood_avg_today: number | null;
   mood_count_today: number;
   mood_avg_14d: number | null;
@@ -39,9 +40,15 @@ export type VoiceContextData = {
   top_goal: string | null;
   top_goal_progress: number | null;
   goals_summary: string;
+  top3_goals: Array<{ title: string; progressPercent: number }>;
   meeting_count: number;
   workday_hours: number;
   calendar_stress: "yes" | "no";
+  calendar_today_str: string | null;
+  calendar_tomorrow_str: string | null;
+  diet_context: string;
+  uncovered_areas: string;
+  context_string: string;
   latest_pattern: string | null;
 };
 

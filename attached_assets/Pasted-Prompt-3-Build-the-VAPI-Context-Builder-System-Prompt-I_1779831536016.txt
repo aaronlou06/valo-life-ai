@@ -1,0 +1,59 @@
+Prompt 3: Build the VAPI Context Builder & System Prompt Infrastructure
+Context: Valo uses VAPI for two voice assistants: Check-in (ID: 1ac4c2fa) and Onboarding (ID: 767a3c70). Both use GPT-4o and ElevenLabs Will voice. The app currently has basic voice calls but the assistant does not dynamically pull user data (HealthKit, calendar, goals, motivation text) into the conversation. The backend has a "VAPI context builder" endpoint but it needs to be fully wired.
+
+Goal: Build the context builder endpoint and the complete system prompt content so VAPI behaves like a personalized coach that already knows the user's day.
+
+Implementation Requirements:
+
+Create /api/vapi/context (POST) endpoint in Express. It accepts { userId, assistantType: 'checkin' | 'onboarding', callPhase: 'opening' | 'mid' | 'closing' }.
+
+Query the following data for the user (SQL/ORM):
+
+From daily_logs: last 7 days of steps, sleep, hrv, resting_hr, mood, energy (averages and today's values if available)
+From goals: top 3 active goals (by importance tier + recently updated), with progress %
+From habits: current streaks (consecutive days), which habits completed today
+From calendar_events: today's and tomorrow's events (title, start time, type)
+From users.motivation_text: the free-text "what motivates you" field captured during onboarding
+From users.preferred_checkin_time: their chosen call time
+From users.diet_type: if they follow a specific diet (keto, vegan, etc.) or null
+Serialize this into a "Context String" (max 1500 tokens) with format:
+
+USER CONTEXT (Today is [Date]):
+- Recovery: HRV [X] ms, Sleep [Y] hrs, Resting HR [Z]. Readiness: [Good/Fair/Low based on thresholds]
+- Movement: [Steps] steps today.
+- Goals: [Goal 1] ([Progress]%), [Goal 2], [Goal 3].
+- Habits on streak: [Habit A] ([N] days), [Habit B].
+- Today calendar: [Event 1 at Time], [Event 2].
+- Motivation language (use verbatim when encouraging): "[User's exact motivation text]"
+- Diet context: [User follows X diet / No specific diet]
+- What to ask about: [Only list areas NOT yet covered in today's logs]
+Store the system prompt text as a template. For Check-in assistant (1ac4c2fa), the system prompt should be:
+
+"You are Valo, a warm, perceptive life-management coach. You talk like a smart friend, not a therapist or a robot. You have the user's full context below. Lead with what you already know—reference their recovery, their calendar, or a recent streak naturally. Ask ONE question at a time. Wait for their answer. Use their own motivational language when encouraging them. If they follow a specific diet, ask about variances from it today. If not, ask about general diet quality. When the core areas (sleep, movement, work mood, relationships, substances if flagged) are covered, offer a soft close: 'We've covered the most important parts of your day—want to wrap up or keep going?' Keep responses under 3 sentences unless they want to talk more. Call them by name. Never interrogate."
+
+Wire the context to VAPI. VAPI calls should use the "Server URL / Context Builder" feature or be configured so that every assistant call first hits your /api/vapi/context endpoint to get a dynamic context block injected into the prompt. If VAPI's dashboard supports {{context}} or server-side messages, return the context string in the response body under a context field. If VAPI expects this via their API when creating the call, update the VAPI call creation in the app to include context in the request payload.
+
+Add post-call summary processing. After the VAPI call ends, send the transcript to /api/vapi/debrief which extracts:
+
+Mood score (1–10) if mentioned
+Energy score (1–10) if mentioned
+Key wins (array of strings)
+Stressors (array of strings)
+Intentions for tomorrow (array of strings) Use Claude Haiku (existing integration) or simple regex extraction if Claude is down. Store these in a voice_debriefs table linked to userId and callDate.
+Files to Modify:
+
+Backend: New file routes/vapiContext.js or add to existing VAPI route
+Backend: routes/vapiDebrief.js
+Backend: services/claudeService.js (for extraction prompt)
+Frontend: VAPI call initialization (where assistantId: '1ac4c2fa' is used) to send userId
+Database: New table voice_debriefs (id, user_id, call_date, transcript_text, mood, energy, wins, stressors, intentions, raw_json)
+Acceptance Criteria:
+
+ /api/vapi/context returns a populated context string with real data in < 300ms
+ VAPI assistant references user's actual HRV, calendar events, or streaks in conversation
+ Assistant asks only one question at a time
+ Assistant uses user's onboarding motivation text verbatim during encouragement
+ Diet-aware questioning: variance questions for dieters, general quality for non-dieters
+ Soft close offered when core areas are covered
+ Post-call debrief extracts and saves mood, energy, wins, stressors, intentions
+ No generic wellness tips—every response is personalized to the context

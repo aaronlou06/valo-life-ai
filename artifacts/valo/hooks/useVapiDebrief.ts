@@ -63,14 +63,14 @@ export function useVapiDebrief(
         try {
           const token = await getToken();
           const res = await fetch(
-            `https://${process.env.EXPO_PUBLIC_DOMAIN}/api/debrief/process`,
+            `https://${process.env.EXPO_PUBLIC_DOMAIN}/api/vapi/debrief`,
             {
               method: "POST",
               headers: {
                 "Content-Type": "application/json",
                 ...(token ? { Authorization: `Bearer ${token}` } : {}),
               },
-              body: JSON.stringify({ userId, transcript: finalTranscript }),
+              body: JSON.stringify({ transcript: finalTranscript }),
             }
           );
           if (res.ok) {
@@ -172,7 +172,10 @@ export function useVapiDebrief(
       );
       if (!res.ok) throw new Error(`Context fetch failed: ${res.status}`);
       const contextPayload = await res.json();
-      await vapi.start(assistantId, { variableValues: contextPayload });
+      await vapi.start(assistantId, {
+        variableValues: contextPayload,
+        metadata: { userId },
+      });
     } catch (err: any) {
       console.error("Vapi start error:", err);
       setCallState("idle");

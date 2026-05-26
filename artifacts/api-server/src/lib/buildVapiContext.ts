@@ -25,13 +25,140 @@ function dateAgo(days: number): string {
   return d.toISOString().split("T")[0]!;
 }
 
+function dateOffset(days: number): string {
+  const d = new Date();
+  d.setDate(d.getDate() + days);
+  return d.toISOString().split("T")[0]!;
+}
+
 function numAvg(values: number[]): number | null {
   if (values.length === 0) return null;
   return values.reduce((s, v) => s + v, 0) / values.length;
 }
 
+function fmtTime(dt: Date | null | undefined): string {
+  if (!dt) return "";
+  return dt.toLocaleTimeString("en-US", {
+    hour: "numeric",
+    minute: "2-digit",
+    hour12: true,
+  });
+}
+
+export function computeReadiness(
+  hrv: number | null,
+  sleep: number | null,
+  rhr: number | null
+): "Good" | "Fair" | "Low" | "Unknown" {
+  if (hrv == null && sleep == null && rhr == null) return "Unknown";
+
+  let score = 0;
+  let factors = 0;
+
+  if (hrv != null) {
+    factors++;
+    if (hrv >= 50) score += 2;
+    else if (hrv >= 35) score += 1;
+  }
+  if (sleep != null) {
+    factors++;
+    if (sleep >= 7.5) score += 2;
+    else if (sleep >= 6) score += 1;
+  }
+  if (rhr != null) {
+    factors++;
+    if (rhr <= 62) score += 2;
+    else if (rhr <= 70) score += 1;
+  }
+
+  if (factors === 0) return "Unknown";
+  const ratio = score / (factors * 2);
+  if (ratio >= 0.67) return "Good";
+  if (ratio >= 0.34) return "Fair";
+  return "Low";
+}
+
+function buildContextString(data: Record<string, unknown>): string {
+  const lines: string[] = [];
+
+  const dateStr = new Date().toLocaleDateString("en-US", {
+    weekday: "long",
+    month: "long",
+    day: "numeric",
+  });
+  lines.push(`USER CONTEXT (Today is ${dateStr}):`);
+
+  const name = (data.user_name as string) || "User";
+  const identity = data.user_identity as string | null;
+  lines.push(`- Name: ${name}${identity ? ` | Identity: ${identity}` : ""}`);
+
+  const hrv = data.hrv_today as number | null;
+  const sleep = data.sleep_hours as number | null;
+  const rhr = data.rhr_today as number | null;
+  const readiness = data.readiness_label as string;
+  const recoveryParts: string[] = [];
+  if (hrv != null) recoveryParts.push(`HRV ${hrv} ms`);
+  if (sleep != null) recoveryParts.push(`Sleep ${sleep} hrs`);
+  if (rhr != null) recoveryParts.push(`Resting HR ${rhr} bpm`);
+  lines.push(
+    recoveryParts.length > 0
+      ? `- Recovery: ${recoveryParts.join(", ")}. Readiness: ${readiness}`
+      : `- Recovery: No wearable data yet. Readiness: ${readiness}`
+  );
+
+  const steps = data.steps_today as number | null;
+  const workoutType = data.workout_type as string | null;
+  const workoutDuration = data.workout_duration as number | null;
+  const movParts: string[] = [];
+  if (steps != null) movParts.push(`${steps.toLocaleString()} steps`);
+  if (workoutType) movParts.push(`${workoutType}${workoutDuration ? ` (${workoutDuration} min)` : ""}`);
+  lines.push(
+    movParts.length > 0
+      ? `- Movement: ${movParts.join(", ")}`
+      : `- Movement: No movement logged yet`
+  );
+
+  const top3 = data.top3_goals as Array<{ title: string; progressPercent: number }> | null;
+  if (top3 && top3.length > 0) {
+    lines.push(`- Goals: ${top3.map((g) => `${g.title} (${g.progressPercent}%)`).join(", ")}`);
+  } else {
+    lines.push(`- Goals: No active goals set`);
+  }
+
+  const habitsCompleted = data.habits_completed_today as string;
+  const habitsPending = data.habits_pending_today as string;
+  const habitParts: string[] = [];
+  if (habitsCompleted && habitsCompleted !== "none") habitParts.push(`Done: ${habitsCompleted}`);
+  if (habitsPending && habitsPending !== "none") habitParts.push(`Pending: ${habitsPending}`);
+  if (habitParts.length > 0) lines.push(`- Habits: ${habitParts.join(" | ")}`);
+
+  const calToday = data.calendar_today_str as string | null;
+  if (calToday) lines.push(`- Today calendar: ${calToday}`);
+
+  const calTomorrow = data.calendar_tomorrow_str as string | null;
+  if (calTomorrow) lines.push(`- Tomorrow calendar: ${calTomorrow}`);
+
+  const motivation = data.user_motivation as string | null;
+  if (motivation) {
+    lines.push(`- Motivation language (use verbatim when encouraging): "${motivation}"`);
+  }
+
+  lines.push(`- Diet context: ${data.diet_context as string}`);
+
+  const toAsk = data.uncovered_areas as string | null;
+  if (toAsk && toAsk !== "all areas covered") {
+    lines.push(`- What to explore: ${toAsk}`);
+  }
+
+  const callTime = data.user_call_time as string;
+  if (callTime !== "not set") lines.push(`- Preferred call time: ${callTime}`);
+
+  return lines.join("\n");
+}
+
 export async function buildVapiContext(userId: string): Promise<Record<string, unknown>> {
   const today = new Date().toISOString().split("T")[0]!;
+  const tomorrow = dateOffset(1);
   const d14 = dateAgo(14);
   const d30 = dateAgo(30);
 
@@ -45,6 +172,7 @@ export async function buildVapiContext(userId: string): Promise<Record<string, u
     goals,
     profileRows,
     calendarToday,
+    calendarTomorrow,
     latestInsight,
     todayLogEntries,
   ] = await Promise.all([
@@ -80,7 +208,11 @@ export async function buildVapiContext(userId: string): Promise<Record<string, u
 
     db.select().from(habitsTable).where(eq(habitsTable.userId, userId)),
 
-    db.select().from(goalsTable).where(eq(goalsTable.userId, userId)),
+    db
+      .select()
+      .from(goalsTable)
+      .where(eq(goalsTable.userId, userId))
+      .orderBy(desc(goalsTable.updatedAt)),
 
     db
       .select()
@@ -92,6 +224,12 @@ export async function buildVapiContext(userId: string): Promise<Record<string, u
       .select()
       .from(calendarEventsTable)
       .where(and(eq(calendarEventsTable.userId, userId), eq(calendarEventsTable.date, today)))
+      .orderBy(asc(calendarEventsTable.startTime)),
+
+    db
+      .select()
+      .from(calendarEventsTable)
+      .where(and(eq(calendarEventsTable.userId, userId), eq(calendarEventsTable.date, tomorrow)))
       .orderBy(asc(calendarEventsTable.startTime)),
 
     db
@@ -122,7 +260,7 @@ export async function buildVapiContext(userId: string): Promise<Record<string, u
   const daysWithWorkout14 = logs14.filter((l) => l.workoutType != null).length;
   const workout_consistency_14d = Math.round((daysWithWorkout14 / 14) * 100);
 
-  // ── Today's mood check-ins ───────────────────────────────────────────────
+  // ── Today's mood ─────────────────────────────────────────────────────────
   const mood_checkins_today =
     todayMoods.length > 0
       ? todayMoods
@@ -139,30 +277,24 @@ export async function buildVapiContext(userId: string): Promise<Record<string, u
   // ── Habits ───────────────────────────────────────────────────────────────
   const habits_summary =
     habits.length > 0
-      ? habits
-          .map((h) => `${h.name} (${h.streak}d streak, ${h.completedToday ? "done" : "pending"})`)
-          .join("; ")
+      ? habits.map((h) => `${h.name} (${h.streak}d streak, ${h.completedToday ? "done" : "pending"})`).join("; ")
       : "none";
   const habits_completed_today =
-    habits
-      .filter((h) => h.completedToday)
-      .map((h) => `${h.name} (${h.streak}d streak)`)
-      .join(", ") || "none";
+    habits.filter((h) => h.completedToday).map((h) => `${h.name} (${h.streak}d streak)`).join(", ") || "none";
   const habits_pending_today =
-    habits
-      .filter((h) => !h.completedToday)
-      .map((h) => h.name)
-      .join(", ") || "none";
+    habits.filter((h) => !h.completedToday).map((h) => h.name).join(", ") || "none";
 
-  // ── Goals ────────────────────────────────────────────────────────────────
+  // ── Goals — top 3 by most recently updated ───────────────────────────────
   const topGoal = goals[0];
+  const top3Goals = goals.slice(0, 3).map((g) => ({
+    title: g.title,
+    progressPercent: g.progressPercent,
+  }));
   const goals_summary =
-    goals.length > 0
-      ? goals.map((g) => `${g.title} (${g.progressPercent}%)`).join("; ")
-      : "none";
+    goals.length > 0 ? goals.map((g) => `${g.title} (${g.progressPercent}%)`).join("; ") : "none";
 
-  // ── Calendar ─────────────────────────────────────────────────────────────
-  let meeting_count = calendarToday.length;
+  // ── Calendar (today) ─────────────────────────────────────────────────────
+  const meeting_count = calendarToday.length;
   let workday_hours = 0;
   let calendar_stress = "no";
   if (calendarToday.length > 0) {
@@ -170,27 +302,60 @@ export async function buildVapiContext(userId: string): Promise<Record<string, u
     const last = calendarToday[calendarToday.length - 1]!;
     if (first.startTime && last.endTime) {
       workday_hours =
-        Math.round(
-          ((last.endTime.getTime() - first.startTime.getTime()) / 3_600_000) * 10
-        ) / 10;
+        Math.round(((last.endTime.getTime() - first.startTime.getTime()) / 3_600_000) * 10) / 10;
     }
     if (meeting_count > 5 || workday_hours > 10) calendar_stress = "yes";
   }
 
-  // ── Latest AI pattern ────────────────────────────────────────────────────
-  const latest_pattern = latestInsight[0]?.content ?? null;
+  const calendar_today_str =
+    calendarToday.length > 0
+      ? calendarToday.map((e) => `${e.title}${e.startTime ? ` at ${fmtTime(e.startTime)}` : ""}`).join(", ") +
+        ` [${calendarToday.length} event${calendarToday.length !== 1 ? "s" : ""}]`
+      : null;
 
-  // ── Focus sessions (fall back to log entries if not on daily log) ────────
+  const calendar_tomorrow_str =
+    calendarTomorrow.length > 0
+      ? calendarTomorrow
+          .slice(0, 3)
+          .map((e) => `${e.title}${e.startTime ? ` at ${fmtTime(e.startTime)}` : ""}`)
+          .join(", ")
+      : null;
+
+  // ── Focus sessions ───────────────────────────────────────────────────────
   const focusEntries = todayLogEntries.filter((l) => l.type === "focus");
-  const focus_sessions_count =
-    log?.focusSessionsCount ??
-    focusEntries.length;
+  const focus_sessions_count = log?.focusSessionsCount ?? focusEntries.length;
   const focus_sessions_total_minutes =
     log?.focusSessionsTotalMinutes ??
     focusEntries.reduce((sum, l) => sum + (parseInt(l.value ?? "0") || 0), 0);
 
-  return {
-    // ── Identity ────────────────────────────────────────────────────────
+  // ── Derived context fields ────────────────────────────────────────────────
+  const readiness_label = computeReadiness(
+    log?.hrv ?? null,
+    log?.sleepHours ?? null,
+    log?.restingHeartRate ?? null
+  );
+
+  const NO_DIET_VALUES = new Set([
+    "", "none", "no specific plan", "no specific diet", "not specified", "n/a", "other",
+  ]);
+  const diet_context =
+    profile?.dietType && !NO_DIET_VALUES.has(profile.dietType.toLowerCase())
+      ? `User follows ${profile.dietType} diet`
+      : "No specific diet";
+
+  const uncoveredAreas: string[] = [];
+  if (!log?.sleepHours) uncoveredAreas.push("sleep quality");
+  if (!log?.workoutType) uncoveredAreas.push("movement/workout");
+  if (todayMoods.length === 0) uncoveredAreas.push("mood and energy");
+  if (!log?.waterOz) uncoveredAreas.push("hydration");
+  if (!log?.mealsCount) uncoveredAreas.push("nutrition");
+  if (habits_pending_today !== "none") uncoveredAreas.push(`pending habits (${habits_pending_today})`);
+  const uncovered_areas = uncoveredAreas.length > 0 ? uncoveredAreas.join(", ") : "all areas covered";
+
+  const latest_pattern = latestInsight[0]?.content ?? null;
+
+  const data: Record<string, unknown> = {
+    // ── Identity ─────────────────────────────────────────────────────────
     user_id: userId,
     user_name: (profile?.name ?? "").split(" ")[0] || "friend",
     user_identity: profile?.userIdentity ?? null,
@@ -217,6 +382,7 @@ export async function buildVapiContext(userId: string): Promise<Record<string, u
     recovery_score: log?.recoveryScore ?? null,
     stress_score: log?.stressScore ?? null,
     readiness_score: log?.readinessScore ?? null,
+    readiness_label,
 
     // ── 30-day rolling averages ──────────────────────────────────────────
     sleep_avg_30d: sleep_avg_30d != null ? +sleep_avg_30d.toFixed(1) : null,
@@ -233,23 +399,9 @@ export async function buildVapiContext(userId: string): Promise<Record<string, u
     water_oz: log?.waterOz ?? null,
     meals_count: log?.mealsCount ?? null,
     morning_routine_completed:
-      log?.morningRoutineCompleted != null
-        ? log.morningRoutineCompleted
-          ? "yes"
-          : "no"
-        : null,
-    sunlight_logged:
-      log?.sunlightLogged != null
-        ? log.sunlightLogged
-          ? "yes"
-          : "no"
-        : null,
-    meditation_logged:
-      log?.meditationLogged != null
-        ? log.meditationLogged
-          ? "yes"
-          : "no"
-        : null,
+      log?.morningRoutineCompleted != null ? (log.morningRoutineCompleted ? "yes" : "no") : null,
+    sunlight_logged: log?.sunlightLogged != null ? (log.sunlightLogged ? "yes" : "no") : null,
+    meditation_logged: log?.meditationLogged != null ? (log.meditationLogged ? "yes" : "no") : null,
     focus_sessions_count,
     focus_sessions_total_minutes,
 
@@ -257,6 +409,7 @@ export async function buildVapiContext(userId: string): Promise<Record<string, u
     top_goal: topGoal?.title ?? null,
     top_goal_progress: topGoal?.progressPercent ?? null,
     goals_summary,
+    top3_goals: top3Goals,
 
     // ── Habits ───────────────────────────────────────────────────────────
     habits_summary,
@@ -267,6 +420,8 @@ export async function buildVapiContext(userId: string): Promise<Record<string, u
     meeting_count,
     workday_hours,
     calendar_stress,
+    calendar_today_str,
+    calendar_tomorrow_str,
 
     // ── Today's mood summary ─────────────────────────────────────────────
     mood_avg_today:
@@ -275,7 +430,16 @@ export async function buildVapiContext(userId: string): Promise<Record<string, u
         : null,
     mood_count_today: todayMoods.length,
 
+    // ── Diet / context ───────────────────────────────────────────────────
+    diet_context,
+    uncovered_areas,
+
     // ── AI insight ───────────────────────────────────────────────────────
     latest_pattern,
   };
+
+  // context_string is built last — it references the fields above
+  data.context_string = buildContextString(data);
+
+  return data;
 }
