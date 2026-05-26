@@ -46,6 +46,9 @@ const ALLOWED_FIELDS = [
   "preferredCallTime",
   "callTimezone",
   "callsEnabled",
+  "birthday",
+  "preferredLanguage",
+  "microphonePermission",
 ] as const;
 
 router.patch("/onboarding/save", requireAuth, async (req, res): Promise<void> => {

@@ -1,0 +1,41 @@
+Prompt 5: Complete Onboarding Flow (Birthday, Language, Microphone, Welcome Sequence, Motivation)
+Context: The current onboarding is 3 steps: Name → Voice Call → Connect Devices. The Valo spec requires a 4-step flow with additional fields to personalize the AI and set health benchmarks.
+
+Goal: Expand onboarding to capture birthday, language, microphone permission, Valo welcome sequence, and free-text motivation. Ensure all fields persist to backend and AsyncStorage.
+
+Implementation Requirements:
+
+Add birthday to onboarding: Date picker on Step 1 (or new Step 2). Store as DATE in users.birthday. Use it to calculate age for health benchmarks later.
+
+Add language to onboarding: Add a language selector at the very start (Step 0 or Step 1). Default to device locale ( Localization.locale from expo-localization). Store in users.preferred_language. Options: English, Spanish, French, German (minimum English).
+
+Add microphone permission gate: Before any VAPI call during onboarding, explicitly request Audio.requestPermissionsAsync() from expo-av. If denied, show a UI explaining why the mic is needed with a button to open Settings. Do not crash if denied—fall back to text input.
+
+Build Valo welcome sequence: Before asking onboarding questions, show a 1-screen animated/text welcome where "Valo introduces itself."
+
+Headline: "Hi, I'm Valo."
+Subtext: "I'm here to help you see your life clearly. No judgment, no generic advice—just honest reflection on what matters to you."
+Button: "Let's begin"
+This screen should set the "warm, personal, not clinical" tone. Use the user's name if already entered.
+Add motivation free-text field: After goals/priorities selection, add a screen: "What motivates you? (Use your own words—I'll remind you of this when things get hard)."
+
+Text input, max 280 characters.
+Store in users.motivation_text.
+This text must be retrievable by the VAPI context builder (Prompt 3).
+End-to-end persistence: On onboarding completion, POST all fields to /api/onboarding/complete in a single transaction. Update AsyncStorage key onboarding_complete: true. If API fails, show error and do not mark complete.
+
+Files to Modify:
+
+Onboarding navigator / screen components
+expo-localization setup
+Backend: onboarding.save endpoint (expand to accept birthday, language, motivation_text)
+Database: users table columns: birthday (date), preferred_language (varchar), motivation_text (text), microphone_permission (boolean)
+Acceptance Criteria:
+
+ User sees language selector before anything else loads
+ Birthday picker works on iOS (native date picker)
+ Mic permission requested explicitly with fallback to text
+ Welcome sequence screen displays before questions begin
+ Motivation text is saved and retrievable in Profile settings
+ Onboarding does not restart after completion (AsyncStorage + API sync verified)
+ All new fields appear in PostgreSQL after onboarding

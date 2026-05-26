@@ -19,19 +19,43 @@ import { useColors } from "@/hooks/useColors";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { markOnboardingComplete } from "@/hooks/onboardingState";
 
+import StepValoIntro from "@/components/onboarding/StepValoIntro";
+import StepLanguage from "@/components/onboarding/StepLanguage";
 import Step1Identity from "@/components/onboarding/Step1Identity";
+import StepBirthday from "@/components/onboarding/StepBirthday";
+import StepMicPermission from "@/components/onboarding/StepMicPermission";
 import StepVoiceCall from "@/components/onboarding/StepVoiceCall";
 import StepConnect from "@/components/onboarding/StepConnect";
 import StepPriorities from "@/components/onboarding/StepPriorities";
 import StepWants from "@/components/onboarding/StepWants";
 import StepMotivation from "@/components/onboarding/StepMotivation";
 
-type StepName = "identity" | "voice" | "priorities" | "wants" | "motivation" | "connect";
+type StepName =
+  | "welcome"
+  | "language"
+  | "identity"
+  | "birthday"
+  | "mic_permission"
+  | "voice"
+  | "priorities"
+  | "wants"
+  | "motivation"
+  | "connect";
 
-const VOICE_SEQUENCE: StepName[] = ["identity", "voice", "connect"];
-const TEXT_SEQUENCE: StepName[]  = ["identity", "voice", "priorities", "wants", "motivation", "connect"];
+// Steps counted in the progress bar (welcome is a full-screen gate, excluded)
+const VOICE_SEQUENCE: StepName[] = [
+  "language", "identity", "birthday", "mic_permission", "voice", "connect",
+];
+const TEXT_SEQUENCE: StepName[] = [
+  "language", "identity", "birthday", "mic_permission", "voice",
+  "priorities", "wants", "motivation", "connect",
+];
 
-function getProgress(step: StepName, voiceCallCompleted: boolean): { current: number; total: number } {
+function getProgress(
+  step: StepName,
+  voiceCallCompleted: boolean,
+): { current: number; total: number } {
+  if (step === "welcome") return { current: 0, total: 1 };
   const seq = voiceCallCompleted ? VOICE_SEQUENCE : TEXT_SEQUENCE;
   const idx = seq.indexOf(step);
   return { current: idx === -1 ? 1 : idx + 1, total: seq.length };
@@ -82,7 +106,7 @@ export default function OnboardingScreen() {
   const router = useRouter();
   const { getToken, updateName } = useValoAuth();
 
-  const [step, setStep] = useState<StepName>("identity");
+  const [step, setStep] = useState<StepName>("welcome");
   const [voiceCallCompleted, setVoiceCallCompleted] = useState(false);
   const [saving, setSaving] = useState(false);
   const [allData, setAllData] = useState<Record<string, any>>({});
@@ -112,7 +136,7 @@ export default function OnboardingScreen() {
         ]).start();
       });
     },
-    [fadeAnim, slideAnim]
+    [fadeAnim, slideAnim],
   );
 
   const patchOnboarding = useCallback(
@@ -128,7 +152,7 @@ export default function OnboardingScreen() {
       });
       if (!res.ok) throw new Error("Save failed");
     },
-    [getToken]
+    [getToken],
   );
 
   const handleStepChange = useCallback((data: Record<string, any>, valid: boolean) => {
@@ -142,14 +166,33 @@ export default function OnboardingScreen() {
     } catch {
       // proceed even if network fails
     }
-    // Write to AsyncStorage before navigation so _layout.tsx's check
-    // always finds the flag regardless of whether the API call above succeeded.
     await AsyncStorage.setItem("@valo/onboarding-complete", "true");
     markOnboardingComplete();
     router.replace("/(tabs)/today");
   }, [patchOnboarding, router]);
 
-  // Used by Step1Identity's parent Continue button
+  // ── Welcome → Language ────────────────────────────────────────────────────
+  const handleWelcomeBegin = useCallback(() => {
+    animateTransition(() => {
+      setStep("language");
+      setCurrentValid(false);
+    });
+  }, [animateTransition]);
+
+  // ── Language → Identity ───────────────────────────────────────────────────
+  const handleLanguageContinue = useCallback(
+    (data: Record<string, any>) => {
+      void patchOnboarding(data).catch(() => {});
+      setAllData((prev) => ({ ...prev, ...data }));
+      animateTransition(() => {
+        setStep("identity");
+        setCurrentValid(false);
+      });
+    },
+    [patchOnboarding, animateTransition],
+  );
+
+  // ── Identity Continue button (outer) → Birthday ────────────────────────────
   const handleNext = useCallback(async () => {
     if (!currentValid || saving) return;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -160,14 +203,14 @@ export default function OnboardingScreen() {
       if (data.name) updateName(data.name);
       setAllData((prev) => ({ ...prev, ...data }));
       animateTransition(() => {
-        setStep("voice");
+        setStep("birthday");
         setCurrentValid(false);
       });
     } catch {
       if (data.name) updateName(data.name);
       setAllData((prev) => ({ ...prev, ...data }));
       animateTransition(() => {
-        setStep("voice");
+        setStep("birthday");
         setCurrentValid(false);
       });
     } finally {
@@ -175,7 +218,34 @@ export default function OnboardingScreen() {
     }
   }, [currentValid, saving, patchOnboarding, animateTransition, updateName]);
 
-  // Voice call completed — go straight to connect
+  // ── Birthday → Mic Permission ──────────────────────────────────────────────
+  const handleBirthdayContinue = useCallback(
+    (data: Record<string, any>) => {
+      void patchOnboarding(data).catch(() => {});
+      setAllData((prev) => ({ ...prev, ...data }));
+      animateTransition(() => setStep("mic_permission"));
+    },
+    [patchOnboarding, animateTransition],
+  );
+
+  const handleBirthdaySkip = useCallback(() => {
+    animateTransition(() => setStep("mic_permission"));
+  }, [animateTransition]);
+
+  // ── Mic Permission → Voice ─────────────────────────────────────────────────
+  const handleMicGranted = useCallback(
+    (micPermission: boolean) => {
+      void patchOnboarding({ microphonePermission: micPermission }).catch(() => {});
+      setAllData((prev) => ({ ...prev, microphonePermission: micPermission }));
+      animateTransition(() => {
+        setStep("voice");
+        setCurrentValid(false);
+      });
+    },
+    [patchOnboarding, animateTransition],
+  );
+
+  // ── Voice call completed → Connect ─────────────────────────────────────────
   const handleVoiceCallComplete = useCallback(() => {
     setVoiceCallCompleted(true);
     animateTransition(() => {
@@ -184,7 +254,7 @@ export default function OnboardingScreen() {
     });
   }, [animateTransition]);
 
-  // Voice call skipped — go to text onboarding
+  // ── Voice call skipped → Priorities ───────────────────────────────────────
   const handleSkipVoiceCall = useCallback(() => {
     animateTransition(() => {
       setStep("priorities");
@@ -192,7 +262,7 @@ export default function OnboardingScreen() {
     });
   }, [animateTransition]);
 
-  // Text step continue: save data in background, animate to next step
+  // ── Text step continue ─────────────────────────────────────────────────────
   const handleTextStepContinue = useCallback(
     (data: Record<string, any>, nextStep: StepName) => {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -200,7 +270,7 @@ export default function OnboardingScreen() {
       setAllData((prev) => ({ ...prev, ...data }));
       animateTransition(() => setStep(nextStep));
     },
-    [patchOnboarding, animateTransition]
+    [patchOnboarding, animateTransition],
   );
 
   const handleTextStepSkip = useCallback(
@@ -208,12 +278,16 @@ export default function OnboardingScreen() {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
       animateTransition(() => setStep(nextStep));
     },
-    [animateTransition]
+    [animateTransition],
   );
 
+  // ── Back navigation ────────────────────────────────────────────────────────
   const handleBack = useCallback(() => {
     if (saving) return;
     const backMap: Partial<Record<StepName, StepName>> = {
+      identity: "language",
+      birthday: "identity",
+      mic_permission: "birthday",
       wants: "priorities",
       motivation: "wants",
     };
@@ -229,10 +303,21 @@ export default function OnboardingScreen() {
   const topPad = Platform.OS === "web" ? Math.max(insets.top, 67) : insets.top;
   const bottomPad = insets.bottom;
 
-  const showHeader = step !== "voice";
+  const showHeader = step !== "voice" && step !== "welcome";
   const showContinueBtn = step === "identity";
-  const backDisabled = step !== "wants" && step !== "motivation";
+  const backAllowedSteps: StepName[] = ["identity", "birthday", "mic_permission", "wants", "motivation"];
+  const backDisabled = !backAllowedSteps.includes(step);
   const { current: progressCurrent, total: progressTotal } = getProgress(step, voiceCallCompleted);
+
+  // Welcome screen is rendered outside the scroll/header layout
+  if (step === "welcome") {
+    return (
+      <StepValoIntro
+        name={allData.name}
+        onBegin={handleWelcomeBegin}
+      />
+    );
+  }
 
   const stepProps = { initialValue: allData, onChange: handleStepChange };
 
@@ -270,7 +355,22 @@ export default function OnboardingScreen() {
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >
+          {step === "language" && (
+            <StepLanguage onContinue={handleLanguageContinue} />
+          )}
+
           {step === "identity" && <Step1Identity {...stepProps} />}
+
+          {step === "birthday" && (
+            <StepBirthday
+              onContinue={handleBirthdayContinue}
+              onSkip={handleBirthdaySkip}
+            />
+          )}
+
+          {step === "mic_permission" && (
+            <StepMicPermission onGranted={handleMicGranted} />
+          )}
 
           {step === "voice" && (
             <StepVoiceCall
