@@ -391,3 +391,115 @@ export const AnalyzeImageResponse = zod.object({
   type: zod.string(),
   data: zod.record(zod.string(), zod.unknown()),
 });
+
+/**
+ * @summary List all routines for the authenticated user
+ */
+export const ListRoutinesResponseItem = zod.object({
+  id: zod.string(),
+  userId: zod.string(),
+  name: zod.string(),
+  days: zod
+    .string()
+    .describe('JSON string of day-of-week numbers, e.g. \"[0,1,2,3,4]\"'),
+  scheduledTime: zod.string().nullish(),
+  color: zod.string(),
+  activities: zod
+    .string()
+    .nullish()
+    .describe("JSON string of activity name strings"),
+  isDisplayedOnCalendar: zod.boolean(),
+  createdAt: zod.string(),
+  updatedAt: zod.string(),
+});
+export const ListRoutinesResponse = zod.array(ListRoutinesResponseItem);
+
+/**
+ * @summary Create or upsert a routine (idempotent by id)
+ */
+export const CreateRoutineBody = zod.object({
+  id: zod.string(),
+  name: zod.string(),
+  days: zod.string().optional(),
+  scheduledTime: zod.string().optional(),
+  color: zod.string().optional(),
+  activities: zod.string().optional(),
+  isDisplayedOnCalendar: zod.boolean().optional(),
+});
+
+/**
+ * @summary Update a routine
+ */
+export const UpdateRoutineParams = zod.object({
+  id: zod.coerce.string(),
+});
+
+export const UpdateRoutineBody = zod.object({
+  name: zod.string().optional(),
+  days: zod.string().optional(),
+  scheduledTime: zod.string().optional(),
+  color: zod.string().optional(),
+  activities: zod.string().optional(),
+  isDisplayedOnCalendar: zod.boolean().optional(),
+});
+
+export const UpdateRoutineResponse = zod.object({
+  id: zod.string(),
+  userId: zod.string(),
+  name: zod.string(),
+  days: zod
+    .string()
+    .describe('JSON string of day-of-week numbers, e.g. \"[0,1,2,3,4]\"'),
+  scheduledTime: zod.string().nullish(),
+  color: zod.string(),
+  activities: zod
+    .string()
+    .nullish()
+    .describe("JSON string of activity name strings"),
+  isDisplayedOnCalendar: zod.boolean(),
+  createdAt: zod.string(),
+  updatedAt: zod.string(),
+});
+
+/**
+ * @summary Delete a routine
+ */
+export const DeleteRoutineParams = zod.object({
+  id: zod.coerce.string(),
+});
+
+/**
+ * @summary List habit completions for a specific date (YYYY-MM-DD)
+ */
+export const ListHabitCompletionsParams = zod.object({
+  date: zod.coerce.string(),
+});
+
+export const ListHabitCompletionsResponseItem = zod.object({
+  id: zod.number(),
+  habitId: zod.number(),
+  userId: zod.string(),
+  completionDate: zod.string(),
+  completed: zod.boolean(),
+  createdAt: zod.string(),
+});
+export const ListHabitCompletionsResponse = zod.array(
+  ListHabitCompletionsResponseItem,
+);
+
+/**
+ * @summary Toggle a habit completion for a specific date
+ */
+export const ToggleHabitCompletionBody = zod.object({
+  habitId: zod.number(),
+  date: zod.string().describe("YYYY-MM-DD"),
+});
+
+export const ToggleHabitCompletionResponse = zod.object({
+  id: zod.number(),
+  habitId: zod.number(),
+  userId: zod.string(),
+  completionDate: zod.string(),
+  completed: zod.boolean(),
+  createdAt: zod.string(),
+});

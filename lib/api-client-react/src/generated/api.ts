@@ -29,6 +29,7 @@ import type {
   GoalInput,
   GoalUpdate,
   Habit,
+  HabitCompletion,
   HabitInput,
   HabitUpdate,
   HealthStatus,
@@ -39,8 +40,12 @@ import type {
   MoodInput,
   OnboardingSaveInput,
   OnboardingStatus,
+  Routine,
+  RoutineInput,
+  RoutineUpdate,
   SaveOnboarding200,
   StreakData,
+  ToggleHabitCompletionInput,
   UserSettings,
 } from "./api.schemas";
 
@@ -2045,4 +2050,511 @@ export const useAnalyzeImage = <
   TContext
 > => {
   return useMutation(getAnalyzeImageMutationOptions(options));
+};
+
+/**
+ * @summary List all routines for the authenticated user
+ */
+export const getListRoutinesUrl = () => {
+  return `/api/routines`;
+};
+
+export const listRoutines = async (
+  options?: RequestInit,
+): Promise<Routine[]> => {
+  return customFetch<Routine[]>(getListRoutinesUrl(), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getListRoutinesQueryKey = () => {
+  return [`/api/routines`] as const;
+};
+
+export const getListRoutinesQueryOptions = <
+  TData = Awaited<ReturnType<typeof listRoutines>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof listRoutines>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getListRoutinesQueryKey();
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof listRoutines>>> = ({
+    signal,
+  }) => listRoutines({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof listRoutines>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type ListRoutinesQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listRoutines>>
+>;
+export type ListRoutinesQueryError = ErrorType<unknown>;
+
+/**
+ * @summary List all routines for the authenticated user
+ */
+
+export function useListRoutines<
+  TData = Awaited<ReturnType<typeof listRoutines>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof listRoutines>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getListRoutinesQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Create or upsert a routine (idempotent by id)
+ */
+export const getCreateRoutineUrl = () => {
+  return `/api/routines`;
+};
+
+export const createRoutine = async (
+  routineInput: RoutineInput,
+  options?: RequestInit,
+): Promise<Routine> => {
+  return customFetch<Routine>(getCreateRoutineUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(routineInput),
+  });
+};
+
+export const getCreateRoutineMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createRoutine>>,
+    TError,
+    { data: BodyType<RoutineInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof createRoutine>>,
+  TError,
+  { data: BodyType<RoutineInput> },
+  TContext
+> => {
+  const mutationKey = ["createRoutine"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof createRoutine>>,
+    { data: BodyType<RoutineInput> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return createRoutine(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type CreateRoutineMutationResult = NonNullable<
+  Awaited<ReturnType<typeof createRoutine>>
+>;
+export type CreateRoutineMutationBody = BodyType<RoutineInput>;
+export type CreateRoutineMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Create or upsert a routine (idempotent by id)
+ */
+export const useCreateRoutine = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createRoutine>>,
+    TError,
+    { data: BodyType<RoutineInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof createRoutine>>,
+  TError,
+  { data: BodyType<RoutineInput> },
+  TContext
+> => {
+  return useMutation(getCreateRoutineMutationOptions(options));
+};
+
+/**
+ * @summary Update a routine
+ */
+export const getUpdateRoutineUrl = (id: string) => {
+  return `/api/routines/${id}`;
+};
+
+export const updateRoutine = async (
+  id: string,
+  routineUpdate: RoutineUpdate,
+  options?: RequestInit,
+): Promise<Routine> => {
+  return customFetch<Routine>(getUpdateRoutineUrl(id), {
+    ...options,
+    method: "PATCH",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(routineUpdate),
+  });
+};
+
+export const getUpdateRoutineMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateRoutine>>,
+    TError,
+    { id: string; data: BodyType<RoutineUpdate> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof updateRoutine>>,
+  TError,
+  { id: string; data: BodyType<RoutineUpdate> },
+  TContext
+> => {
+  const mutationKey = ["updateRoutine"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof updateRoutine>>,
+    { id: string; data: BodyType<RoutineUpdate> }
+  > = (props) => {
+    const { id, data } = props ?? {};
+
+    return updateRoutine(id, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type UpdateRoutineMutationResult = NonNullable<
+  Awaited<ReturnType<typeof updateRoutine>>
+>;
+export type UpdateRoutineMutationBody = BodyType<RoutineUpdate>;
+export type UpdateRoutineMutationError = ErrorType<void>;
+
+/**
+ * @summary Update a routine
+ */
+export const useUpdateRoutine = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateRoutine>>,
+    TError,
+    { id: string; data: BodyType<RoutineUpdate> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof updateRoutine>>,
+  TError,
+  { id: string; data: BodyType<RoutineUpdate> },
+  TContext
+> => {
+  return useMutation(getUpdateRoutineMutationOptions(options));
+};
+
+/**
+ * @summary Delete a routine
+ */
+export const getDeleteRoutineUrl = (id: string) => {
+  return `/api/routines/${id}`;
+};
+
+export const deleteRoutine = async (
+  id: string,
+  options?: RequestInit,
+): Promise<void> => {
+  return customFetch<void>(getDeleteRoutineUrl(id), {
+    ...options,
+    method: "DELETE",
+  });
+};
+
+export const getDeleteRoutineMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deleteRoutine>>,
+    TError,
+    { id: string },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof deleteRoutine>>,
+  TError,
+  { id: string },
+  TContext
+> => {
+  const mutationKey = ["deleteRoutine"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof deleteRoutine>>,
+    { id: string }
+  > = (props) => {
+    const { id } = props ?? {};
+
+    return deleteRoutine(id, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type DeleteRoutineMutationResult = NonNullable<
+  Awaited<ReturnType<typeof deleteRoutine>>
+>;
+
+export type DeleteRoutineMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Delete a routine
+ */
+export const useDeleteRoutine = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deleteRoutine>>,
+    TError,
+    { id: string },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof deleteRoutine>>,
+  TError,
+  { id: string },
+  TContext
+> => {
+  return useMutation(getDeleteRoutineMutationOptions(options));
+};
+
+/**
+ * @summary List habit completions for a specific date (YYYY-MM-DD)
+ */
+export const getListHabitCompletionsUrl = (date: string) => {
+  return `/api/habit-completions/${date}`;
+};
+
+export const listHabitCompletions = async (
+  date: string,
+  options?: RequestInit,
+): Promise<HabitCompletion[]> => {
+  return customFetch<HabitCompletion[]>(getListHabitCompletionsUrl(date), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getListHabitCompletionsQueryKey = (date: string) => {
+  return [`/api/habit-completions/${date}`] as const;
+};
+
+export const getListHabitCompletionsQueryOptions = <
+  TData = Awaited<ReturnType<typeof listHabitCompletions>>,
+  TError = ErrorType<unknown>,
+>(
+  date: string,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listHabitCompletions>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getListHabitCompletionsQueryKey(date);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof listHabitCompletions>>
+  > = ({ signal }) => listHabitCompletions(date, { signal, ...requestOptions });
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: !!date,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof listHabitCompletions>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type ListHabitCompletionsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listHabitCompletions>>
+>;
+export type ListHabitCompletionsQueryError = ErrorType<unknown>;
+
+/**
+ * @summary List habit completions for a specific date (YYYY-MM-DD)
+ */
+
+export function useListHabitCompletions<
+  TData = Awaited<ReturnType<typeof listHabitCompletions>>,
+  TError = ErrorType<unknown>,
+>(
+  date: string,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listHabitCompletions>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getListHabitCompletionsQueryOptions(date, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Toggle a habit completion for a specific date
+ */
+export const getToggleHabitCompletionUrl = () => {
+  return `/api/habit-completions/toggle`;
+};
+
+export const toggleHabitCompletion = async (
+  toggleHabitCompletionInput: ToggleHabitCompletionInput,
+  options?: RequestInit,
+): Promise<HabitCompletion> => {
+  return customFetch<HabitCompletion>(getToggleHabitCompletionUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(toggleHabitCompletionInput),
+  });
+};
+
+export const getToggleHabitCompletionMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof toggleHabitCompletion>>,
+    TError,
+    { data: BodyType<ToggleHabitCompletionInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof toggleHabitCompletion>>,
+  TError,
+  { data: BodyType<ToggleHabitCompletionInput> },
+  TContext
+> => {
+  const mutationKey = ["toggleHabitCompletion"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof toggleHabitCompletion>>,
+    { data: BodyType<ToggleHabitCompletionInput> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return toggleHabitCompletion(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type ToggleHabitCompletionMutationResult = NonNullable<
+  Awaited<ReturnType<typeof toggleHabitCompletion>>
+>;
+export type ToggleHabitCompletionMutationBody =
+  BodyType<ToggleHabitCompletionInput>;
+export type ToggleHabitCompletionMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Toggle a habit completion for a specific date
+ */
+export const useToggleHabitCompletion = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof toggleHabitCompletion>>,
+    TError,
+    { data: BodyType<ToggleHabitCompletionInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof toggleHabitCompletion>>,
+  TError,
+  { data: BodyType<ToggleHabitCompletionInput> },
+  TContext
+> => {
+  return useMutation(getToggleHabitCompletionMutationOptions(options));
 };

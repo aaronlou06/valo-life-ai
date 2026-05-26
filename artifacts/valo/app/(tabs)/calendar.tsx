@@ -28,7 +28,17 @@ import {
   useUpdateHabit,
   useDeleteHabit,
   getListHabitsQueryKey,
+  useListRoutines,
+  useCreateRoutine,
+  useUpdateRoutine,
+  useDeleteRoutine,
+  getListRoutinesQueryKey,
+  useListHabitCompletions,
+  useToggleHabitCompletion,
+  getListHabitCompletionsQueryKey,
   type Habit,
+  type Routine as DbRoutine,
+  type HabitCompletion,
 } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 
@@ -66,8 +76,9 @@ const EVENT_TYPES: { key: string; label: string; color: string }[] = [
   { key: "goal",     label: "Goal",     color: "#C17B3F" },
 ];
 
-const ROUTINE_COLORS = ["#C17B3F","#2563EB","#059669","#7C3AED","#D97706","#E11D48"];
-const DAY_LETTERS   = ["S","M","T","W","T","F","S"];
+const ROUTINE_COLORS   = ["#C17B3F","#2563EB","#059669","#7C3AED","#D97706","#E11D48"];
+const DAY_LETTERS      = ["S","M","T","W","T","F","S"];
+const DAY_SHORT_NAMES  = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
 const ROUTINES_KEY_FOR  = (uid: string) => `@valo/routines-${uid}`;
 const SCHEDULE_KEY_FOR  = (uid: string) => `@valo/work-schedule-${uid}`;
 const CELL_MIN_H    = 80;
@@ -404,7 +415,9 @@ function DatePickerField({
     const hasT = value.includes("T");
     const dp = hasT ? value.split("T")[0]! : value;
     const [y, m, d] = dp.split("-").map(Number);
-    let s = `${PICKER_MONTHS_SHORT[(m ?? 1) - 1]} ${d}, ${y}`;
+    const dateObj = new Date(y!, (m ?? 1) - 1, d);
+    const dayAbbr = DAY_SHORT_NAMES[dateObj.getDay()]!;
+    let s = `${dayAbbr}, ${PICKER_MONTHS_SHORT[(m ?? 1) - 1]} ${d}, ${y}`;
     if (hasT) {
       const tp = value.split("T")[1]!;
       const [hs, ms] = tp.split(":");
@@ -1076,10 +1089,12 @@ function MyScheduleCard({
 // ─── Day Detail Sheet ─────────────────────────────────────────────────────────
 
 function DayDetailSheet({
-  visible, dateStr, events, onClose, onAddEvent, onDelete, colors, bottomInset,
+  visible, dateStr, events, onClose, onAddEvent, onDelete, onRoutineTap, colors, bottomInset,
 }: {
   visible: boolean; dateStr: string; events: CalendarEvent[]; onClose: () => void;
-  onAddEvent: () => void; onDelete: (id: number) => void; colors: Colors; bottomInset: number;
+  onAddEvent: () => void; onDelete: (id: number) => void;
+  onRoutineTap: (ev: CalendarEvent) => void;
+  colors: Colors; bottomInset: number;
 }) {
   const header = dateStr ? formatDayHeader(dateStr) : "";
 
@@ -1105,24 +1120,39 @@ function DayDetailSheet({
               events.map((ev) => {
                 const bc = eventColor(ev);
                 const noteText = routineNotesText(ev.notes);
+                const isRoutine = ev.type === "routine";
                 return (
-                  <View key={ev.id} style={[styles.eventCard, { backgroundColor: colors.card, borderColor: colors.border, marginBottom: 8 }]}>
+                  <TouchableOpacity
+                    key={ev.id}
+                    style={[styles.eventCard, { backgroundColor: colors.card, borderColor: colors.border, marginBottom: 8 }]}
+                    onPress={isRoutine ? () => onRoutineTap(ev) : undefined}
+                    activeOpacity={isRoutine ? 0.75 : 1}
+                  >
                     <View style={styles.eventTop}>
                       <View style={[{ width: 4, borderRadius: 2, backgroundColor: bc, alignSelf: "stretch", marginRight: 4 }]} />
                       <Text style={[styles.eventTitle, { color: colors.foreground, fontFamily: "Inter_500Medium" }]} numberOfLines={2}>{ev.title}</Text>
-                      <View style={[styles.typeBadge, { backgroundColor: bc + "22" }]}>
-                        <Text style={[styles.typeBadgeText, { color: bc, fontFamily: "Inter_500Medium" }]}>{typeBadgeLabel(ev.type)}</Text>
-                      </View>
-                      <TouchableOpacity
-                        onPress={() => Alert.alert("Delete Event", `Remove "${ev.title}"?`, [
-                          { text: "Cancel", style: "cancel" },
-                          { text: "Delete", style: "destructive", onPress: () => onDelete(ev.id) },
-                        ])}
-                        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                        style={{ marginLeft: 4 }}
-                      >
-                        <Feather name="trash-2" size={16} color={colors.mutedForeground} />
-                      </TouchableOpacity>
+                      {isRoutine ? (
+                        <View style={[styles.typeBadge, { backgroundColor: bc + "22", flexDirection: "row", alignItems: "center", gap: 3 }]}>
+                          <Text style={[styles.typeBadgeText, { color: bc, fontFamily: "Inter_500Medium" }]}>Routine</Text>
+                          <Feather name="chevron-right" size={10} color={bc} />
+                        </View>
+                      ) : (
+                        <View style={[styles.typeBadge, { backgroundColor: bc + "22" }]}>
+                          <Text style={[styles.typeBadgeText, { color: bc, fontFamily: "Inter_500Medium" }]}>{typeBadgeLabel(ev.type)}</Text>
+                        </View>
+                      )}
+                      {!isRoutine && (
+                        <TouchableOpacity
+                          onPress={() => Alert.alert("Delete Event", `Remove "${ev.title}"?`, [
+                            { text: "Cancel", style: "cancel" },
+                            { text: "Delete", style: "destructive", onPress: () => onDelete(ev.id) },
+                          ])}
+                          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                          style={{ marginLeft: 4 }}
+                        >
+                          <Feather name="trash-2" size={16} color={colors.mutedForeground} />
+                        </TouchableOpacity>
+                      )}
                     </View>
                     {(() => { const t = extractEventTime(ev.notes); return t ? (
                       <View style={{ flexDirection: "row", alignItems: "center", gap: 5, marginTop: 2 }}>
@@ -1130,8 +1160,8 @@ function DayDetailSheet({
                         <Text style={{ fontSize: 12, color: colors.mutedForeground, fontFamily: "Inter_400Regular" }}>{t}</Text>
                       </View>
                     ) : null; })()}
-                    {noteText ? <Text style={[styles.eventNotes, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]} numberOfLines={3}>{noteText}</Text> : null}
-                  </View>
+                    {noteText && !isRoutine ? <Text style={[styles.eventNotes, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]} numberOfLines={3}>{noteText}</Text> : null}
+                  </TouchableOpacity>
                 );
               })
             )}
@@ -1257,7 +1287,10 @@ function WeekView({
 
 // ─── Routine Card ─────────────────────────────────────────────────────────────
 
-function RoutineCard({ routine, onEdit, onDelete, colors }: { routine: Routine; onEdit: () => void; onDelete: () => void; colors: Colors }) {
+function RoutineCard({ routine, onEdit, onDelete, completedCount, totalCount, colors }: {
+  routine: Routine; onEdit: () => void; onDelete: () => void;
+  completedCount: number; totalCount: number; colors: Colors;
+}) {
   const activeDays = new Set(routine.days);
   return (
     <TouchableOpacity
@@ -1277,12 +1310,21 @@ function RoutineCard({ routine, onEdit, onDelete, colors }: { routine: Routine; 
       <View style={styles.routineBody}>
         <View style={styles.routineTop}>
           <Text style={[styles.routineName, { color: colors.foreground, fontFamily: "Inter_600SemiBold" }]}>{routine.name}</Text>
-          {routine.time ? (
-            <View style={[styles.routineTimeBadge, { backgroundColor: colors.muted }]}>
-              <Feather name="clock" size={11} color={colors.mutedForeground} />
-              <Text style={[styles.routineTimeText, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>{routine.time}</Text>
-            </View>
-          ) : null}
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+            {routine.time ? (
+              <View style={[styles.routineTimeBadge, { backgroundColor: colors.muted }]}>
+                <Feather name="clock" size={11} color={colors.mutedForeground} />
+                <Text style={[styles.routineTimeText, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>{routine.time}</Text>
+              </View>
+            ) : null}
+            {totalCount > 0 && (
+              <View style={[styles.routineTimeBadge, { backgroundColor: completedCount === totalCount ? routine.color + "22" : colors.muted }]}>
+                <Text style={[styles.routineTimeText, { color: completedCount === totalCount ? routine.color : colors.mutedForeground, fontFamily: "Inter_600SemiBold" }]}>
+                  {completedCount}/{totalCount}
+                </Text>
+              </View>
+            )}
+          </View>
         </View>
         <View style={styles.dayPillsRow}>
           {DAY_LETTERS.map((letter, idx) => {
@@ -1703,9 +1745,9 @@ export default function CalendarScreen() {
   const [showManage, setShowManage] = useState(false);
 
   // Routines
-  const [routines, setRoutines] = useState<Routine[]>([]);
   const [editingRoutine, setEditingRoutine] = useState<Routine | null>(null);
   const [showRoutineModal, setShowRoutineModal] = useState(false);
+  const [routineHabitsSheet, setRoutineHabitsSheet] = useState<{ routineId: string; routineName: string; date: string } | null>(null);
 
   const { data: events = [], isFetching, refetch } = useListCalendarEvents();
   const { mutateAsync: createEvent } = useCreateCalendarEvent();
@@ -1717,18 +1759,52 @@ export default function CalendarScreen() {
   const updateHabitMutation = useUpdateHabit();
   const deleteHabitMutation = useDeleteHabit();
 
+  const { data: dbRoutines = [], refetch: refetchRoutines } = useListRoutines();
+  const createRoutineMutation = useCreateRoutine();
+  const updateRoutineMutation = useUpdateRoutine();
+  const deleteRoutineMutation = useDeleteRoutine();
+
+  // Convert DB routines to the local Routine interface
+  const routines: Routine[] = useMemo(() =>
+    dbRoutines.map((r) => ({
+      id: r.id,
+      name: r.name,
+      days: (() => { try { return JSON.parse(r.days) as number[]; } catch { return []; } })(),
+      time: r.scheduledTime ?? undefined,
+      activities: (() => { try { return JSON.parse(r.activities ?? "[]") as string[]; } catch { return []; } })(),
+      color: r.color,
+    })),
+    [dbRoutines],
+  );
+
   const [newHabitName, setNewHabitName] = useState("");
   const [addHabitRoutineId, setAddHabitRoutineId] = useState<string | null>(null);
 
+  // Migrate AsyncStorage routines to DB on first load (one-time migration)
   useEffect(() => {
-    if (!userId) return;
-    setRoutines([]);
+    if (!userId || dbRoutines.length > 0) return;
     AsyncStorage.getItem(ROUTINES_KEY_FOR(userId))
-      .then((val) => { if (val) setRoutines(JSON.parse(val)); })
+      .then(async (val) => {
+        if (!val) return;
+        const legacy = JSON.parse(val) as Routine[];
+        if (legacy.length === 0) return;
+        await Promise.all(legacy.map((r) =>
+          createRoutineMutation.mutateAsync({ data: {
+            id: r.id,
+            name: r.name,
+            days: JSON.stringify(r.days),
+            scheduledTime: r.time,
+            color: r.color,
+            activities: JSON.stringify(r.activities),
+          }}).catch(() => {})
+        ));
+        refetchRoutines();
+      })
       .catch(() => {});
     AsyncStorage.getItem(SCHEDULE_KEY_FOR(userId))
       .then((val) => { if (val) setSchedule(JSON.parse(val)); })
       .catch(() => {});
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [userId]);
 
   const eventsByDate = useMemo(() => {
@@ -1759,12 +1835,6 @@ export default function CalendarScreen() {
     [eventsByDate, selectedDate],
   );
 
-  async function saveRoutines(updated: Routine[]) {
-    setRoutines(updated);
-    if (!userId) return;
-    await AsyncStorage.setItem(ROUTINES_KEY_FOR(userId), JSON.stringify(updated)).catch(() => {});
-  }
-
   function getRoutineEvents(routineName: string): CalendarEvent[] {
     return events.filter(
       (e) => e.type === "routine" &&
@@ -1781,13 +1851,21 @@ export default function CalendarScreen() {
 
   async function handleSaveRoutine(r: Routine) {
     const existing = routines.find((x) => x.id === r.id);
-    const updated = existing
-      ? routines.map((x) => (x.id === r.id ? r : x))
-      : [...routines, r];
-    await saveRoutines(updated);
+    const payload = {
+      id: r.id,
+      name: r.name,
+      days: JSON.stringify(r.days),
+      scheduledTime: r.time,
+      color: r.color,
+      activities: JSON.stringify(r.activities),
+    };
     if (existing) {
+      await updateRoutineMutation.mutateAsync({ id: r.id, data: payload }).catch(() => {});
       await purgeRoutineEvents(existing.name).catch(() => {});
+    } else {
+      await createRoutineMutation.mutateAsync({ data: payload }).catch(() => {});
     }
+    queryClient.invalidateQueries({ queryKey: getListRoutinesQueryKey() });
     const dates = getNextFourWeeksDates(r.days);
     const suffix = r.activities.length > 0 ? ` — ${r.activities.slice(0, 2).join(", ")}${r.activities.length > 2 ? "..." : ""}` : "";
     const activityStr = r.activities.join(", ");
@@ -1822,7 +1900,8 @@ export default function CalendarScreen() {
   }
 
   async function handleDeleteRoutine(r: Routine) {
-    await saveRoutines(routines.filter((x) => x.id !== r.id));
+    await deleteRoutineMutation.mutateAsync({ id: r.id }).catch(() => {});
+    queryClient.invalidateQueries({ queryKey: getListRoutinesQueryKey() });
     try {
       await purgeRoutineEvents(r.name);
       refetch();
@@ -2021,9 +2100,13 @@ export default function CalendarScreen() {
               const isAddingHere = addHabitRoutineId === r.id;
               return (
                 <View key={r.id}>
-                  <RoutineCard routine={r} colors={colors}
+                  <RoutineCard
+                    routine={r}
+                    colors={colors}
                     onEdit={() => { setEditingRoutine(r); setShowRoutineModal(true); }}
                     onDelete={() => handleDeleteRoutine(r)}
+                    completedCount={routineHabits.filter((h) => h.completedToday).length}
+                    totalCount={routineHabits.length}
                   />
                   {routineHabits.length > 0 && (
                     <View style={calStyles.habitSubList}>
@@ -2207,6 +2290,14 @@ export default function CalendarScreen() {
         onClose={() => setShowDayDetail(false)}
         onAddEvent={() => openAddForDate(selectedDate)}
         onDelete={handleDeleteEvent}
+        onRoutineTap={(ev) => {
+          const routine = routines.find(
+            (r) => ev.title === r.name || ev.title.startsWith(r.name + " —"),
+          );
+          if (!routine) return;
+          setShowDayDetail(false);
+          setTimeout(() => setRoutineHabitsSheet({ routineId: routine.id, routineName: routine.name, date: selectedDate }), 220);
+        }}
         colors={colors}
         bottomInset={insets.bottom}
       />
@@ -2220,7 +2311,118 @@ export default function CalendarScreen() {
         colors={colors}
         insets={insets}
       />
+
+      <RoutineHabitsSheet
+        visible={routineHabitsSheet !== null}
+        routineId={routineHabitsSheet?.routineId ?? ""}
+        routineName={routineHabitsSheet?.routineName ?? ""}
+        date={routineHabitsSheet?.date ?? ""}
+        allHabits={habits}
+        onClose={() => setRoutineHabitsSheet(null)}
+        colors={colors}
+        bottomInset={insets.bottom}
+      />
     </>
+  );
+}
+
+// ─── Routine Habits Sheet ─────────────────────────────────────────────────────
+
+function RoutineHabitsSheet({
+  visible, routineId, routineName, date, allHabits, onClose, colors, bottomInset,
+}: {
+  visible: boolean; routineId: string; routineName: string; date: string;
+  allHabits: Habit[]; onClose: () => void; colors: Colors; bottomInset: number;
+}) {
+  const routineHabits = allHabits.filter((h) => h.routineId === routineId);
+  const { data: completions = [], refetch: refetchCompletions } = useListHabitCompletions(date);
+  const toggleMutation = useToggleHabitCompletion();
+  const queryClient = useQueryClient();
+
+  const isCompleted = (habitId: number): boolean => {
+    const found = completions.find((c) => c.habitId === habitId);
+    return found ? found.completed : false;
+  };
+
+  const handleToggle = async (habitId: number) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    await toggleMutation.mutateAsync({ data: { habitId, date } }).catch(() => {});
+    refetchCompletions();
+    queryClient.invalidateQueries({ queryKey: getListHabitCompletionsQueryKey(date) });
+    queryClient.invalidateQueries({ queryKey: getListHabitsQueryKey() });
+  };
+
+  const completedCount = routineHabits.filter((h) => isCompleted(h.id)).length;
+  const totalCount = routineHabits.length;
+
+  const dateLabel = date ? formatEventDate(date) : "";
+
+  return (
+    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+      <View style={S.sheetOverlay}>
+        <TouchableOpacity style={{ flex: 1 }} activeOpacity={1} onPress={onClose} />
+        <View style={[S.bottomSheet, { backgroundColor: colors.background, paddingBottom: bottomInset + 16, maxHeight: "85%" }]}>
+          <View style={[S.sheetHandle, { backgroundColor: colors.border }]} />
+          <View style={S.sheetHeader}>
+            <View style={{ flex: 1, gap: 2 }}>
+              <Text style={[S.sheetTitle, { color: colors.foreground, fontFamily: "Inter_700Bold", fontSize: 18 }]}>{routineName}</Text>
+              <Text style={{ fontSize: 13, color: colors.mutedForeground, fontFamily: "Inter_400Regular" }}>{dateLabel}</Text>
+            </View>
+            <TouchableOpacity onPress={onClose} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+              <Feather name="x" size={22} color={colors.mutedForeground} />
+            </TouchableOpacity>
+          </View>
+
+          {totalCount > 0 && (
+            <View style={{ marginBottom: 12, gap: 6 }}>
+              <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
+                <Text style={{ fontSize: 13, color: colors.mutedForeground, fontFamily: "Inter_400Regular" }}>
+                  {completedCount} of {totalCount} done
+                </Text>
+                {completedCount === totalCount && totalCount > 0 && (
+                  <Text style={{ fontSize: 12, color: colors.primary, fontFamily: "Inter_600SemiBold" }}>Complete</Text>
+                )}
+              </View>
+              <View style={{ height: 4, borderRadius: 2, backgroundColor: colors.muted, overflow: "hidden" }}>
+                <View style={{ height: 4, borderRadius: 2, backgroundColor: colors.primary, width: totalCount > 0 ? `${(completedCount / totalCount) * 100}%` as `${number}%` : "0%" }} />
+              </View>
+            </View>
+          )}
+
+          <ScrollView showsVerticalScrollIndicator={false}>
+            {routineHabits.length === 0 ? (
+              <Text style={{ color: colors.mutedForeground, fontFamily: "Inter_400Regular", textAlign: "center", paddingVertical: 28, fontSize: 14 }}>
+                No habits in this routine yet
+              </Text>
+            ) : (
+              routineHabits.map((habit) => {
+                const done = isCompleted(habit.id);
+                return (
+                  <TouchableOpacity
+                    key={habit.id}
+                    style={[calStyles.habitRow, { backgroundColor: colors.card, borderColor: colors.border, marginBottom: 8 }]}
+                    onPress={() => handleToggle(habit.id)}
+                    activeOpacity={0.7}
+                  >
+                    <View style={[calStyles.habitCheck, { borderColor: done ? colors.primary : colors.border, backgroundColor: done ? colors.primary : "transparent" }]}>
+                      {done && <Feather name="check" size={12} color={colors.primaryForeground} />}
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={[calStyles.habitName, { color: colors.foreground, fontFamily: "Inter_500Medium", textDecorationLine: done ? "line-through" : "none", opacity: done ? 0.55 : 1 }]}>
+                        {habit.name}
+                      </Text>
+                      <Text style={[calStyles.habitStreak, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
+                        {habit.streak} day streak
+                      </Text>
+                    </View>
+                  </TouchableOpacity>
+                );
+              })
+            )}
+          </ScrollView>
+        </View>
+      </View>
+    </Modal>
   );
 }
 

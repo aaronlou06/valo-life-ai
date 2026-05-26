@@ -10,3 +10,5 @@ export * from "./debriefExtractions";
 export * from "./transcripts";
 export * from "./calls";
 export * from "./users";
+export * from "./routines";
+export * from "./habitCompletions";

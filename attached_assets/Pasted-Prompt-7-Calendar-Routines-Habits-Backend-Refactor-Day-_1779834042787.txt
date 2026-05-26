@@ -1,0 +1,40 @@
+Prompt 7: Calendar Routines/Habits Backend Refactor + Day of Week Display
+Context: The calendar has a "Routines & Habits" section. Currently, the frontend may be storing habits inline with calendar events. The spec requires: habits exist as standalone entities in the backend (habits table) but when attached to a routine, only the routine container is shown on the calendar grid. The individual habits inside are NOT separate calendar events visually, but they ARE tracked separately for streak/completion.
+
+Goal: Refactor the data model so habits are independent but routines are the calendar-visible wrapper. Also ensure all date pickers show the day of week (Mon, Tue, etc.).
+
+Implementation Requirements:
+
+Database refactor:
+
+Ensure habits table exists with: id, user_id, name, category, routine_id (nullable UUID), frequency (daily, specific_days), specific_days (jsonb/array), created_at.
+Ensure routines table exists with: id, user_id, name, habit_ids (array of UUIDs referencing habits), scheduled_time (time), color, is_displayed_on_calendar (boolean default true).
+Migration: if habits currently store routine data inline, migrate them so each habit gets a routine_id linking to a new routines row.
+Calendar display logic:
+
+On the calendar grid, render routines as single blocks (e.g., "Morning Routine" at 7:00 AM).
+When the user taps the routine block, open a bottom sheet showing the individual habits inside with checkboxes.
+Checking a habit off updates habit_completions table (id, habit_id, date, completed boolean).
+The routine block on the calendar shows partial completion (e.g., 2/4 habits done) via a mini progress bar or opacity change.
+Day of week display:
+
+Find all date pickers and calendar headers. Add day-of-week abbreviation: "Mon Jan 15".
+In the recurring event template creator, show day-of-week toggles (M T W T F S S) with labels.
+Holidays (optional but requested): Add a holidays boolean column or table. Hardcode major US holidays for 2024–2025 or fetch from a simple API. Show holiday name on calendar day cell.
+
+Files to Modify:
+
+Backend: models/habits.js, models/routines.js (or ORM equivalents)
+Backend: Migration file for routine/habit separation
+Frontend: Calendar grid component
+Frontend: Routine detail bottom sheet
+Frontend: Date picker components
+Database: habit_completions table (id, habit_id, user_id, completion_date, completed, created_at)
+Acceptance Criteria:
+
+ Tapping a routine on the calendar shows its habits
+ Habit completion updates streak counter correctly
+ Routine block reflects partial completion visually
+ All date inputs show day of week (e.g., "Fri, May 26")
+ Recurring templates allow "every Monday/Wednesday/Friday" selection
+ Holidays appear as subtle labels on calendar grid (optional)

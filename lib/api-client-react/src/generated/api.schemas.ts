@@ -328,6 +328,59 @@ export interface AnalyzeImageResult {
   data: AnalyzeImageResultData;
 }
 
+export interface Routine {
+  id: string;
+  userId: string;
+  name: string;
+  /** JSON string of day-of-week numbers, e.g. "[0,1,2,3,4]" */
+  days: string;
+  /** @nullable */
+  scheduledTime?: string | null;
+  color: string;
+  /**
+   * JSON string of activity name strings
+   * @nullable
+   */
+  activities?: string | null;
+  isDisplayedOnCalendar: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface RoutineInput {
+  id: string;
+  name: string;
+  days?: string;
+  scheduledTime?: string;
+  color?: string;
+  activities?: string;
+  isDisplayedOnCalendar?: boolean;
+}
+
+export interface RoutineUpdate {
+  name?: string;
+  days?: string;
+  scheduledTime?: string;
+  color?: string;
+  activities?: string;
+  isDisplayedOnCalendar?: boolean;
+}
+
+export interface HabitCompletion {
+  id: number;
+  habitId: number;
+  userId: string;
+  completionDate: string;
+  completed: boolean;
+  createdAt: string;
+}
+
+export interface ToggleHabitCompletionInput {
+  habitId: number;
+  /** YYYY-MM-DD */
+  date: string;
+}
+
 export type SaveOnboarding200 = {
   ok: boolean;
 };

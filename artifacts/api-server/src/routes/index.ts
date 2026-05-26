@@ -18,6 +18,8 @@ import onboardingRouter from "./onboarding";
 import analyzeImageRouter from "./analyze-image";
 import profileRouter from "./profile";
 import todayCardsRouter from "./todayCards";
+import routinesRouter from "./routines";
+import habitCompletionsRouter from "./habit-completions";
 
 const router: IRouter = Router();
 
@@ -40,5 +42,7 @@ router.use(onboardingRouter);
 router.use(analyzeImageRouter);
 router.use(profileRouter);
 router.use(todayCardsRouter);
+router.use(routinesRouter);
+router.use(habitCompletionsRouter);
 
 export default router;

@@ -443,6 +443,124 @@ paths:
               schema:
                 $ref: "#/components/schemas/AnalyzeImageResult"
 
+  /routines:
+    get:
+      operationId: listRoutines
+      tags: [habits]
+      summary: List all routines for the authenticated user
+      responses:
+        "200":
+          description: List of routines
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Routine"
+    post:
+      operationId: createRoutine
+      tags: [habits]
+      summary: Create or upsert a routine (idempotent by id)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RoutineInput"
+      responses:
+        "201":
+          description: Created routine
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Routine"
+
+  /routines/{id}:
+    patch:
+      operationId: updateRoutine
+      tags: [habits]
+      summary: Update a routine
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RoutineUpdate"
+      responses:
+        "200":
+          description: Updated routine
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Routine"
+        "404":
+          description: Not found
+    delete:
+      operationId: deleteRoutine
+      tags: [habits]
+      summary: Delete a routine
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "204":
+          description: Deleted
+
+  /habit-completions/{date}:
+    get:
+      operationId: listHabitCompletions
+      tags: [habits]
+      summary: List habit completions for a specific date (YYYY-MM-DD)
+      parameters:
+        - name: date
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: List of habit completions
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/HabitCompletion"
+
+  /habit-completions/toggle:
+    post:
+      operationId: toggleHabitCompletion
+      tags: [habits]
+      summary: Toggle a habit completion for a specific date
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ToggleHabitCompletionInput"
+      responses:
+        "200":
+          description: Toggled completion (updated existing)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HabitCompletion"
+        "201":
+          description: Toggled completion (created new)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HabitCompletion"
+
 components:
   schemas:
     UserSettings:
@@ -886,3 +1004,92 @@ components:
         data:
           type: object
           additionalProperties: true
+
+    Routine:
+      type: object
+      required: [id, userId, name, days, color, isDisplayedOnCalendar, createdAt, updatedAt]
+      properties:
+        id:
+          type: string
+        userId:
+          type: string
+        name:
+          type: string
+        days:
+          type: string
+          description: JSON string of day-of-week numbers, e.g. "[0,1,2,3,4]"
+        scheduledTime:
+          type: ["string", "null"]
+        color:
+          type: string
+        activities:
+          type: ["string", "null"]
+          description: JSON string of activity name strings
+        isDisplayedOnCalendar:
+          type: boolean
+        createdAt:
+          type: string
+        updatedAt:
+          type: string
+
+    RoutineInput:
+      type: object
+      required: [id, name]
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        days:
+          type: string
+        scheduledTime:
+          type: string
+        color:
+          type: string
+        activities:
+          type: string
+        isDisplayedOnCalendar:
+          type: boolean
+
+    RoutineUpdate:
+      type: object
+      properties:
+        name:
+          type: string
+        days:
+          type: string
+        scheduledTime:
+          type: string
+        color:
+          type: string
+        activities:
+          type: string
+        isDisplayedOnCalendar:
+          type: boolean
+
+    HabitCompletion:
+      type: object
+      required: [id, habitId, userId, completionDate, completed, createdAt]
+      properties:
+        id:
+          type: integer
+        habitId:
+          type: integer
+        userId:
+          type: string
+        completionDate:
+          type: string
+        completed:
+          type: boolean
+        createdAt:
+          type: string
+
+    ToggleHabitCompletionInput:
+      type: object
+      required: [habitId, date]
+      properties:
+        habitId:
+          type: integer
+        date:
+          type: string
+          description: YYYY-MM-DD
