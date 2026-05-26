@@ -9,6 +9,7 @@ import {
   Platform,
   ActivityIndicator,
   RefreshControl,
+  Image,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useValoAuth } from "@/contexts/AuthContext";
@@ -1126,6 +1127,14 @@ export default function TodayScreen() {
         <RefreshControl refreshing={!!isRefetching} onRefresh={refetch} tintColor={colors.primary} />
       }
     >
+      {/* ── Wordmark ───────────────────────────────────────────────────────── */}
+      <Image
+        source={require("@/assets/images/logo-wordmark.png")}
+        style={{ height: 24, width: 80, marginBottom: 12 }}
+        resizeMode="contain"
+        tintColor={colors.foreground}
+      />
+
       {/* ── Greeting row ───────────────────────────────────────────────────── */}
       <View style={styles.topRow}>
         <View style={{ flex: 1 }}>

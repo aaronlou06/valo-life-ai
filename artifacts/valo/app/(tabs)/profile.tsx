@@ -11,6 +11,7 @@ import {
   Modal,
   Platform,
   Switch,
+  Image,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Feather } from "@expo/vector-icons";
@@ -716,6 +717,14 @@ export default function ProfileScreen() {
           paddingHorizontal: 20,
         }}
       >
+        {/* ── Wordmark ──────────────────────────────────────────────────────── */}
+        <Image
+          source={require("@/assets/images/logo-wordmark.png")}
+          style={{ height: 24, width: 80, marginBottom: 16 }}
+          resizeMode="contain"
+          tintColor={colors.foreground}
+        />
+
         {/* ══════════════════════════════════════════════════════════════════
             SECTION 1 — Your Valo
         ══════════════════════════════════════════════════════════════════ */}

@@ -55,7 +55,12 @@ export default function SignInScreen() {
       >
         <View style={styles.logoArea}>
           <Image source={require("@/assets/images/icon.png")} style={styles.logo} />
-          <Text style={[styles.appName, { color: colors.foreground, fontFamily: "Inter_700Bold" }]}>Valo</Text>
+          <Image
+            source={require("@/assets/images/logo-wordmark.png")}
+            style={styles.wordmark}
+            resizeMode="contain"
+            tintColor={colors.foreground}
+          />
           <Text style={[styles.tagline, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>Your personal life companion</Text>
         </View>
 
@@ -115,7 +120,7 @@ const styles = StyleSheet.create({
   container: { flexGrow: 1, paddingHorizontal: 28 },
   logoArea: { alignItems: "center", marginBottom: 40 },
   logo: { width: 64, height: 64, borderRadius: 16, marginBottom: 12 },
-  appName: { fontSize: 28, marginBottom: 4 },
+  wordmark: { height: 34, width: 116, marginBottom: 6 },
   tagline: { fontSize: 15 },
   input: { height: 50, borderWidth: 1, borderRadius: 12, paddingHorizontal: 16, fontSize: 15, marginBottom: 12 },
   passRow: { flexDirection: "row", alignItems: "center", marginBottom: 12 },

@@ -2037,6 +2037,14 @@ export default function CheckInScreen() {
         gap: 24,
       }}
     >
+      {/* ── Wordmark ──────────────────────────────────────────────────────── */}
+      <Image
+        source={require("@/assets/images/logo-wordmark.png")}
+        style={{ height: 24, width: 80, marginBottom: 4 }}
+        resizeMode="contain"
+        tintColor={colors.foreground}
+      />
+
       {/* ── Header row: title + streak + completion ring ─────────────────── */}
       <View style={styles.topRow}>
         <View style={{ flex: 1, gap: 4 }}>

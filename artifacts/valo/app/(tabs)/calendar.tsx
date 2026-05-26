@@ -12,6 +12,7 @@ import {
   KeyboardAvoidingView,
   Platform,
   ActivityIndicator,
+  Image,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Feather } from "@expo/vector-icons";
@@ -2001,7 +2002,12 @@ export default function CalendarScreen() {
       >
         {/* ── Header ─────────────────────────────────────────────────────── */}
         <View style={styles.header}>
-          <Text style={[styles.title, { color: colors.foreground, fontFamily: "Inter_700Bold" }]}>Calendar</Text>
+          <Image
+            source={require("@/assets/images/logo-wordmark.png")}
+            style={{ height: 24, width: 80 }}
+            resizeMode="contain"
+            tintColor={colors.foreground}
+          />
           <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
             <TouchableOpacity
               style={[styles.addBtn, { backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border }]}

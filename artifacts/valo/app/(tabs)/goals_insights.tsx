@@ -12,6 +12,7 @@ import {
   KeyboardAvoidingView,
   Alert,
   Switch,
+  Image,
 } from "react-native";
 import { router } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -1595,6 +1596,12 @@ export default function GoalsScreen() {
         style={{ flex: 1, backgroundColor: colors.background }}
         contentContainerStyle={{ paddingTop: topPad + 16, paddingBottom: bottomPad + tabBarH + 16, paddingHorizontal: 20 }}
       >
+        <Image
+          source={require("@/assets/images/logo-wordmark.png")}
+          style={{ height: 24, width: 80, marginBottom: 12 }}
+          resizeMode="contain"
+          tintColor={colors.foreground}
+        />
         <Text style={[styles.header, { color: colors.foreground, fontFamily: "Inter_700Bold" }]}>Goals</Text>
 
         {/* ── Progress Check-in ─────────────────────────────────────────── */}
