@@ -720,7 +720,7 @@ export default function ProfileScreen() {
         {/* ── Wordmark ──────────────────────────────────────────────────────── */}
         <Image
           source={require("@/assets/images/logo-wordmark.png")}
-          style={{ height: 24, width: 80, marginBottom: 16 }}
+          style={{ height: 36, width: 237, marginBottom: 16 }}
           resizeMode="contain"
           tintColor={colors.foreground}
         />

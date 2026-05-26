@@ -120,7 +120,7 @@ const styles = StyleSheet.create({
   container: { flexGrow: 1, paddingHorizontal: 28 },
   logoArea: { alignItems: "center", marginBottom: 40 },
   logo: { width: 64, height: 64, borderRadius: 16, marginBottom: 12 },
-  wordmark: { height: 34, width: 116, marginBottom: 6 },
+  wordmark: { height: 46, width: 303, marginBottom: 6 },
   tagline: { fontSize: 15 },
   input: { height: 50, borderWidth: 1, borderRadius: 12, paddingHorizontal: 16, fontSize: 15, marginBottom: 12 },
   passRow: { flexDirection: "row", alignItems: "center", marginBottom: 12 },

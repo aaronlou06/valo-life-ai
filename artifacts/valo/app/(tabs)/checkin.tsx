@@ -2040,7 +2040,7 @@ export default function CheckInScreen() {
       {/* ── Wordmark ──────────────────────────────────────────────────────── */}
       <Image
         source={require("@/assets/images/logo-wordmark.png")}
-        style={{ height: 24, width: 80, marginBottom: 4 }}
+        style={{ height: 36, width: 237, marginBottom: 4 }}
         resizeMode="contain"
         tintColor={colors.foreground}
       />

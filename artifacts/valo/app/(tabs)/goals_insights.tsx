@@ -1598,7 +1598,7 @@ export default function GoalsScreen() {
       >
         <Image
           source={require("@/assets/images/logo-wordmark.png")}
-          style={{ height: 24, width: 80, marginBottom: 12 }}
+          style={{ height: 36, width: 237, marginBottom: 12 }}
           resizeMode="contain"
           tintColor={colors.foreground}
         />

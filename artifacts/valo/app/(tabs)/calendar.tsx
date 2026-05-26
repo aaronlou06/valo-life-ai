@@ -2004,7 +2004,7 @@ export default function CalendarScreen() {
         <View style={styles.header}>
           <Image
             source={require("@/assets/images/logo-wordmark.png")}
-            style={{ height: 24, width: 80 }}
+            style={{ height: 36, width: 237 }}
             resizeMode="contain"
             tintColor={colors.foreground}
           />
