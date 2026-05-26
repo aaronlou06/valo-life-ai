@@ -102,10 +102,9 @@ export async function fetchSteps(): Promise<number | null> {
 export async function fetchRestingHeartRate(): Promise<number | null> {
   if (!AppleHealthKit) return null;
   return new Promise((resolve) => {
-    // getRestingHeartRate returns an array of samples — newest first when
-    // ascending: false. We want the most recent reading, which is typically
-    // last night's Apple Watch measurement. Look back 48 h to account for
-    // days when the watch wasn't worn overnight.
+    // getRestingHeartRateSamples returns an array of discrete samples written
+    // by Apple Watch during sleep. Look back 48 h so we capture last night's
+    // reading regardless of what time of day the sync runs.
     const now = new Date();
     const twoDaysAgo = new Date(now);
     twoDaysAgo.setDate(twoDaysAgo.getDate() - 2);
@@ -115,19 +114,19 @@ export async function fetchRestingHeartRate(): Promise<number | null> {
       ascending: false,
       limit: 1,
     };
-    AppleHealthKit.getRestingHeartRate(options, (err: any, results: any) => {
+    AppleHealthKit.getRestingHeartRateSamples(options, (err: any, results: any) => {
       if (err) {
-        console.log('[HealthKit] getRestingHeartRate error:', JSON.stringify(err));
+        console.log('[HealthKit] getRestingHeartRateSamples error:', JSON.stringify(err));
         resolve(null);
         return;
       }
-      console.log('[HealthKit] getRestingHeartRate raw:', JSON.stringify(results));
-      // Some versions return a single object, others return an array.
-      if (Array.isArray(results)) {
-        resolve(results[0]?.value ?? null);
-      } else {
-        resolve(results?.value ?? null);
+      console.log('[HealthKit] getRestingHeartRateSamples raw count:', results?.length ?? 0, 'first:', JSON.stringify(results?.[0]));
+      if (!results?.length) {
+        console.log('[HealthKit] RHR: Watch has not recorded resting heart rate in last 48h');
+        resolve(null);
+        return;
       }
+      resolve(Math.round(results[0].value));
     });
   });
 }
@@ -153,9 +152,16 @@ export async function fetchHRV(): Promise<number | null> {
         resolve(null);
         return;
       }
-      console.log('[HealthKit] getHeartRateVariabilitySamples raw:', JSON.stringify(results));
-      if (!results?.length) { resolve(null); return; }
-      resolve(results[0]?.value ?? null);
+      console.log('[HealthKit] getHeartRateVariabilitySamples raw count:', results?.length ?? 0, 'first:', JSON.stringify(results?.[0]));
+      if (!results?.length) {
+        console.log('[HealthKit] HRV: Watch has not recorded HRV in last 48h');
+        resolve(null);
+        return;
+      }
+      // HealthKit stores HRV (SDNN) in seconds; multiply by 1000 for milliseconds.
+      // DB column is integer so round to nearest ms.
+      const ms = Math.round((results[0].value ?? 0) * 1000);
+      resolve(ms > 0 ? ms : null);
     });
   });
 }
@@ -185,12 +191,14 @@ export async function fetchSleepHours(): Promise<number | null> {
       if (!results?.length) { resolve(null); return; }
 
       // Sum only confirmed-asleep stages (exclude INBED / AWAKE).
+      // The native library maps watchOS 9+ stages as "CORE", "DEEP", "REM"
+      // (not "ASLEEP_CORE" etc.) and the legacy unified stage as "ASLEEP".
       const asleepSamples = results.filter(
         (s: any) =>
           s.value === "ASLEEP" ||
-          s.value === "ASLEEP_CORE" ||
-          s.value === "ASLEEP_DEEP" ||
-          s.value === "ASLEEP_REM"
+          s.value === "CORE" ||
+          s.value === "DEEP" ||
+          s.value === "REM"
       );
       console.log('[HealthKit] getSleepSamples asleep count:', asleepSamples.length);
 

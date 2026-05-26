@@ -1,0 +1,39 @@
+Prompt 2: Fix HealthKit Null Returns (HRV, Sleep, Resting HR, Active Calories)
+Context: Valo uses react-native-health in an Expo SDK 54 / React Native 0.81.5 app. Steps sync correctly to the PostgreSQL database (3,342 confirmed). However, HRV, sleep, resting heart rate, and active calories return null despite permissions being granted. The app likely queries these incorrectly—using wrong HealthKit identifiers, wrong query types, or wrong units.
+
+Goal: Fix the HealthKit data extraction for these four metrics so they populate correctly and sync to the backend.
+
+Current State: react-native-health is installed and compiled. Permissions screen grants access. Steps query works. Other metrics return null.
+
+Implementation Requirements:
+
+Audit existing HealthKit query functions. Find the file that wraps react-native-health (likely services/healthKit.ts, utils/health.ts, or similar). Identify all four broken queries.
+
+Fix HRV query: Use HKQuantityTypeIdentifier.heartRateVariabilitySDNN. Query raw samples (not statistics) with a 48-hour lookback. Use unit HKUnits.second(). Multiply the returned value by 1000 to display milliseconds. Log raw sample count before parsing. If zero samples, log: "HRV: Watch has not recorded HRV in last 48h."
+
+Fix Sleep query: Use HKCategoryTypeIdentifier.sleepAnalysis with getSleepSamples. Filter results for value === 'ASLEEP' || value === 'CORE' || value === 'DEEP' || value === 'REM'. Sum durations from startDate to endDate of those segments. Do NOT use a quantity query for sleep. If results are empty, log: "Sleep: No samples found. Ensure Sleep Focus is enabled on iPhone."
+
+Fix Resting Heart Rate: Use HKQuantityTypeIdentifier.restingHeartRate with getRestingHeartRateSamples (or the library's equivalent method for discrete quantities). Query 24-hour lookback. Unit is "count/min". Take the most recent sample.
+
+Fix Active Calories: Use HKQuantityTypeIdentifier.activeEnergyBurned. Calculate startDate as the user's local midnight (new Date(now.getFullYear(), now.getMonth(), now.getDate())) to avoid UTC boundary shifts. End date is local 23:59:59. Unit is "kcal" or HKUnits.calorie(). Sum all samples in the returned array for the daily total.
+
+Create a syncAllHealthData() function that calls all four fixed queries plus steps, then POSTs the results to the existing /api/daily-logs (or equivalent) endpoint with shape: { userId, date, steps, hrvMs, sleepHours, restingHr, activeCalories }.
+
+Add safety checks: Before each query, verify the permission exists in initHealthKit read permissions array. If any query throws, catch it and log the exact error + identifier to Sentry/console.
+
+Files to Modify:
+
+HealthKit wrapper file (search for react-native-health imports)
+Daily sync service/hook
+Backend daily-logs endpoint (if it needs to accept these new fields)
+Database: Ensure daily_logs table (or equivalent) has columns for hrv, sleep_hours, resting_hr, active_calories as nullable floats/integers.
+
+Acceptance Criteria:
+
+ HRV returns a number (typically 20–150 ms) when Watch data exists
+ Sleep returns hours (0–16) when Sleep Focus data exists
+ Resting HR returns 40–100 when Watch sleep data exists
+ Active calories returns a positive number after walking/existing
+ All four metrics POST successfully to backend and appear in PostgreSQL
+ Steps regression still works
+ Graceful null handling when Watch hasn't recorded data yet (no crashes)
