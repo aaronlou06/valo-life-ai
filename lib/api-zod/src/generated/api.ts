@@ -298,7 +298,25 @@ export const GetDashboardResponse = zod.object({
   relationshipStatus: zod.string(),
   streak: zod
     .number()
-    .describe("Number of consecutive days the user has logged a check-in"),
+    .describe("Current consecutive-day streak (daily logs + voice debriefs)"),
+  longestStreak: zod
+    .number()
+    .optional()
+    .describe("All-time longest consecutive-day streak"),
+});
+
+/**
+ * @summary Get current and all-time longest streak for the authenticated user
+ */
+export const GetStreakDataResponse = zod.object({
+  currentStreak: zod.number().describe("Current consecutive-day streak"),
+  longestStreak: zod
+    .number()
+    .describe("All-time longest consecutive-day streak"),
+  lastActiveDate: zod
+    .string()
+    .nullish()
+    .describe("Most recent date with any activity (YYYY-MM-DD)"),
 });
 
 /**

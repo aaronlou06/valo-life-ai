@@ -40,6 +40,7 @@ import type {
   OnboardingSaveInput,
   OnboardingStatus,
   SaveOnboarding200,
+  StreakData,
   UserSettings,
 } from "./api.schemas";
 
@@ -1641,6 +1642,81 @@ export function useGetDashboard<
   request?: SecondParameter<typeof customFetch>;
 }): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
   const queryOptions = getGetDashboardQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Get current and all-time longest streak for the authenticated user
+ */
+export const getGetStreakDataUrl = () => {
+  return `/api/profile/streak`;
+};
+
+export const getStreakData = async (
+  options?: RequestInit,
+): Promise<StreakData> => {
+  return customFetch<StreakData>(getGetStreakDataUrl(), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetStreakDataQueryKey = () => {
+  return [`/api/profile/streak`] as const;
+};
+
+export const getGetStreakDataQueryOptions = <
+  TData = Awaited<ReturnType<typeof getStreakData>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getStreakData>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetStreakDataQueryKey();
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getStreakData>>> = ({
+    signal,
+  }) => getStreakData({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getStreakData>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetStreakDataQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getStreakData>>
+>;
+export type GetStreakDataQueryError = ErrorType<unknown>;
+
+/**
+ * @summary Get current and all-time longest streak for the authenticated user
+ */
+
+export function useGetStreakData<
+  TData = Awaited<ReturnType<typeof getStreakData>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getStreakData>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetStreakDataQueryOptions(options);
 
   const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
     queryKey: QueryKey;

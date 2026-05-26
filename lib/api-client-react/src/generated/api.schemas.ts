@@ -243,8 +243,22 @@ export interface Dashboard {
   healthStatus: string;
   workStatus: string;
   relationshipStatus: string;
-  /** Number of consecutive days the user has logged a check-in */
+  /** Current consecutive-day streak (daily logs + voice debriefs) */
   streak: number;
+  /** All-time longest consecutive-day streak */
+  longestStreak?: number;
+}
+
+export interface StreakData {
+  /** Current consecutive-day streak */
+  currentStreak: number;
+  /** All-time longest consecutive-day streak */
+  longestStreak: number;
+  /**
+   * Most recent date with any activity (YYYY-MM-DD)
+   * @nullable
+   */
+  lastActiveDate?: string | null;
 }
 
 export interface OnboardingStatus {

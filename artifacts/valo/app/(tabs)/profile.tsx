@@ -25,7 +25,7 @@ import {
   syncGoogleCalendarEvents,
   isGoogleCalendarConnected,
 } from "@/lib/googleCalendar";
-import { useListGoals, useListHabits, useGetDashboard } from "@workspace/api-client-react";
+import { useListGoals, useListHabits, useGetDashboard, useGetStreakData } from "@workspace/api-client-react";
 
 function getApiBase(): string {
   const domain = process.env.EXPO_PUBLIC_DOMAIN;
@@ -515,6 +515,7 @@ export default function ProfileScreen() {
   const { data: goals } = useListGoals();
   const { data: habits } = useListHabits();
   const { data: dashboard } = useGetDashboard();
+  const { data: streakData } = useGetStreakData();
   const { isPermissionsGranted: isHealthConnected, syncNow: healthSyncNow, isSyncing: healthSyncing } = useHealthKitSync();
 
   const [connectingHealth, setConnectingHealth] = useState(false);
@@ -764,9 +765,19 @@ export default function ProfileScreen() {
               <View style={[styles.statChip, { backgroundColor: colors.muted }]}>
                 <Feather name="zap" size={11} color={colors.primary} />
                 <Text style={[styles.statChipText, { color: colors.foreground, fontFamily: "Inter_500Medium" }]}>
-                  {dashboard?.streak ?? 0} day streak
+                  {(streakData?.currentStreak ?? dashboard?.streak ?? 0) === 0
+                    ? "Start your first day"
+                    : `${streakData?.currentStreak ?? dashboard?.streak ?? 0} day streak`}
                 </Text>
               </View>
+              {(streakData?.longestStreak ?? 0) > 0 && (
+                <View style={[styles.statChip, { backgroundColor: colors.muted }]}>
+                  <Feather name="award" size={11} color={colors.mutedForeground} />
+                  <Text style={[styles.statChipText, { color: colors.foreground, fontFamily: "Inter_500Medium" }]}>
+                    {`Best: ${streakData!.longestStreak}d`}
+                  </Text>
+                </View>
+              )}
               {goalCount > 0 && (
                 <View style={[styles.statChip, { backgroundColor: colors.muted }]}>
                   <Text style={[styles.statChipText, { color: colors.foreground, fontFamily: "Inter_500Medium" }]}>

@@ -1,0 +1,35 @@
+Prompt 4: Fix Logout Button & Daily Streak Counter
+Context: The logout button exists in the Profile screen but may not fully invalidate the session. The daily streak counter is calculated server-side but may have timezone boundary bugs or incorrect logic.
+
+Goal: Ensure logout fully clears auth state and the streak counter accurately counts consecutive days with any check-in or log activity.
+
+Implementation Requirements:
+
+Logout Fix: Find the logout handler in the Profile screen or auth context. Ensure it:
+
+Calls POST /api/auth/logout (or DELETE /api/session) to invalidate the JWT on the server (add this endpoint if missing— it should add the token to a revocation list or simply clear server-side session if using stateful sessions)
+Clears AsyncStorage keys: jwt_token, session_token, onboarding_complete, user_id (be careful not to clear onboarding_complete if you want the user to skip onboarding next time—discuss: keep onboarding state but clear auth tokens)
+Resets the React Navigation stack to the Sign-In screen using navigation.reset({ index: 0, routes: [{ name: 'SignIn' }] })
+Ensures no cached API client instances retain the old Authorization header
+Streak Fix: Find the server-side streak calculation (likely in routes/profile.js or services/streakService.js). The streak should count consecutive calendar days (in the user's timezone) where daily_logs has ANY entry OR voice_debriefs has an entry.
+
+Query using the user's timezone (store timezone in users table, default to 'America/New_York' if missing).
+A "streak day" is any date with at least one row in daily_logs or voice_debriefs.
+Count backwards from yesterday until a gap is found. If today has activity, include today in the count.
+Return { currentStreak: N, longestStreak: M, lastActiveDate: 'YYYY-MM-DD' }.
+Add streak display to Profile: Ensure the Profile screen fetches /api/profile/streak on mount and displays current streak with a flame icon. If streak is 0, show "Start your first day."
+
+Files to Modify:
+
+Profile screen component (logout button + streak UI)
+Auth context / API client config (logout logic)
+Backend: POST /api/auth/logout endpoint
+Backend: Streak calculation endpoint
+Database: users.timezone column (string, e.g., 'America/New_York')
+Acceptance Criteria:
+
+ Tap logout → immediately sent to Sign In, back button does not return to Profile
+ JWT is invalidated server-side (subsequent API calls with old token return 401)
+ Streak accurately counts days with voice calls or manual logs
+ Streak resets to 0 after a missed day (24h gap in user's timezone)
+ Profile shows current streak number and updates after daily check-in

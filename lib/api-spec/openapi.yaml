@@ -31,6 +31,8 @@ tags:
     description: User settings and preferences
   - name: analyze-image
     description: AI image analysis via Claude vision
+  - name: profile
+    description: User profile and streak data
 paths:
   /healthz:
     get:
@@ -359,6 +361,19 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Dashboard"
+
+  /profile/streak:
+    get:
+      operationId: getStreakData
+      tags: [profile]
+      summary: Get current and all-time longest streak for the authenticated user
+      responses:
+        "200":
+          description: Streak data
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StreakData"
 
   /onboarding/status:
     get:
@@ -775,7 +790,24 @@ components:
           type: string
         streak:
           type: integer
-          description: Number of consecutive days the user has logged a check-in
+          description: Current consecutive-day streak (daily logs + voice debriefs)
+        longestStreak:
+          type: integer
+          description: All-time longest consecutive-day streak
+
+    StreakData:
+      type: object
+      required: [currentStreak, longestStreak]
+      properties:
+        currentStreak:
+          type: integer
+          description: Current consecutive-day streak
+        longestStreak:
+          type: integer
+          description: All-time longest consecutive-day streak
+        lastActiveDate:
+          type: ["string", "null"]
+          description: Most recent date with any activity (YYYY-MM-DD)
 
     OnboardingStatus:
       type: object

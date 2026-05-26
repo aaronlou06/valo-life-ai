@@ -21,6 +21,8 @@ export interface Dashboard {
   healthStatus: string;
   workStatus: string;
   relationshipStatus: string;
-  /** Number of consecutive days the user has logged a check-in */
+  /** Current consecutive-day streak (daily logs + voice debriefs) */
   streak: number;
+  /** All-time longest consecutive-day streak */
+  longestStreak?: number;
 }
