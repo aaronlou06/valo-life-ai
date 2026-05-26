@@ -1,0 +1,48 @@
+Prompt 6: Wire Today Screen Dynamic Cards to Real Data
+Context: The Today screen has Morning/Evening modes and dynamic cards (Recovery, Goal Progress, Streak, Win, Pattern) but some are still hardcoded. The spec requires 3 Valo-picked cards daily based on what's most relevant.
+
+Goal: Replace hardcoded values with real backend/wearable data and implement the "3-card Valo-pick" logic.
+
+Implementation Requirements:
+
+Create /api/today/cards (POST) endpoint. It accepts userId and returns an array of 3 card objects:
+
+[
+  { "type": "recovery", "priority": 1, "data": { "hrv": 62, "sleep": 7.2, "readiness": "Good" } },
+  { "type": "goal_progress", "priority": 2, "data": { "goalName": "Run marathon", "percent": 45 } },
+  { "type": "motivation", "priority": 3, "data": { "text": "User's motivation text from onboarding" } }
+]
+Logic:
+
+If HRV or sleep is significantly below user's 14-day average → recovery card is priority 1.
+If any goal deadline is within 7 days → goal_deadline card.
+If user hit a habit streak ≥ 5 days → streak card.
+If yesterday had a voice debrief with a "win" extracted → win card.
+Default filler: motivation card (pulls users.motivation_text).
+Always return exactly 3 cards, sorted by priority.
+Frontend: Replace hardcoded card data with a useTodayCards() hook that calls this endpoint on screen focus. Map type to existing card components. Keep morning/evening time-aware wrapper.
+
+Congratulations card: Add a fourth "bonus" card that appears only when streak > 0 or a goal was completed yesterday. Use confetti animation or simple celebratory UI.
+
+Morning snapshot: Ensure the top-of-screen summary pulls real wearable data (HRV, sleep, readiness score calculated from HRV + sleep + resting HR vs baseline).
+
+Files to Modify:
+
+Backend: New routes/todayCards.js
+Frontend: Today screen component + card components
+Frontend: New hook useTodayCards.ts
+Database Queries Needed:
+
+14-day average HRV/sleep from daily_logs
+Active goals with deadlines from goals
+Habit streaks from streak calculation logic
+Yesterday's wins from voice_debriefs.wins array
+Acceptance Criteria:
+
+ Today screen never shows "Demo Data" or static placeholders
+ Cards change based on actual user state (bad recovery shown when HRV is low)
+ 3-card limit enforced; most relevant shown first
+ Morning snapshot shows real HRV/sleep numbers from HealthKit sync
+ Motivation card uses onboarding free-text verbatim
+ Streak badge and completion ring update after check-in
+ App does not crash if user has no wearable data (graceful fallback to manual log prompts)

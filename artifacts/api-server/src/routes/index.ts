@@ -17,6 +17,7 @@ import googleCalendarRouter from "./google-calendar";
 import onboardingRouter from "./onboarding";
 import analyzeImageRouter from "./analyze-image";
 import profileRouter from "./profile";
+import todayCardsRouter from "./todayCards";
 
 const router: IRouter = Router();
 
@@ -38,5 +39,6 @@ router.use(googleCalendarRouter);
 router.use(onboardingRouter);
 router.use(analyzeImageRouter);
 router.use(profileRouter);
+router.use(todayCardsRouter);
 
 export default router;

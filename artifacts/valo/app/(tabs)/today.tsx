@@ -26,6 +26,7 @@ import {
   useListMoods,
   useListInsights,
 } from "@workspace/api-client-react";
+import { useTodayCards, type TodayCardResult } from "@/hooks/useTodayCards";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -81,7 +82,7 @@ function todayLabel(): string {
 
 // ─── Data-derived logic ───────────────────────────────────────────────────────
 
-type DashData = { sleepHours?: number | null; hrv?: number | null; steps?: number | null; healthScore: number };
+type DashData = { sleepHours?: number | null; hrv?: number | null; restingHeartRate?: number | null; steps?: number | null; healthScore: number };
 type GoalItem = { id: number; title: string; targetDate?: string | null; progressPercent: number };
 type HabitItem = { id: number; name: string; streak: number; completedToday: boolean };
 
@@ -361,6 +362,93 @@ function getDynamicCards(
   return result;
 }
 
+// ─── Server card → DynCard mapper ────────────────────────────────────────────
+
+function formatSleepShort(hours: number): string {
+  const h = Math.floor(hours);
+  const m = Math.round((hours - h) * 60);
+  return m > 0 ? `${h}h ${m}m` : `${h}h`;
+}
+
+function serverCardToDynCard(card: TodayCardResult): DynCardData {
+  const d = card.data;
+  switch (card.type) {
+    case "recovery": {
+      const parts: string[] = [];
+      if (d.hrv != null) parts.push(`HRV ${d.hrv}`);
+      if (d.sleep != null) parts.push(`${formatSleepShort(d.sleep as number)} sleep`);
+      if (d.rhr != null) parts.push(`RHR ${d.rhr}`);
+      const isLow = d.readiness === "Low";
+      const isStrong = d.readiness === "Strong";
+      const suffix = isLow ? " — protect your energy." : isStrong ? " — body is ready." : " — looking good.";
+      const body = parts.length > 0 ? parts.join(" · ") + suffix : "Connect your wearable to see your recovery.";
+      return {
+        key: "recovery",
+        icon: isLow ? "battery" : "battery-charging",
+        label: isLow ? "Low recovery" : isStrong ? "Strong recovery" : "Recovery",
+        body,
+        accent: isStrong,
+      };
+    }
+    case "goal_deadline": {
+      const daysLeft = d.daysLeft as number | null;
+      const daysStr = daysLeft != null ? ` · ${daysLeft === 0 ? "due today" : `${daysLeft}d left`}` : "";
+      return {
+        key: "goal",
+        icon: "target",
+        label: "Goal deadline",
+        body: `${String(d.goalName ?? "Goal")}${daysStr}`,
+        progress: d.percent as number | undefined,
+        accent: true,
+      };
+    }
+    case "goal_progress": {
+      return {
+        key: "goal",
+        icon: "target",
+        label: "Goal progress",
+        body: String(d.goalName ?? "Working toward your goals."),
+        progress: d.percent as number | undefined,
+      };
+    }
+    case "streak": {
+      return {
+        key: "streak",
+        icon: "check-circle",
+        label: "Streak",
+        body: `${String(d.habitName ?? "Habit")} — ${String(d.streakDays ?? 1)} days straight. Keep it going.`,
+      };
+    }
+    case "win": {
+      return {
+        key: "win",
+        icon: "zap",
+        label: "Yesterday's win",
+        body: String(d.text ?? "You showed up."),
+        accent: true,
+      };
+    }
+    case "motivation": {
+      return {
+        key: "motivation",
+        icon: "heart",
+        label: "What drives you",
+        body: String(d.text ?? "Keep going."),
+      };
+    }
+    case "pattern": {
+      return {
+        key: "pattern",
+        icon: "activity",
+        label: "Pattern",
+        body: String(d.text ?? "Check in daily to see patterns here."),
+      };
+    }
+    default:
+      return { key: card.type, icon: "zap", label: "Today", body: "Keep showing up." };
+  }
+}
+
 function getDebriefPrompt(callTime: string | null, todayEventCount: number): string {
   if (todayEventCount > 3) return "Today looked heavy. Let's start there.";
   if (callTime) return `Your check-in is at ${formatTime(callTime)}. Ready when you are.`;
@@ -414,11 +502,18 @@ function ModeToggle({
 
 function ReadinessCard({
   readiness,
+  hrv,
+  sleep,
+  rhr,
   colors,
 }: {
   readiness: ReturnType<typeof getReadinessConfig>;
+  hrv?: number | null;
+  sleep?: number | null;
+  rhr?: number | null;
   colors: Colors;
 }) {
+  const hasMetrics = hrv != null || sleep != null || rhr != null;
   return (
     <View
       style={[
@@ -444,6 +539,40 @@ function ReadinessCard({
       >
         {readiness.text}
       </Text>
+      {hasMetrics && (
+        <View style={styles.metricRow}>
+          {hrv != null && (
+            <View style={[styles.metricPill, { backgroundColor: colors.background }]}>
+              <Text style={[styles.metricValue, { color: colors.foreground, fontFamily: "Inter_600SemiBold" }]}>
+                {hrv}
+              </Text>
+              <Text style={[styles.metricUnit, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
+                HRV
+              </Text>
+            </View>
+          )}
+          {sleep != null && (
+            <View style={[styles.metricPill, { backgroundColor: colors.background }]}>
+              <Text style={[styles.metricValue, { color: colors.foreground, fontFamily: "Inter_600SemiBold" }]}>
+                {formatSleepShort(sleep)}
+              </Text>
+              <Text style={[styles.metricUnit, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
+                Sleep
+              </Text>
+            </View>
+          )}
+          {rhr != null && (
+            <View style={[styles.metricPill, { backgroundColor: colors.background }]}>
+              <Text style={[styles.metricValue, { color: colors.foreground, fontFamily: "Inter_600SemiBold" }]}>
+                {rhr}
+              </Text>
+              <Text style={[styles.metricUnit, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
+                RHR
+              </Text>
+            </View>
+          )}
+        </View>
+      )}
     </View>
   );
 }
@@ -546,6 +675,23 @@ function DynCard({ card, colors }: { card: DynCardData; colors: Colors }) {
           />
         </View>
       )}
+    </View>
+  );
+}
+
+function BonusCard({ card, colors }: { card: TodayCardResult; colors: Colors }) {
+  const message = String(card.data.message ?? "");
+  return (
+    <View style={[styles.bonusCard, { backgroundColor: colors.muted, borderColor: colors.primary }]}>
+      <View style={styles.dynCardHeader}>
+        <Feather name="award" size={14} color={colors.primary} />
+        <Text style={[styles.dynCardLabel, { color: colors.primary, fontFamily: "Inter_500Medium" }]}>
+          Worth noting
+        </Text>
+      </View>
+      <Text style={[styles.dynCardBody, { color: colors.foreground, fontFamily: "Inter_400Regular" }]}>
+        {message}
+      </Text>
     </View>
   );
 }
@@ -880,6 +1026,7 @@ export default function TodayScreen() {
   const { data: moods } = useListMoods();
   const { data: insights } = useListInsights();
   const { isSyncing: isHealthSyncing, syncNow } = useHealthKitSync();
+  const { serverCards, bonusCard: serverBonusCard, refetchCards } = useTodayCards();
 
   const [modeOverride, setModeOverride] = useState<"morning" | "evening" | null>(null);
   const [intention, setIntention] = useState("");
@@ -956,13 +1103,10 @@ export default function TodayScreen() {
   const readiness = getReadinessConfig(dashboard?.sleepHours, dashboard?.hrv);
   const sleepSummary = formatSleepSummary(dashboard?.sleepHours, dashboard?.hrv);
   const focusSentence = getFocusSentence(goals, habits, intention);
-  const dynamicCards = getDynamicCards(
-    dashboard,
-    goals,
-    habits,
-    insights as InsightItem[] | undefined,
-    timeOfDay,
-  );
+  const dynamicCards =
+    serverCards.length > 0
+      ? serverCards.map(serverCardToDynCard)
+      : getDynamicCards(dashboard, goals, habits, insights as InsightItem[] | undefined, timeOfDay);
   const debriefPrompt = getDebriefPrompt(callTime, todayEvents.length);
 
   const goToCheckIn = () => {
@@ -1036,7 +1180,13 @@ export default function TodayScreen() {
         ════════════════════════════════════════════════════════════════════ */
         <>
           {/* 1. Readiness card */}
-          <ReadinessCard readiness={readiness} colors={colors} />
+          <ReadinessCard
+            readiness={readiness}
+            hrv={dashboard?.hrv}
+            sleep={dashboard?.sleepHours}
+            rhr={(dashboard as any)?.restingHeartRate}
+            colors={colors}
+          />
 
           {/* 2. Sleep summary */}
           {sleepSummary ? (
@@ -1068,6 +1218,9 @@ export default function TodayScreen() {
               {dynamicCards.map((card) => (
                 <DynCard key={card.key} card={card} colors={colors} />
               ))}
+              {serverBonusCard != null && (
+                <BonusCard card={serverBonusCard} colors={colors} />
+              )}
             </View>
           )}
 
@@ -1136,6 +1289,9 @@ export default function TodayScreen() {
               {dynamicCards.map((card) => (
                 <DynCard key={card.key} card={card} colors={colors} />
               ))}
+              {serverBonusCard != null && (
+                <BonusCard card={serverBonusCard} colors={colors} />
+              )}
             </View>
           )}
 
@@ -1393,4 +1549,26 @@ const styles = StyleSheet.create({
     borderRadius: 14,
   },
   planBtnText: { fontSize: 15 },
+  bonusCard: {
+    borderRadius: 14,
+    padding: 16,
+    marginTop: 4,
+    borderWidth: 1.5,
+    gap: 6,
+  },
+  metricRow: {
+    flexDirection: "row" as const,
+    gap: 8,
+    marginTop: 14,
+    flexWrap: "wrap" as const,
+  },
+  metricPill: {
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 10,
+    alignItems: "center" as const,
+    minWidth: 60,
+  },
+  metricValue: { fontSize: 16 },
+  metricUnit: { fontSize: 11, letterSpacing: 0.4, marginTop: 2 },
 });
