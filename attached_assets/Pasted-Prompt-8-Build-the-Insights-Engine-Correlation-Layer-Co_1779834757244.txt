@@ -1,0 +1,39 @@
+Prompt 8: Build the Insights Engine Correlation Layer
+Context: Valo has an AI insights engine using Claude Haiku that generates daily insight cards, but they may be generic. The spec requires factual, pattern-based observations followed by actionable advice tied to the user's goals.
+
+Goal: Build a SQL-based correlation discovery system and improve the Claude prompt to generate non-generic insights.
+
+Implementation Requirements:
+
+Create a nightly aggregation job (Node.js cron or trigger). Every day at 3 AM user time, run a function generateDailyInsights(userId):
+
+Query daily_logs for last 30 days.
+Compute simple correlations in SQL or JS:
+Sleep hours vs. next-day mood (Pearson correlation or just ranking)
+HRV vs. number of calendar meetings that day
+Workout days vs. average mood
+Screen time (if available) vs. sleep quality
+Flag significant patterns: "Sleep < 6h correlates with mood < 5" or "HRV drops 10% on days with 4+ meetings".
+Store findings in insights_patterns table: id, user_id, pattern_type, metric_a, metric_b, correlation_score, description, discovered_at, is_active.
+
+Update Claude prompt: The prompt sent to Claude Haiku should include:
+
+Last 7 days of aggregated daily data (not raw rows)
+Top 3 active goals
+2 most significant insights_patterns for this user
+Explicit instruction: "Do not give generic wellness advice. Reference specific numbers. Connect the insight to one of their stated goals. End with one concrete action they can take tomorrow. Keep under 120 words."
+Cache insights: Store generated insight in insights table with generated_at, expires_at (24h later). The frontend reads from cache; only refresh via button or after check-in.
+
+Files to Modify:
+
+Backend: jobs/insightsEngine.js or services/insightsEngine.js
+Backend: routes/insights.js
+Backend: services/claudeService.js (update prompt template)
+Database: insights_patterns table, insights table
+Acceptance Criteria:
+
+ Insights mention specific numbers ("Your HRV averaged 52 on high-meeting days vs 68 on light days")
+ Insights tie to a user goal ("This matters for your marathon training because recovery drives pace")
+ Generic advice like "get more sleep" or "drink water" never appears unless tied to a detected pattern
+ Insights refresh no more than once per day unless forced
+ Life balance radar chart data is computed from 7-day domain averages (sleep, work, mood, relationships, movement)

@@ -34,6 +34,7 @@ import type {
   HabitUpdate,
   HealthStatus,
   InsightEntry,
+  InsightPattern,
   LogEntry,
   LogEntryInput,
   MoodEntry,
@@ -1345,7 +1346,7 @@ export const useDeleteHabit = <
 };
 
 /**
- * @summary List insight cards
+ * @summary List insight cards (cached 24h)
  */
 export const getListInsightsUrl = () => {
   return `/api/insights`;
@@ -1396,7 +1397,7 @@ export type ListInsightsQueryResult = NonNullable<
 export type ListInsightsQueryError = ErrorType<unknown>;
 
 /**
- * @summary List insight cards
+ * @summary List insight cards (cached 24h)
  */
 
 export function useListInsights<
@@ -1411,6 +1412,162 @@ export function useListInsights<
   request?: SecondParameter<typeof customFetch>;
 }): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
   const queryOptions = getListInsightsQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Force-regenerate today's insights
+ */
+export const getRefreshInsightsUrl = () => {
+  return `/api/insights/refresh`;
+};
+
+export const refreshInsights = async (
+  options?: RequestInit,
+): Promise<InsightEntry[]> => {
+  return customFetch<InsightEntry[]>(getRefreshInsightsUrl(), {
+    ...options,
+    method: "POST",
+  });
+};
+
+export const getRefreshInsightsMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof refreshInsights>>,
+    TError,
+    void,
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof refreshInsights>>,
+  TError,
+  void,
+  TContext
+> => {
+  const mutationKey = ["refreshInsights"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof refreshInsights>>,
+    void
+  > = () => {
+    return refreshInsights(requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type RefreshInsightsMutationResult = NonNullable<
+  Awaited<ReturnType<typeof refreshInsights>>
+>;
+
+export type RefreshInsightsMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Force-regenerate today's insights
+ */
+export const useRefreshInsights = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof refreshInsights>>,
+    TError,
+    void,
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof refreshInsights>>,
+  TError,
+  void,
+  TContext
+> => {
+  return useMutation(getRefreshInsightsMutationOptions(options));
+};
+
+/**
+ * @summary List detected correlation patterns for the user
+ */
+export const getListInsightPatternsUrl = () => {
+  return `/api/insights/patterns`;
+};
+
+export const listInsightPatterns = async (
+  options?: RequestInit,
+): Promise<InsightPattern[]> => {
+  return customFetch<InsightPattern[]>(getListInsightPatternsUrl(), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getListInsightPatternsQueryKey = () => {
+  return [`/api/insights/patterns`] as const;
+};
+
+export const getListInsightPatternsQueryOptions = <
+  TData = Awaited<ReturnType<typeof listInsightPatterns>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof listInsightPatterns>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getListInsightPatternsQueryKey();
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof listInsightPatterns>>
+  > = ({ signal }) => listInsightPatterns({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof listInsightPatterns>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type ListInsightPatternsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listInsightPatterns>>
+>;
+export type ListInsightPatternsQueryError = ErrorType<unknown>;
+
+/**
+ * @summary List detected correlation patterns for the user
+ */
+
+export function useListInsightPatterns<
+  TData = Awaited<ReturnType<typeof listInsightPatterns>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof listInsightPatterns>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getListInsightPatternsQueryOptions(options);
 
   const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
     queryKey: QueryKey;

@@ -306,7 +306,7 @@ paths:
     get:
       operationId: listInsights
       tags: [insights]
-      summary: List insight cards
+      summary: List insight cards (cached 24h)
       responses:
         "200":
           description: List of insights
@@ -316,6 +316,36 @@ paths:
                 type: array
                 items:
                   $ref: "#/components/schemas/InsightEntry"
+
+  /insights/refresh:
+    post:
+      operationId: refreshInsights
+      tags: [insights]
+      summary: Force-regenerate today's insights
+      responses:
+        "200":
+          description: Newly generated insights
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/InsightEntry"
+
+  /insights/patterns:
+    get:
+      operationId: listInsightPatterns
+      tags: [insights]
+      summary: List detected correlation patterns for the user
+      responses:
+        "200":
+          description: Active insight patterns
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/InsightPattern"
 
   /log-entries:
     get:
@@ -1093,3 +1123,29 @@ components:
         date:
           type: string
           description: YYYY-MM-DD
+
+    InsightPattern:
+      type: object
+      required: [id, userId, patternType, metricA, metricB, correlationScore, description, discoveredAt, isActive]
+      properties:
+        id:
+          type: integer
+        userId:
+          type: string
+        patternType:
+          type: string
+          description: e.g. "sleep_mood", "hrv_mood", "workout_mood"
+        metricA:
+          type: string
+        metricB:
+          type: string
+        correlationScore:
+          type: number
+          description: Pearson r value (-1 to 1)
+        description:
+          type: string
+          description: Human-readable pattern description with specific numbers
+        discoveredAt:
+          type: string
+        isActive:
+          type: boolean

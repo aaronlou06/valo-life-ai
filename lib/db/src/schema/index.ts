@@ -12,3 +12,4 @@ export * from "./calls";
 export * from "./users";
 export * from "./routines";
 export * from "./habitCompletions";
+export * from "./insightsPatterns";

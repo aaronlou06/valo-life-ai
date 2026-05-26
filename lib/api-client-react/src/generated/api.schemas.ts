@@ -381,6 +381,21 @@ export interface ToggleHabitCompletionInput {
   date: string;
 }
 
+export interface InsightPattern {
+  id: number;
+  userId: string;
+  /** e.g. "sleep_mood", "hrv_mood", "workout_mood" */
+  patternType: string;
+  metricA: string;
+  metricB: string;
+  /** Pearson r value (-1 to 1) */
+  correlationScore: number;
+  /** Human-readable pattern description with specific numbers */
+  description: string;
+  discoveredAt: string;
+  isActive: boolean;
+}
+
 export type SaveOnboarding200 = {
   ok: boolean;
 };

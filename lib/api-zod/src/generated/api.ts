@@ -246,7 +246,7 @@ export const DeleteHabitParams = zod.object({
 });
 
 /**
- * @summary List insight cards
+ * @summary List insight cards (cached 24h)
  */
 export const ListInsightsResponseItem = zod.object({
   id: zod.number(),
@@ -257,6 +257,41 @@ export const ListInsightsResponseItem = zod.object({
   followUpQuestion: zod.string().nullish(),
 });
 export const ListInsightsResponse = zod.array(ListInsightsResponseItem);
+
+/**
+ * @summary Force-regenerate today's insights
+ */
+export const RefreshInsightsResponseItem = zod.object({
+  id: zod.number(),
+  userId: zod.string(),
+  date: zod.string(),
+  label: zod.string(),
+  content: zod.string(),
+  followUpQuestion: zod.string().nullish(),
+});
+export const RefreshInsightsResponse = zod.array(RefreshInsightsResponseItem);
+
+/**
+ * @summary List detected correlation patterns for the user
+ */
+export const ListInsightPatternsResponseItem = zod.object({
+  id: zod.number(),
+  userId: zod.string(),
+  patternType: zod
+    .string()
+    .describe('e.g. \"sleep_mood\", \"hrv_mood\", \"workout_mood\"'),
+  metricA: zod.string(),
+  metricB: zod.string(),
+  correlationScore: zod.number().describe("Pearson r value (-1 to 1)"),
+  description: zod
+    .string()
+    .describe("Human-readable pattern description with specific numbers"),
+  discoveredAt: zod.string(),
+  isActive: zod.boolean(),
+});
+export const ListInsightPatternsResponse = zod.array(
+  ListInsightPatternsResponseItem,
+);
 
 /**
  * @summary List today's log entries
