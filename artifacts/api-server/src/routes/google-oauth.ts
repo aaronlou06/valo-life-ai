@@ -4,6 +4,7 @@ import crypto from "crypto";
 import { db, googleTokensTable, calendarEventsTable } from "@workspace/db";
 import { requireAuth, type AuthenticatedRequest } from "../middlewares/requireAuth";
 import { encrypt, decrypt, signState } from "../lib/tokenCrypto";
+import { logger } from "../lib/logger";
 
 const router: IRouter = Router();
 
@@ -54,12 +55,21 @@ async function getValidAccessToken(userId: string): Promise<string | null> {
     .select()
     .from(googleTokensTable)
     .where(eq(googleTokensTable.userId, userId));
-  if (!row) return null;
+
+  if (!row) {
+    logger.warn({ userId }, "getValidAccessToken: no token row found");
+    return null;
+  }
+
+  const secsUntilExpiry = Math.round((row.expiresAt.getTime() - Date.now()) / 1000);
+  logger.info({ userId, secsUntilExpiry }, "getValidAccessToken: token row found");
 
   if (row.expiresAt > new Date(Date.now() + 60_000)) {
+    logger.info({ userId }, "getValidAccessToken: access token still valid, returning cached");
     return decrypt(row.accessTokenEnc);
   }
 
+  logger.info({ userId }, "getValidAccessToken: token expired, attempting refresh");
   const refreshToken = decrypt(row.refreshTokenEnc);
   const tokenRes = await fetch("https://oauth2.googleapis.com/token", {
     method: "POST",
@@ -71,7 +81,13 @@ async function getValidAccessToken(userId: string): Promise<string | null> {
       grant_type: "refresh_token",
     }),
   });
-  if (!tokenRes.ok) return null;
+
+  if (!tokenRes.ok) {
+    const body = await tokenRes.text().catch(() => "(unreadable)");
+    logger.error({ userId, status: tokenRes.status, body }, "getValidAccessToken: token refresh failed");
+    return null;
+  }
+
   const tokenData = (await tokenRes.json()) as {
     access_token: string;
     expires_in: number;
@@ -85,6 +101,8 @@ async function getValidAccessToken(userId: string): Promise<string | null> {
       updatedAt: new Date(),
     })
     .where(eq(googleTokensTable.userId, userId));
+
+  logger.info({ userId, expiresAt }, "getValidAccessToken: token refreshed and stored");
   return tokenData.access_token;
 }
 
@@ -265,14 +283,34 @@ async function syncCalendarEvents(userId: string, accessToken: string): Promise<
     maxResults: "250",
   });
 
+  logger.info({ userId, timeMin: now.toISOString(), timeMax: end.toISOString() }, "syncCalendarEvents: fetching from Google");
+
   const gcalRes = await fetch(
     `https://www.googleapis.com/calendar/v3/calendars/primary/events?${params}`,
     { headers: { Authorization: `Bearer ${accessToken}` } },
   );
-  if (!gcalRes.ok) return;
 
-  const gcalData = (await gcalRes.json()) as { items?: Record<string, unknown>[] };
+  if (!gcalRes.ok) {
+    const body = await gcalRes.text().catch(() => "(unreadable)");
+    logger.error({ userId, status: gcalRes.status, body }, "syncCalendarEvents: Google Calendar API error");
+    return;
+  }
+
+  const gcalData = (await gcalRes.json()) as { items?: Record<string, unknown>[]; nextPageToken?: string; summary?: string };
   const items = gcalData.items ?? [];
+
+  logger.info(
+    { userId, calendarName: gcalData.summary ?? "(unknown)", itemCount: items.length, hasNextPage: !!gcalData.nextPageToken },
+    "syncCalendarEvents: Google API responded",
+  );
+
+  if (items.length > 0) {
+    const sample = items.slice(0, 3).map((i) => ({
+      summary: (i.summary as string | undefined) ?? "(no title)",
+      start: (i.start as Record<string, string> | undefined)?.dateTime ?? (i.start as Record<string, string> | undefined)?.date ?? null,
+    }));
+    logger.info({ userId, sample }, "syncCalendarEvents: first few events");
+  }
 
   await db
     .delete(calendarEventsTable)
@@ -283,7 +321,12 @@ async function syncCalendarEvents(userId: string, accessToken: string): Promise<
       ),
     );
 
-  if (items.length === 0) return;
+  logger.info({ userId }, "syncCalendarEvents: existing rows deleted");
+
+  if (items.length === 0) {
+    logger.info({ userId }, "syncCalendarEvents: no events returned by Google — nothing to insert");
+    return;
+  }
 
   const rows = items.map((item) => {
     const startRaw =
@@ -308,6 +351,7 @@ async function syncCalendarEvents(userId: string, accessToken: string): Promise<
   });
 
   await db.insert(calendarEventsTable).values(rows);
+  logger.info({ userId, inserted: rows.length }, "syncCalendarEvents: inserted events into DB");
 }
 
 export { syncCalendarEvents };

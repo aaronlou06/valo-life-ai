@@ -1126,6 +1126,16 @@ export default function TodayScreen() {
 
   const todayEvents = calendarEvents?.filter((e) => e.date === todayISO) ?? [];
   const tomorrowEvents = calendarEvents?.filter((e) => e.date === tomorrowISO) ?? [];
+
+  const maxDateISO = (() => {
+    const d = new Date();
+    d.setDate(d.getDate() + 7);
+    return toISODate(d);
+  })();
+  const upcomingGoogleEvents = (calendarEvents ?? [])
+    .filter((e) => e.type === "google" && e.date > todayISO && e.date <= maxDateISO)
+    .sort((a, b) => a.date.localeCompare(b.date))
+    .slice(0, 3);
   const todayMoods = moods?.filter((m) => m.date === todayISO) ?? [];
   const urgentGoals =
     goals?.filter(
@@ -1298,6 +1308,32 @@ export default function TodayScreen() {
             colors={colors}
             isBusy={todayEvents.length > 3}
           />
+
+          {/* 3b. Upcoming Google Calendar events (next 7 days, not today) */}
+          {upcomingGoogleEvents.length > 0 && (
+            <View style={[styles.calendarBlock, { marginTop: -4 }]}>
+              <Text style={[styles.sectionLabel, { color: colors.mutedForeground, fontFamily: "Inter_500Medium" }]}>
+                Coming from Google Calendar
+              </Text>
+              {upcomingGoogleEvents.map((ev) => {
+                const [, m, d] = ev.date.split("-").map(Number);
+                const dateLabel = new Date(Number(ev.date.split("-")[0]), (m ?? 1) - 1, d).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
+                return (
+                  <View key={ev.id} style={[styles.eventPill, { backgroundColor: colors.card, borderColor: colors.border, marginBottom: 6, paddingVertical: 9, paddingHorizontal: 12 }]}>
+                    <View style={[styles.eventDot, { backgroundColor: "#4285F4" }]} />
+                    <View style={{ flex: 1 }}>
+                      <Text style={[styles.eventPillText, { color: colors.foreground, fontFamily: "Inter_500Medium" }]} numberOfLines={1}>
+                        {ev.title}
+                      </Text>
+                      <Text style={{ fontSize: 12, color: colors.mutedForeground, fontFamily: "Inter_400Regular", marginTop: 1 }}>
+                        {dateLabel}
+                      </Text>
+                    </View>
+                  </View>
+                );
+              })}
+            </View>
+          )}
 
           {/* 4. Focus card */}
           <FocusCard sentence={focusSentence} colors={colors} />

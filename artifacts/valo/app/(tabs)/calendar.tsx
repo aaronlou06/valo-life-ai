@@ -70,11 +70,12 @@ const MONTH_NAMES = [
 ];
 
 const EVENT_TYPES: { key: string; label: string; color: string }[] = [
-  { key: "personal", label: "Personal", color: "#7C3AED" },
-  { key: "health",   label: "Health",   color: "#059669" },
-  { key: "work",     label: "Work",     color: "#2563EB" },
-  { key: "habit",    label: "Habit",    color: "#D97706" },
-  { key: "goal",     label: "Goal",     color: "#C17B3F" },
+  { key: "personal", label: "Personal",  color: "#7C3AED" },
+  { key: "health",   label: "Health",    color: "#059669" },
+  { key: "work",     label: "Work",      color: "#2563EB" },
+  { key: "habit",    label: "Habit",     color: "#D97706" },
+  { key: "goal",     label: "Goal",      color: "#C17B3F" },
+  { key: "google",   label: "Google Cal", color: "#4285F4" },
 ];
 
 const ROUTINE_COLORS   = ["#C17B3F","#2563EB","#059669","#7C3AED","#D97706","#E11D48"];
