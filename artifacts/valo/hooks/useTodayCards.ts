@@ -1,6 +1,13 @@
 import { useState, useCallback } from "react";
 import { useFocusEffect } from "expo-router";
 import { useValoAuth } from "@/contexts/AuthContext";
+import { trackEvent } from "@/services/telemetry";
+
+export interface PrimaryAction {
+  label: string;
+  actionType: "start_checkin" | "open_goals" | "open_habits" | "open_voice" | "open_log" | "open_insights";
+  payload: Record<string, unknown>;
+}
 
 export interface TodayCardData {
   hrv?: number | null;
@@ -23,6 +30,7 @@ export interface TodayCardResult {
   type: string;
   priority: number;
   data: TodayCardData;
+  primaryAction: PrimaryAction;
   bonus?: boolean;
 }
 
@@ -41,21 +49,28 @@ export function useTodayCards() {
   const [serverCards, setServerCards] = useState<TodayCardResult[]>([]);
   const [bonusCard, setBonusCard] = useState<TodayCardResult | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [hasError, setHasError] = useState(false);
 
   const fetchCards = useCallback(async () => {
     const token = await getToken();
     if (!token) return;
     setIsLoading(true);
+    setHasError(false);
     try {
       const res = await fetch(`${getApiBase()}/api/today/cards`, {
         headers: { Authorization: `Bearer ${token}` },
       });
-      if (!res.ok) return;
+      if (!res.ok) {
+        setHasError(true);
+        return;
+      }
       const json = (await res.json()) as TodayCardsResponse;
-      setServerCards(json.cards ?? []);
+      const cards = json.cards ?? [];
+      setServerCards(cards);
       setBonusCard(json.bonusCard ?? null);
+      trackEvent("today.cards_fetched", { count: cards.length });
     } catch {
-      // Silently fall back to local card logic
+      setHasError(true);
     } finally {
       setIsLoading(false);
     }
@@ -67,5 +82,5 @@ export function useTodayCards() {
     }, [fetchCards]),
   );
 
-  return { serverCards, bonusCard, isLoading, refetchCards: fetchCards };
+  return { serverCards, bonusCard, isLoading, hasError, refetchCards: fetchCards };
 }

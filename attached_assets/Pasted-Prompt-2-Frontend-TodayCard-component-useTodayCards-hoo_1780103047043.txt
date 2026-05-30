@@ -1,0 +1,86 @@
+Prompt 2 — Frontend: TodayCard component, useTodayCards hook, Today screen integration
+Context
+
+Frontend uses Expo / React Native and OpenAPI generated hooks. There is an existing Today screen that currently uses hardcoded cards.
+Current state
+
+Today UI exists; cards partly hardcoded. OpenAPI client available (e.g., ApiClient.post('/api/today/cards')).
+Goal
+
+Implement a TodayCard component rendering one primary CTA only.
+Implement useTodayCards hook to call /api/today/cards, cache results, revalidate on focus.
+Wire Today screen to use the hook and show exactly 3 cards and one large primary CTA (Check in with Valo) above the fold.
+Acceptance criteria
+
+Today screen shows 3 cards returned from server, each with a single primary CTA.
+Primary CTA (main button) is prominent and tappable.
+Hook logs telemetry events (today.cards_fetched, today.primary_cta_click).
+Fallback UI if API fails shows one motivational card + retry CTA.
+Files to modify / create
+
+src/components/TodayCard.jsx (or .tsx)
+src/hooks/useTodayCards.js (or .ts)
+src/screens/Today.tsx — replace existing card rendering to use hook
+src/services/telemetry.js — add events if not exist
+TodayCard example (React Native):
+
+// components/TodayCard.jsx
+import React from 'react';
+import { View, Text, TouchableOpacity } from 'react-native';
+export default function TodayCard({ card, onPrimary }) {
+  return (
+    <View style={{ padding:14, borderRadius:12, backgroundColor:'#fff', marginBottom:12 }}>
+      <Text style={{ fontSize:16, fontWeight:'600' }}>{card.title}</Text>
+      {card.subtitle ? <Text style={{ color:'#666', marginTop:6 }}>{card.subtitle}</Text> : null}
+      <TouchableOpacity
+        onPress={() => onPrimary(card.primaryAction)}
+        style={{ marginTop:12, backgroundColor:'#0EA5A4', paddingVertical:12, borderRadius:8, alignItems:'center' }}>
+        <Text style={{ color:'white', fontWeight:'700' }}>{card.primaryAction.label}</Text>
+      </TouchableOpacity>
+    </View>
+  );
+}
+useTodayCards hook:
+
+// hooks/useTodayCards.js
+import { useState, useEffect } from 'react';
+import { useIsFocused } from '@react-navigation/native';
+import ApiClient from '@/api'; // adapt path
+import { trackEvent } from '@/services/telemetry';
+export default function useTodayCards(date) {
+  const [cards, setCards] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const isFocused = useIsFocused();
+  async function load() {
+    setLoading(true);
+    try {
+      const res = await ApiClient.post('/api/today/cards', { date });
+      setCards(res.data || []);
+      trackEvent('today.cards_fetched', { count: (res.data||[]).length });
+    } catch (e) {
+      console.warn('today cards fetch error', e);
+    } finally {
+      setLoading(false);
+    }
+  }
+  useEffect(() => {
+    if (isFocused) load();
+  }, [isFocused, date]);
+  return { cards, loading, refresh: load };
+}
+Today screen integration guidance
+
+Add the large primary CTA at top:
+Text depends on time: morning => "Check in with Valo", evening => "Evening debrief".
+Primary CTA triggers navigation to CheckIn screen or dispatches action (and trackEvent today.primary_cta_click).
+Map cards array to TodayCard components below primary CTA.
+On card primaryAction press, follow actionType: start_checkin → nav to CheckIn (with payload focus), open_goal → nav to Goals/GoalDetail with ID, open_tomorrow_prep → open TomorrowPrep modal.
+Test steps
+
+Mock /api/today/cards to return 3 cards; verify frontend shows them.
+Click primary CTA and card CTAs; ensure navigation and telemetry events fire.
+Simulate API failure — verify fallback motivational card shown and retry works.
+Rollback instructions
+
+Revert Today screen file to previous commit if UX regressions appear.
+Feature-flag new Today UI (chi_feature_today_cards) so you can turn it off quickly in production

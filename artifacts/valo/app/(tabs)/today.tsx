@@ -27,7 +27,8 @@ import {
   useListMoods,
   useListInsights,
 } from "@workspace/api-client-react";
-import { useTodayCards, type TodayCardResult } from "@/hooks/useTodayCards";
+import { useTodayCards, type TodayCardResult, type PrimaryAction } from "@/hooks/useTodayCards";
+import { trackEvent } from "@/services/telemetry";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -86,6 +87,16 @@ function todayLabel(): string {
 type DashData = { sleepHours?: number | null; hrv?: number | null; restingHeartRate?: number | null; steps?: number | null; healthScore: number };
 type GoalItem = { id: number; title: string; targetDate?: string | null; progressPercent: number };
 type HabitItem = { id: number; name: string; streak: number; completedToday: boolean };
+
+type DynCardData = {
+  key: string;
+  icon: string;
+  label: string;
+  body: string;
+  progress?: number;
+  accent?: boolean;
+  primaryAction?: PrimaryAction;
+};
 
 function getReadinessConfig(sleep?: number | null, hrv?: number | null) {
   if (sleep == null && hrv == null) {
@@ -178,14 +189,6 @@ function getTimeOfDay(hour: number, override: "morning" | "evening" | null): Tim
 
 type InsightItem = { id: number; content: string };
 
-interface DynCardData {
-  key: string;
-  icon: string;
-  label: string;
-  body: string;
-  accent?: boolean;
-  progress?: number;
-}
 
 function buildRecoveryCard(dash: DashData | undefined): DynCardData {
   if (!dash || (dash.hrv == null && dash.sleepHours == null)) {
@@ -446,8 +449,12 @@ function serverCardToDynCard(card: TodayCardResult): DynCardData {
       };
     }
     default:
-      return { key: card.type, icon: "zap", label: "Today", body: "Keep showing up." };
+      return { key: card.type, icon: "zap", label: "Today", body: "Keep showing up.", primaryAction: card.primaryAction };
   }
+}
+
+function serverCardToDynCardWithAction(card: TodayCardResult): DynCardData {
+  return { ...serverCardToDynCard(card), primaryAction: card.primaryAction };
 }
 
 function getDebriefPrompt(callTime: string | null, todayEventCount: number): string {
@@ -636,7 +643,7 @@ function FocusCard({ sentence, colors }: { sentence: string; colors: Colors }) {
   );
 }
 
-function DynCard({ card, colors }: { card: DynCardData; colors: Colors }) {
+function DynCard({ card, colors, onAction }: { card: DynCardData; colors: Colors; onAction?: () => void }) {
   return (
     <View
       style={[
@@ -675,6 +682,17 @@ function DynCard({ card, colors }: { card: DynCardData; colors: Colors }) {
             ]}
           />
         </View>
+      )}
+      {onAction != null && card.primaryAction != null && (
+        <TouchableOpacity
+          style={[styles.cardCta, { backgroundColor: colors.primary }]}
+          onPress={onAction}
+          activeOpacity={0.85}
+        >
+          <Text style={[styles.cardCtaText, { color: colors.primaryForeground, fontFamily: "Inter_600SemiBold" }]}>
+            {card.primaryAction.label}
+          </Text>
+        </TouchableOpacity>
       )}
     </View>
   );
@@ -1027,7 +1045,29 @@ export default function TodayScreen() {
   const { data: moods } = useListMoods();
   const { data: insights } = useListInsights();
   const { isSyncing: isHealthSyncing, syncNow } = useHealthKitSync();
-  const { serverCards, bonusCard: serverBonusCard, refetchCards } = useTodayCards();
+  const { serverCards, bonusCard: serverBonusCard, hasError, refetchCards } = useTodayCards();
+
+  const handleCardAction = useCallback(
+    (action: PrimaryAction) => {
+      trackEvent("today.primary_cta_click", { actionType: action.actionType, payload: action.payload });
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      switch (action.actionType) {
+        case "start_checkin":
+        case "open_voice":
+          router.push("/(tabs)/checkin");
+          break;
+        case "open_goals":
+        case "open_habits":
+        case "open_insights":
+          router.push("/(tabs)/goals_insights");
+          break;
+        case "open_log":
+        default:
+          break;
+      }
+    },
+    [router],
+  );
 
   const [modeOverride, setModeOverride] = useState<"morning" | "evening" | null>(null);
   const [intention, setIntention] = useState("");
@@ -1106,7 +1146,7 @@ export default function TodayScreen() {
   const focusSentence = getFocusSentence(goals, habits, intention);
   const dynamicCards =
     serverCards.length > 0
-      ? serverCards.map(serverCardToDynCard)
+      ? serverCards.map(serverCardToDynCardWithAction)
       : getDynamicCards(dashboard, goals, habits, insights as InsightItem[] | undefined, timeOfDay);
   const debriefPrompt = getDebriefPrompt(callTime, todayEvents.length);
 
@@ -1225,10 +1265,27 @@ export default function TodayScreen() {
                 Valo's picks
               </Text>
               {dynamicCards.map((card) => (
-                <DynCard key={card.key} card={card} colors={colors} />
+                <DynCard
+                  key={card.key}
+                  card={card}
+                  colors={colors}
+                  onAction={card.primaryAction ? () => handleCardAction(card.primaryAction!) : undefined}
+                />
               ))}
               {serverBonusCard != null && (
                 <BonusCard card={serverBonusCard} colors={colors} />
+              )}
+              {hasError && serverCards.length === 0 && (
+                <TouchableOpacity
+                  style={[styles.retryRow, { borderColor: colors.border }]}
+                  onPress={() => void refetchCards()}
+                  activeOpacity={0.7}
+                >
+                  <Feather name="refresh-cw" size={13} color={colors.mutedForeground} />
+                  <Text style={[styles.retryText, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
+                    Refresh cards
+                  </Text>
+                </TouchableOpacity>
               )}
             </View>
           )}
@@ -1296,10 +1353,27 @@ export default function TodayScreen() {
                 Valo's picks
               </Text>
               {dynamicCards.map((card) => (
-                <DynCard key={card.key} card={card} colors={colors} />
+                <DynCard
+                  key={card.key}
+                  card={card}
+                  colors={colors}
+                  onAction={card.primaryAction ? () => handleCardAction(card.primaryAction!) : undefined}
+                />
               ))}
               {serverBonusCard != null && (
                 <BonusCard card={serverBonusCard} colors={colors} />
+              )}
+              {hasError && serverCards.length === 0 && (
+                <TouchableOpacity
+                  style={[styles.retryRow, { borderColor: colors.border }]}
+                  onPress={() => void refetchCards()}
+                  activeOpacity={0.7}
+                >
+                  <Feather name="refresh-cw" size={13} color={colors.mutedForeground} />
+                  <Text style={[styles.retryText, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
+                    Refresh cards
+                  </Text>
+                </TouchableOpacity>
               )}
             </View>
           )}
@@ -1441,6 +1515,23 @@ const styles = StyleSheet.create({
   dynCardBody: { fontSize: 15, lineHeight: 22 },
   progressTrack: { height: 4, borderRadius: 2, overflow: "hidden", marginTop: 6 },
   progressFill: { height: 4, borderRadius: 2 },
+  cardCta: {
+    marginTop: 12,
+    paddingVertical: 10,
+    borderRadius: 8,
+    alignItems: "center" as const,
+  },
+  cardCtaText: { fontSize: 14 },
+  retryRow: {
+    flexDirection: "row" as const,
+    alignItems: "center" as const,
+    gap: 6,
+    paddingVertical: 10,
+    paddingHorizontal: 4,
+    borderTopWidth: 1,
+    marginTop: 4,
+  },
+  retryText: { fontSize: 13 },
   // Check-in button
   checkInBtn: {
     flexDirection: "row",
