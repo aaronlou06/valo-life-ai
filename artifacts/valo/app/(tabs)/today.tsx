@@ -481,6 +481,9 @@ function ModeToggle({
       onPress={onToggle}
       style={[styles.modeToggle, { backgroundColor: colors.muted, borderColor: colors.border }]}
       activeOpacity={0.8}
+      accessibilityRole="switch"
+      accessibilityLabel={`Switch to ${mode === "morning" ? "evening" : "morning"} mode`}
+      accessibilityValue={{ text: mode }}
     >
       <View style={[styles.modePill, mode === "morning" && { backgroundColor: colors.card }]}>
         <Feather name="sun" size={11} color={mode === "morning" ? colors.primary : colors.mutedForeground} />
@@ -688,6 +691,8 @@ function DynCard({ card, colors, onAction }: { card: DynCardData; colors: Colors
           style={[styles.cardCta, { backgroundColor: colors.primary }]}
           onPress={onAction}
           activeOpacity={0.85}
+          accessibilityRole="button"
+          accessibilityLabel={card.primaryAction.label}
         >
           <Text style={[styles.cardCtaText, { color: colors.primaryForeground, fontFamily: "Inter_600SemiBold" }]}>
             {card.primaryAction.label}
@@ -734,6 +739,8 @@ function DebriefCard({
         style={[styles.checkInBtn, { backgroundColor: colors.primary }]}
         onPress={onPress}
         activeOpacity={0.85}
+        accessibilityRole="button"
+        accessibilityLabel="Check in with Valo"
       >
         <Feather name="mic" size={20} color={colors.primaryForeground} />
         <Text style={[styles.checkInBtnText, { color: colors.primaryForeground, fontFamily: "Inter_600SemiBold" }]}>
@@ -823,6 +830,8 @@ function MoodArc({
         style={[styles.moodPromptCard, { backgroundColor: colors.card, borderColor: colors.border }]}
         onPress={onAdd}
         activeOpacity={0.8}
+        accessibilityRole="button"
+        accessibilityLabel="Log your mood"
       >
         <Feather name="smile" size={18} color={colors.mutedForeground} />
         <Text style={[styles.moodPromptText, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
@@ -1019,6 +1028,8 @@ function TomorrowPrep({
           style={[styles.planBtn, { borderColor: colors.primary }]}
           onPress={onPlanTomorrow}
           activeOpacity={0.8}
+          accessibilityRole="button"
+          accessibilityLabel="Plan tomorrow with Valo"
         >
           <Feather name="mic" size={15} color={colors.primary} />
           <Text style={[styles.planBtnText, { color: colors.primary, fontFamily: "Inter_600SemiBold" }]}>
@@ -1177,7 +1188,7 @@ export default function TodayScreen() {
   const focusSentence = getFocusSentence(goals, habits, intention);
   const dynamicCards =
     serverCards.length > 0
-      ? serverCards.map(serverCardToDynCardWithAction)
+      ? serverCards.slice(0, 3).map(serverCardToDynCardWithAction)
       : getDynamicCards(dashboard, goals, habits, insights as InsightItem[] | undefined, timeOfDay);
   const debriefPrompt = getDebriefPrompt(callTime, todayEvents.length);
 
@@ -1225,6 +1236,8 @@ export default function TodayScreen() {
           }}
           style={[styles.gearBtn, { backgroundColor: colors.card, borderColor: colors.border }]}
           hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          accessibilityRole="button"
+          accessibilityLabel="Settings"
         >
           <Feather name="settings" size={18} color={colors.mutedForeground} />
         </TouchableOpacity>
@@ -1313,6 +1326,8 @@ export default function TodayScreen() {
                   style={[styles.retryRow, { borderColor: colors.border }]}
                   onPress={() => void refetchCards()}
                   activeOpacity={0.7}
+                  accessibilityRole="button"
+                  accessibilityLabel="Refresh cards"
                 >
                   <Feather name="refresh-cw" size={13} color={colors.mutedForeground} />
                   <Text style={[styles.retryText, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
@@ -1328,6 +1343,8 @@ export default function TodayScreen() {
             style={[styles.checkInBtn, { backgroundColor: colors.primary }]}
             onPress={goToCheckIn}
             activeOpacity={0.85}
+            accessibilityRole="button"
+            accessibilityLabel="Start morning check-in"
           >
             <Feather name="sun" size={19} color={colors.primaryForeground} />
             <Text
@@ -1401,6 +1418,8 @@ export default function TodayScreen() {
                   style={[styles.retryRow, { borderColor: colors.border }]}
                   onPress={() => void refetchCards()}
                   activeOpacity={0.7}
+                  accessibilityRole="button"
+                  accessibilityLabel="Refresh cards"
                 >
                   <Feather name="refresh-cw" size={13} color={colors.mutedForeground} />
                   <Text style={[styles.retryText, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
@@ -1551,8 +1570,10 @@ const styles = StyleSheet.create({
   cardCta: {
     marginTop: 12,
     paddingVertical: 10,
+    minHeight: 44,
     borderRadius: 8,
     alignItems: "center" as const,
+    justifyContent: "center" as const,
   },
   cardCtaText: { fontSize: 14 },
   retryRow: {
