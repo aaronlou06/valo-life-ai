@@ -159,6 +159,10 @@ export interface CalendarEvent {
   date: string;
   title: string;
   /** @nullable */
+  startTime?: string | null;
+  /** @nullable */
+  endTime?: string | null;
+  /** @nullable */
   type?: string | null;
   /** @nullable */
   notes?: string | null;

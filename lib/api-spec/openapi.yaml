@@ -798,6 +798,10 @@ components:
           type: string
         title:
           type: string
+        startTime:
+          type: ["string", "null"]
+        endTime:
+          type: ["string", "null"]
         type:
           type: ["string", "null"]
         notes:

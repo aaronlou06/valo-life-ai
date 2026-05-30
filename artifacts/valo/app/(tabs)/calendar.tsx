@@ -108,7 +108,7 @@ interface Routine {
 }
 
 type Colors = ReturnType<typeof useColors>;
-type CalendarEvent = { id: number; userId: string; date: string; title: string; type?: string | null; notes?: string | null };
+type CalendarEvent = { id: number; userId: string; date: string; title: string; startTime?: string | null; endTime?: string | null; type?: string | null; notes?: string | null };
 type RecurrenceType = "every_day" | "every_week" | "every_other_week" | "custom_days" | "every_month";
 
 interface WorkSchedule {
@@ -2239,6 +2239,10 @@ export default function CalendarScreen() {
             {upcomingGoogleEvents.map((event) => {
               const dateParts = event.date.split("-").map(Number);
               const dateLabel = new Date(dateParts[0]!, (dateParts[1] ?? 1) - 1, dateParts[2]).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
+              const timeLabel = event.startTime
+                ? new Date(event.startTime).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true })
+                : null;
+              const dateTimeLabel = timeLabel ? `${dateLabel} at ${timeLabel}` : dateLabel;
               return (
                 <View key={event.id} style={[styles.eventCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
                   <View style={styles.eventTop}>
@@ -2249,7 +2253,7 @@ export default function CalendarScreen() {
                   </View>
                   <View style={styles.eventDateRow}>
                     <Feather name="calendar" size={12} color={colors.mutedForeground} />
-                    <Text style={[styles.eventDate, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>{dateLabel}</Text>
+                    <Text style={[styles.eventDate, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>{dateTimeLabel}</Text>
                   </View>
                   {event.notes ? <Text style={[styles.eventNotes, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]} numberOfLines={2}>{event.notes}</Text> : null}
                 </View>

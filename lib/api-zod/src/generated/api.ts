@@ -166,6 +166,8 @@ export const ListCalendarEventsResponseItem = zod.object({
   userId: zod.string(),
   date: zod.string(),
   title: zod.string(),
+  startTime: zod.string().nullish(),
+  endTime: zod.string().nullish(),
   type: zod.string().nullish(),
   notes: zod.string().nullish(),
 });
