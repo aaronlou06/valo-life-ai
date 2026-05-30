@@ -1,0 +1,151 @@
+Prompt A — Implement TodayCard component, useTodayCards hook, Today screen integration (Direct paste into Replit AI)
+Context
+
+Mobile: Expo SDK 54 / React Native 0.81.5.
+Backend: Node/Express API on Replit (JWT auth). /api/today/cards endpoint will exist later; front end must call it and gracefully fallback when unavailable.
+UI goal: Keep Today screen minimal — one prominent primary CTA at top, exactly three cards below, each card with one primary action.
+Current state
+
+Today screen exists with hardcoded cards. OpenAPI client is available (or use fetch/axios wrapper named ApiClient).
+Task
+
+Create a reusable TodayCard component.
+Create a useTodayCards hook that calls POST /api/today/cards (auth) and caches results; revalidate on screen focus.
+Wire Today screen to:
+show one large primary CTA (time-aware label),
+render exactly the cards from the hook,
+handle card primaryAction with navigation or internal action.
+Add simple fallback UI when API fails (single motivation card + retry button).
+Emit telemetry events described in Prompt D.
+Files to create/modify
+
+src/components/TodayCard.jsx
+src/hooks/useTodayCards.js
+src/screens/today.tsx (or src/screens/Today.tsx) — integrate hook
+src/services/telemetry.js — small helper (if not existing)
+Optional: src/stories/TodayCard.stories.jsx (Storybook mock)
+Acceptance criteria
+
+Today shows one top primary CTA and 1–3 server cards (expected 3).
+Each card has a single primary CTA that triggers navigation/action.
+Fallback UI displays when API returns error.
+Telemetry events fired for screen_view, cards_fetched, primary_cta_click, time_to_first_action.
+Example code (drop in, adapt imports/path names to your repo)
+
+/* src/components/TodayCard.jsx */
+
+import React from 'react';
+import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+export default function TodayCard({ card, onPrimary }) {
+  return (
+    <View style={styles.card}>
+      <Text style={styles.title}>{card.title}</Text>
+      {card.subtitle ? <Text style={styles.subtitle}>{card.subtitle}</Text> : null}
+      {card.data && card.data.detail ? <Text style={styles.detail}>{card.data.detail}</Text> : null}
+      <TouchableOpacity
+        accessibilityRole="button"
+        accessibilityLabel={card.primaryAction?.label || 'Card action'}
+        onPress={() => onPrimary(card.primaryAction)}
+        style={styles.button}
+      >
+        <Text style={styles.buttonText}>{card.primaryAction?.label || 'Open'}</Text>
+      </TouchableOpacity>
+    </View>
+  );
+}
+const styles = StyleSheet.create({
+  card: { backgroundColor: 'white', borderRadius: 12, padding: 14, marginBottom: 12, shadowOpacity: 0.05 },
+  title: { fontSize: 16, fontWeight: '600', color: '#0f172a' },
+  subtitle: { color: '#6b7280', marginTop: 6 },
+  detail: { marginTop: 8, color: '#374151' },
+  button: { marginTop: 12, backgroundColor: '#0EA5A4', paddingVertical: 12, borderRadius: 8, alignItems: 'center' },
+  buttonText: { color: 'white', fontWeight: '700' },
+});
+/* src/hooks/useTodayCards.js */
+
+import { useState, useEffect, useRef } from 'react';
+import { useIsFocused } from '@react-navigation/native';
+import ApiClient from '@/apiClient'; // adapt
+import { trackEvent } from '@/services/telemetry';
+export default function useTodayCards(date) {
+  const [cards, setCards] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const isFocused = useIsFocused();
+  const startTsRef = useRef(null);
+  async function load() {
+    setLoading(true);
+    startTsRef.current = Date.now();
+    try {
+      const res = await ApiClient.post('/api/today/cards', { date });
+      const payload = res?.data ?? [];
+      setCards(payload);
+      trackEvent('today.cards_fetched', { count: payload.length, source: 'server', latencyMs: Date.now() - startTsRef.current });
+    } catch (err) {
+      console.warn('today cards fetch failed', err);
+      // fallback: single motivation card
+      setCards([{
+        id: 'motivation-fallback',
+        type: 'motivation',
+        title: 'Your motivation',
+        subtitle: 'Tap to read what you wrote at onboarding',
+        data: { text: 'Remember why you started.' },
+        primaryAction: { label: 'Open motivation', actionType: 'open_motivation' }
+      }]);
+      trackEvent('today.cards_fetched', { count: 1, source: 'fallback', latencyMs: Date.now() - startTsRef.current });
+    } finally {
+      setLoading(false);
+    }
+  }
+  useEffect(() => {
+    if (isFocused) load();
+  }, [isFocused, date]);
+  return { cards, loading, refresh: load };
+}
+/* src/screens/Today.tsx (integration sketch) */
+
+import React, { useMemo, useState } from 'react';
+import { View, Text, TouchableOpacity, ScrollView } from 'react-native';
+import TodayCard from '@/components/TodayCard';
+import useTodayCards from '@/hooks/useTodayCards';
+import { trackEvent } from '@/services/telemetry';
+import { useNavigation } from '@react-navigation/native';
+export default function TodayScreen() {
+  const navigation = useNavigation();
+  const { cards, loading, refresh } = useTodayCards();
+  const [screenStartTs] = useState(Date.now());
+  function handlePrimaryCTA() {
+    trackEvent('today.primary_cta_click', { from: 'today_screen' });
+    navigation.navigate('CheckIn'); // or your check-in flow
+  }
+  function onCardPrimary(action) {
+    const now = Date.now();
+    trackEvent('today.time_to_first_action', { ms: now - screenStartTs });
+    trackEvent('today.card_action_click', { cardType: action?.payload?.type || 'unknown', actionLabel: action?.label });
+    // handle action types
+    if (action.actionType === 'start_checkin') navigation.navigate('CheckIn', { focus: action.payload?.focus });
+    if (action.actionType === 'open_goal') navigation.navigate('GoalDetail', { goalId: action.payload?.goalId});
+    if (action.actionType === 'open_motivation') navigation.navigate('Profile', { screen: 'Motivation' });
+  }
+  return (
+    <ScrollView contentContainerStyle={{ padding: 16 }}>
+      <Text style={{ fontSize: 20, fontWeight: '700', marginBottom: 12 }}>Good morning</Text>
+      <TouchableOpacity onPress={handlePrimaryCTA} style={{ backgroundColor: '#06B6D4', padding:14, borderRadius: 12, alignItems:'center', marginBottom: 16 }}>
+        <Text style={{ color: 'white', fontWeight: '700' }}>Check in with Valo</Text>
+      </TouchableOpacity>
+      {loading ? <Text>Loading cards…</Text> : (
+        cards.slice(0,3).map(c => <TodayCard key={c.id} card={c} onPrimary={onCardPrimary} />)
+      )}
+      <TouchableOpacity onPress={refresh} style={{ marginTop: 8 }}>
+        <Text style={{ color: '#2563EB' }}>Refresh</Text>
+      </TouchableOpacity>
+    </ScrollView>
+  );
+}
+Test steps
+
+Run metro/expo dev client. Open Today. Confirm primary CTA visible and visible card count equals number returned by server or fallback 1.
+Click main CTA → navigation to CheckIn; telemetry event fired.
+Click card primary action → navigate; telemetry events fired.
+Rollback
+
+Revert commits or toggle feature flag feature_today_cards_v2=false to show legacy Today UI.
