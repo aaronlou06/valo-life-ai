@@ -189,6 +189,39 @@ function extractEventTime(notes: string | null | undefined): string | null {
   return m?.[1] ?? null;
 }
 
+function getEventTimeDisplay(ev: CalendarEvent): { start: string; end: string | null } | null {
+  if (ev.type === "google" && ev.startTime) {
+    const start = new Date(ev.startTime).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true });
+    const end = ev.endTime ? new Date(ev.endTime).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true }) : null;
+    return { start, end };
+  }
+  const raw = extractEventTime(ev.notes);
+  if (!raw) return null;
+  const parts = raw.split(/\s*[—–\-]\s*/);
+  return { start: parts[0]!.trim(), end: parts[1]?.trim() ?? null };
+}
+
+function parseTime12ToMinutes(t: string): number | null {
+  const m = t.match(/^(\d{1,2}):(\d{2})\s*(AM|PM)$/i);
+  if (!m) return null;
+  let h = Number(m[1]);
+  const min = Number(m[2]);
+  const ampm = m[3]!.toUpperCase();
+  if (ampm === "AM" && h === 12) h = 0;
+  if (ampm === "PM" && h !== 12) h += 12;
+  return h * 60 + min;
+}
+
+function getEventSortMinutes(ev: CalendarEvent): number | null {
+  if (ev.type === "google" && ev.startTime) {
+    const d = new Date(ev.startTime);
+    return d.getHours() * 60 + d.getMinutes();
+  }
+  const td = getEventTimeDisplay(ev);
+  if (!td) return null;
+  return parseTime12ToMinutes(td.start);
+}
+
 function extractTimeDisplay(isoDate: string): string | null {
   if (!isoDate.includes("T")) return null;
   const tp = isoDate.split("T")[1]!;
@@ -1118,11 +1151,24 @@ function DayDetailSheet({
               <Text style={{ color: colors.mutedForeground, fontFamily: "Inter_400Regular", textAlign: "center", paddingVertical: 28, fontSize: 14 }}>
                 No events on this day
               </Text>
-            ) : (
-              events.map((ev) => {
+            ) : (() => {
+              const sorted = [...events].sort((a, b) => {
+                const am = getEventSortMinutes(a);
+                const bm = getEventSortMinutes(b);
+                if (am === null && bm === null) return 0;
+                if (am === null) return -1;
+                if (bm === null) return 1;
+                return am - bm;
+              });
+              const allDay = sorted.filter((ev) => getEventSortMinutes(ev) === null);
+              const timed  = sorted.filter((ev) => getEventSortMinutes(ev) !== null);
+
+              const renderCard = (ev: CalendarEvent) => {
                 const bc = eventColor(ev);
                 const noteText = routineNotesText(ev.notes);
                 const isRoutine = ev.type === "routine";
+                const td = getEventTimeDisplay(ev);
+                const timeLabel = td ? (td.end ? `${td.start} – ${td.end}` : td.start) : null;
                 return (
                   <TouchableOpacity
                     key={ev.id}
@@ -1131,7 +1177,7 @@ function DayDetailSheet({
                     activeOpacity={isRoutine ? 0.75 : 1}
                   >
                     <View style={styles.eventTop}>
-                      <View style={[{ width: 4, borderRadius: 2, backgroundColor: bc, alignSelf: "stretch", marginRight: 4 }]} />
+                      <View style={{ width: 4, borderRadius: 2, backgroundColor: bc, alignSelf: "stretch", marginRight: 4 }} />
                       <Text style={[styles.eventTitle, { color: colors.foreground, fontFamily: "Inter_500Medium" }]} numberOfLines={2}>{ev.title}</Text>
                       {isRoutine ? (
                         <View style={[styles.typeBadge, { backgroundColor: bc + "22", flexDirection: "row", alignItems: "center", gap: 3 }]}>
@@ -1156,17 +1202,32 @@ function DayDetailSheet({
                         </TouchableOpacity>
                       )}
                     </View>
-                    {(() => { const t = extractEventTime(ev.notes); return t ? (
+                    {timeLabel ? (
                       <View style={{ flexDirection: "row", alignItems: "center", gap: 5, marginTop: 2 }}>
                         <Feather name="clock" size={11} color={colors.mutedForeground} />
-                        <Text style={{ fontSize: 12, color: colors.mutedForeground, fontFamily: "Inter_400Regular" }}>{t}</Text>
+                        <Text style={{ fontSize: 12, color: colors.mutedForeground, fontFamily: "Inter_400Regular" }}>{timeLabel}</Text>
                       </View>
-                    ) : null; })()}
+                    ) : null}
                     {noteText && !isRoutine ? <Text style={[styles.eventNotes, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]} numberOfLines={3}>{noteText}</Text> : null}
                   </TouchableOpacity>
                 );
-              })
-            )}
+              };
+
+              return (
+                <>
+                  {allDay.length > 0 && (
+                    <>
+                      <Text style={{ fontSize: 11, fontFamily: "Inter_500Medium", color: colors.mutedForeground, textTransform: "uppercase", letterSpacing: 0.6, marginBottom: 6 }}>All Day</Text>
+                      {allDay.map(renderCard)}
+                    </>
+                  )}
+                  {timed.length > 0 && allDay.length > 0 && (
+                    <View style={{ height: 1, backgroundColor: colors.border, marginVertical: 8 }} />
+                  )}
+                  {timed.map(renderCard)}
+                </>
+              );
+            })()}
           </ScrollView>
 
           <TouchableOpacity style={[S.saveBtn, { backgroundColor: colors.primary, marginTop: 10 }]} onPress={onAddEvent}>
