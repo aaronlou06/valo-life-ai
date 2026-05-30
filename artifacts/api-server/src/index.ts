@@ -4,6 +4,7 @@ import { startOutboundCallScheduler } from "./lib/outboundCaller";
 import { startKeepAlive } from "./lib/keepAlive";
 import { startNightlyInsightsJob } from "./lib/nightlyInsights";
 import { startNightlyAggregationJob } from "./lib/nightlyAggregation";
+import { startCalendarSyncJob } from "./lib/calendarSyncJob";
 
 const rawPort = process.env["PORT"];
 
@@ -30,4 +31,5 @@ app.listen(port, (err) => {
   startKeepAlive(port);
   startNightlyInsightsJob();
   startNightlyAggregationJob();
+  startCalendarSyncJob();
 });
