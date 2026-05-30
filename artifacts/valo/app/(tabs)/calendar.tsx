@@ -2188,7 +2188,7 @@ export default function CalendarScreen() {
         {/* ── View mode toggle ────────────────────────────────────────────── */}
         <View style={styles.viewToggleRow}>
           <View style={[styles.viewToggle, { backgroundColor: colors.muted, borderColor: colors.border }]}>
-            {(["month", "week", "year"] as const).map((mode) => (
+            {(["week", "month", "year"] as const).map((mode) => (
               <TouchableOpacity
                 key={mode}
                 style={[styles.viewTogglePill, viewMode === mode && { backgroundColor: colors.card }]}
