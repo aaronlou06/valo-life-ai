@@ -6,6 +6,7 @@ import {
   debriefExtractionsTable,
   transcriptsTable,
   insightsTable,
+  voiceDebriefsTable,
 } from "@workspace/db";
 import { logger } from "./logger";
 
@@ -15,7 +16,11 @@ export type TranscriptEntry = {
 };
 
 const EXTRACTION_SYSTEM_PROMPT = `You are a data extraction assistant. You will receive a transcript of an evening debrief conversation between a user and their AI companion Valo. Extract the following structured data from the conversation and return it as a JSON object with exactly these fields:
-mood_score: number 1-10 (overall mood of the day as expressed by the user)
+mood_score: integer 1-10 (overall mood of the day as expressed by the user) or null
+energy: integer 1-10 (energy level expressed by the user) or null
+wins: array of strings — positive things the user mentioned (max 3, each ≤ 1 sentence)
+stressors: array of strings — difficulties or stressors the user mentioned (max 3, each ≤ 1 sentence)
+intentions: array of strings — things the user intends to do tomorrow (max 3, each ≤ 1 sentence)
 primary_emotion: string (one word — the dominant emotion expressed)
 energy_level: string (low/moderate/high)
 work_quality: string (rough/moderate/productive/great)
@@ -66,6 +71,18 @@ export async function processDebriefTranscript(
     ? JSON.stringify(extraction.flags)
     : null;
 
+  const wins = Array.isArray(extraction.wins)
+    ? JSON.stringify(extraction.wins)
+    : null;
+
+  const stressors = Array.isArray(extraction.stressors)
+    ? JSON.stringify(extraction.stressors)
+    : null;
+
+  const intentions = Array.isArray(extraction.intentions)
+    ? JSON.stringify(extraction.intentions)
+    : null;
+
   await Promise.all([
     db.insert(transcriptsTable).values({ userId, date: today, fullText }),
 
@@ -92,6 +109,18 @@ export async function processDebriefTranscript(
           flags,
         })
       : Promise.resolve(),
+
+    db.insert(voiceDebriefsTable).values({
+      userId,
+      callDate: today,
+      transcriptText: fullText,
+      mood: typeof extraction.mood_score === "number" ? extraction.mood_score : null,
+      energy: typeof extraction.energy === "number" ? extraction.energy : null,
+      wins,
+      stressors,
+      intentions,
+      rawJson: JSON.stringify(extraction),
+    }),
 
     extraction.mood_score != null
       ? db

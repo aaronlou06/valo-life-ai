@@ -96,8 +96,11 @@ function buildContextString(data: Record<string, unknown>): string {
   const sleep = data.sleep_hours as number | null;
   const rhr = data.rhr_today as number | null;
   const readiness = data.readiness_label as string;
+  const hrv14Avg = data.hrv_avg_14d as number | null;
   const recoveryParts: string[] = [];
-  if (hrv != null) recoveryParts.push(`HRV ${hrv} ms`);
+  if (hrv != null) {
+    recoveryParts.push(hrv14Avg != null ? `HRV ${hrv} ms today, 14-day avg ${hrv14Avg} ms` : `HRV ${hrv} ms`);
+  }
   if (sleep != null) recoveryParts.push(`Sleep ${sleep} hrs`);
   if (rhr != null) recoveryParts.push(`Resting HR ${rhr} bpm`);
   lines.push(
@@ -131,6 +134,9 @@ function buildContextString(data: Record<string, unknown>): string {
   if (habitsCompleted && habitsCompleted !== "none") habitParts.push(`Done: ${habitsCompleted}`);
   if (habitsPending && habitsPending !== "none") habitParts.push(`Pending: ${habitsPending}`);
   if (habitParts.length > 0) lines.push(`- Habits: ${habitParts.join(" | ")}`);
+
+  const habitsOnStreak = data.habits_on_streak as string | null;
+  if (habitsOnStreak) lines.push(`- Habits on streak: ${habitsOnStreak}`);
 
   const calToday = data.calendar_today_str as string | null;
   if (calToday) lines.push(`- Today calendar: ${calToday}`);
@@ -256,6 +262,7 @@ export async function buildVapiContext(userId: string): Promise<Record<string, u
 
   // ── 14-day averages ──────────────────────────────────────────────────────
   const sleep_avg_14d = numAvg(logs14.filter((l) => l.sleepHours != null).map((l) => l.sleepHours!));
+  const hrv_avg_14d = numAvg(logs14.filter((l) => l.hrv != null).map((l) => l.hrv!));
   const mood_avg_14d = numAvg(moods14.map((m) => m.score));
   const daysWithWorkout14 = logs14.filter((l) => l.workoutType != null).length;
   const workout_consistency_14d = Math.round((daysWithWorkout14 / 14) * 100);
@@ -391,6 +398,7 @@ export async function buildVapiContext(userId: string): Promise<Record<string, u
 
     // ── 14-day rolling averages ──────────────────────────────────────────
     sleep_avg_14d: sleep_avg_14d != null ? +sleep_avg_14d.toFixed(1) : null,
+    hrv_avg_14d: hrv_avg_14d != null ? Math.round(hrv_avg_14d) : null,
     mood_avg_14d: mood_avg_14d != null ? +mood_avg_14d.toFixed(1) : null,
     workout_consistency_14d,
 
@@ -415,6 +423,8 @@ export async function buildVapiContext(userId: string): Promise<Record<string, u
     habits_summary,
     habits_completed_today,
     habits_pending_today,
+    habits_on_streak:
+      habits.filter((h) => h.streak > 0).map((h) => `${h.name} (${h.streak} days)`).join(", ") || null,
 
     // ── Calendar ─────────────────────────────────────────────────────────
     meeting_count,

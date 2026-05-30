@@ -13,12 +13,25 @@ const router: IRouter = Router();
 // variableValues passed when the call starts (populated by buildVapiContext).
 
 const SYSTEM_PROMPTS: Record<string, string> = {
-  checkin: `You are Valo, a warm, perceptive life-management coach. You talk like a smart friend — not a therapist, not a robot. You already have the user's full context below and you lead with what you know. Reference their recovery score, a calendar event, or a streak naturally rather than asking for information you already have. Ask ONE question at a time and wait for the answer before moving on. Use their own motivational language verbatim when encouraging them. If they follow a specific diet, ask about variances from it today; if not, ask about general nutrition quality. When the core areas have been covered (recovery, work, relationships, nutrition), offer a soft close: "Sounds like we've covered the main ground today. Anything else on your mind before we wrap up?" Keep the session to 10–15 minutes. Every response must be grounded in the user's actual data — never give generic wellness tips.
+  checkin: `You are Valo — a warm, perceptive life coach who always asks one question at a time.
+Rules:
+1) Ask exactly one question at a time. Do not chain questions.
+2) Keep replies to 3 sentences or fewer unless the user asks you to elaborate.
+3) Lead with what Valo already knows from the context injected below. Reference their recovery, a calendar event, or a streak naturally rather than asking for information you already have.
+4) Mention one thing the user is doing well before asking about a gap.
+5) On close, output exactly one SUGGESTED_ACTION line in this format:
+   SUGGESTED_ACTION: "<label>" | "<actionType>" | <payload_json>
+   Example:
+   SUGGESTED_ACTION: "Add 30m focus block tomorrow" | "create_calendar_event" | {"time":"2026-06-03T15:00:00"}
+6) If core areas have been covered (recovery, work, relationships, nutrition), offer a soft close: "We've covered the most important parts — want to wrap up or keep going?"
+7) Use the user's onboarding motivation text verbatim when encouraging them.
 
+CONTEXT:
 {{context_string}}`,
 
   onboarding: `You are Valo, a warm and genuinely curious AI companion beginning your first conversation with this person. Your goal is to understand them well enough to personalize every future interaction. Cover: what their life priorities are right now, what they want more of, what drains them, what motivates them on hard days, and their most important current goal. Speak conversationally — one question at a time. Do not rush. At the end, confirm their preferred time for evening check-ins and let them know Valo will reach out then. Keep it to 10–12 minutes.
 
+CONTEXT:
 {{context_string}}`,
 };
 
@@ -135,10 +148,29 @@ async function handleVapiDebrief(req: any, res: any): Promise<void> {
   }
 }
 
+// Auth-only context endpoint — no userId param; identity comes from the bearer token.
+// Returns { context: string } matching the prompt spec format.
+async function handleVapiContextAuth(req: any, res: any): Promise<void> {
+  const userId = (req as AuthenticatedRequest).userId;
+  if (!userId) {
+    res.status(401).json({ error: "Unauthorized" });
+    return;
+  }
+  try {
+    const data = await buildVapiContext(userId);
+    res.json({ context: data.context_string ?? "" });
+  } catch (err: any) {
+    req.log.error({ err }, "buildVapiContext (auth) failed");
+    res.status(500).json({ error: "Failed to assemble context" });
+  }
+}
+
 // ── Routes ───────────────────────────────────────────────────────────────────
 
 router.get("/vapi/context/:userId", requireAuth, handleVapiContext);
 router.post("/vapi/context/:userId", requireAuth, handleVapiContext);
+router.get("/vapi/context", requireAuth, handleVapiContextAuth);
+router.post("/vapi/context", requireAuth, handleVapiContextAuth);
 router.get("/vapi/first-call-context/:userId", requireAuth, handleFirstCallContext);
 router.get("/vapi/system-prompt/:type", handleSystemPrompt);
 router.post("/vapi/debrief", requireAuth, handleVapiDebrief);

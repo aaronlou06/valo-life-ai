@@ -1,0 +1,74 @@
+Prompt 3 — VAPI: system prompt, /api/vapi/context wiring, debrief extraction
+Context
+
+VAPI assistants exist (Check-in assistant ID: 1ac4c2fa; Onboarding assistant ID: 767a3c70).
+Backend has or can have /api/vapi/context and /api/vapi/debrief endpoints.
+Current state
+
+Basic voice flows exist but assistant doesn’t always use dynamic context or enforce single-question-at-a-time and single suggested action.
+Goal
+
+Implement /api/vapi/context returning a concise context string (max ~1500 tokens) and implement a server-side VAPI system prompt template enforcing one-question-at-a-time and a single SUGGESTED_ACTION output format.
+Implement /api/vapi/debrief to extract mood, energy, wins, stressors, intentions from the call transcript and store in voice_debriefs.
+Acceptance criteria
+
+/api/vapi/context returns context string containing: name, today’s date, recovery (hrv, sleep), top 3 goals (title + progress), streaks, today’s calendar events, motivation_text, diet context, and “what to ask about”.
+VAPI initiated call includes system prompt concatenated with returned context.
+Assistant asks one question at a time and, upon closing, outputs SUGGESTED_ACTION in the exact format.
+/api/vapi/debrief accepts transcript and stores extracted structured fields in voice_debriefs table.
+Files to modify / create
+
+routes/vapiContext.js (POST /api/vapi/context)
+routes/vapiDebrief.js (POST /api/vapi/debrief)
+services/claudeService.js (for debrief extraction instructions)
+System prompt template (paste into VAPI dashboard or include as role=system):
+
+SYSTEM:
+You are Valo — a warm, perceptive life coach who always asks one question at a time.
+Rules:
+1) Ask exactly one question at a time. Do not chain questions.
+2) Keep replies ≤ 3 sentences unless user asks to elaborate.
+3) Lead with what Valo already knows (context injected below).
+4) Mention one thing user is doing well before asking about a gap.
+5) On close, output exactly one SUGGESTED_ACTION line in this format:
+   SUGGESTED_ACTION: "<label>" | "<actionType>" | <payload_json>
+   Example:
+   SUGGESTED_ACTION: "Add 30m focus block tomorrow" | "create_calendar_event" | {"time":"2026-06-03T15:00:00"}
+6) If core areas covered, offer soft-close: "We've covered the most important parts — want to wrap up or keep going?"
+7) Use user’s onboarding motivation text verbatim when encouraging.
+CONTEXT:
+{{CONTEXT}}
+Context builder output format — server returns JSON:
+
+{ "context":"USER CONTEXT (Today is 2026-06-02):\n- Name: Arnold\n- Recovery: HRV 48 ms today, 14-day avg 68 ms (readiness: Low)\n- Sleep: 5.8 hrs\n- Steps: 4,200 steps\n- Top goals: Marathon training (45%), Deep work streak (3 days)\n- Habits on streak: Morning routine (3 days)\n- Today's calendar: Meeting 14:00 (Client Call), 16:00 (Team)\n- Motivation: \"I want calm focus to be more consistent across my week\"\n- Diet: No structured diet\n- What to ask about: Sleep and stressors at work\n"}
+Debrief extraction prompt (for Claude or similar) — example instruction for debrief:
+
+Extract from this transcript (exact JSON):
+{
+ "mood": integer 1-10 or null,
+ "energy": integer 1-10 or null,
+ "wins": [string],
+ "stressors": [string],
+ "intentions": [string]
+}
+Only return valid JSON. If a field cannot be found, set null or empty array.
+Example /api/vapi/debrief handler (pseudocode)
+
+// routes/vapiDebrief.js
+router.post('/debrief', auth, async (req, res) => {
+  const { transcript, userId, callDate } = req.body;
+  const extracted = await claudeService.extractDebrief(transcript);
+  // persist voice_debriefs
+  await db.query(`INSERT INTO voice_debriefs (user_id, call_date, transcript_text, mood, energy, wins, stressors, intentions, raw_json) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
+    [userId, callDate, transcript, extracted.mood, extracted.energy, JSON.stringify(extracted.wins), JSON.stringify(extracted.stressors), JSON.stringify(extracted.intentions), JSON.stringify(extracted)]);
+  res.json({ ok:true, extracted });
+});
+Test steps
+
+Call /api/vapi/context for a test user and validate returned string length and content.
+Start a VAPI call (or simulate) using the system prompt + context; ensure assistant asks one question, uses motivational text, and on close returns a SUGGESTED_ACTION line.
+Post a sample transcript to /api/vapi/debrief and confirm voice_debriefs inserted with parsed fields.
+Rollback instructions
+
+If VAPI behavior becomes problematic, temporarily set backend to return a minimal context string (only user's name and motivation) or disable contextual injection so VAPI uses prior behavior.
+Remove new debrief insertion or set feature flag until debriefing parsing is validated
