@@ -1827,9 +1827,21 @@ export default function CalendarScreen() {
       .filter((e) => {
         const date = e.date.includes("T") ? e.date.split("T")[0]! : e.date;
         if (date < currentTodayStr || date > maxDate) return false;
-        return e.type !== "routine" && e.type !== "habit";
+        return e.type !== "routine" && e.type !== "habit" && e.type !== "google";
       })
       .sort((a, b) => a.date.localeCompare(b.date));
+  }, [events, currentTodayStr]);
+
+  const upcomingGoogleEvents = useMemo(() => {
+    const d = new Date();
+    d.setDate(d.getDate() + 7);
+    const maxDate = toISODate(d);
+    return [...events]
+      .filter((e) => {
+        const date = e.date.includes("T") ? e.date.split("T")[0]! : e.date;
+        return e.type === "google" && date >= currentTodayStr && date <= maxDate;
+      })
+      .sort((a, b) => a.date.localeCompare(b.date)) as CalendarEvent[];
   }, [events, currentTodayStr]);
 
   const selectedDayEvents = useMemo(
@@ -2216,6 +2228,35 @@ export default function CalendarScreen() {
             </View>
           );
         })()}
+
+        {/* ── Google Calendar events ────────────────────────────────────────── */}
+        {upcomingGoogleEvents.length > 0 && (
+          <View style={[styles.section, { marginTop: 8 }]}>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 10 }}>
+              <View style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: "#4285F4" }} />
+              <Text style={[styles.sectionTitle, { color: colors.foreground, fontFamily: "Inter_600SemiBold", marginBottom: 0 }]}>From Google Calendar</Text>
+            </View>
+            {upcomingGoogleEvents.map((event) => {
+              const dateParts = event.date.split("-").map(Number);
+              const dateLabel = new Date(dateParts[0]!, (dateParts[1] ?? 1) - 1, dateParts[2]).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
+              return (
+                <View key={event.id} style={[styles.eventCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+                  <View style={styles.eventTop}>
+                    <Text style={[styles.eventTitle, { color: colors.foreground, fontFamily: "Inter_500Medium" }]} numberOfLines={2}>{event.title}</Text>
+                    <View style={[styles.typeBadge, { backgroundColor: "#4285F422" }]}>
+                      <Text style={[styles.typeBadgeText, { color: "#4285F4", fontFamily: "Inter_500Medium" }]}>Google Cal</Text>
+                    </View>
+                  </View>
+                  <View style={styles.eventDateRow}>
+                    <Feather name="calendar" size={12} color={colors.mutedForeground} />
+                    <Text style={[styles.eventDate, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>{dateLabel}</Text>
+                  </View>
+                  {event.notes ? <Text style={[styles.eventNotes, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]} numberOfLines={2}>{event.notes}</Text> : null}
+                </View>
+              );
+            })}
+          </View>
+        )}
 
         {/* ── Upcoming events ───────────────────────────────────────────────── */}
         <View style={[styles.section, { marginTop: 8 }]}>
