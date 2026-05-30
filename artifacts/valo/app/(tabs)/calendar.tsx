@@ -1348,6 +1348,83 @@ function WeekView({
   );
 }
 
+// ─── Year View ────────────────────────────────────────────────────────────────
+
+const MONTH_SHORT = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+
+function YearView({
+  viewYear, eventsByDate, currentTodayStr, onDayPress, colors,
+}: {
+  viewYear: number; eventsByDate: Record<string, CalendarEvent[]>;
+  currentTodayStr: string; onDayPress: (dateStr: string) => void; colors: Colors;
+}) {
+  const activeDays = useMemo(() => {
+    const result: Record<string, string> = {};
+    for (const [dateStr, evs] of Object.entries(eventsByDate)) {
+      if (!dateStr.startsWith(String(viewYear))) continue;
+      const major = evs.filter((e) => e.type !== "routine" && e.type !== "habit");
+      if (major.length > 0) {
+        const goalEv = major.find((e) => e.type === "goal" || e.type === "goal-deadline");
+        result[dateStr] = eventColor(goalEv ?? major[0]!);
+      }
+    }
+    return result;
+  }, [eventsByDate, viewYear]);
+
+  return (
+    <View style={yearStyles.outerGrid}>
+      {Array.from({ length: 12 }, (_, monthIdx) => {
+        const daysInMonth = new Date(viewYear, monthIdx + 1, 0).getDate();
+        const firstDayOffset = new Date(viewYear, monthIdx, 1).getDay();
+        const cells: (number | null)[] = [
+          ...Array<null>(firstDayOffset).fill(null),
+          ...Array.from({ length: daysInMonth }, (_, i) => i + 1),
+        ];
+
+        return (
+          <View key={monthIdx} style={yearStyles.monthBlock}>
+            <Text style={[yearStyles.monthName, { color: colors.foreground, fontFamily: "Inter_600SemiBold" }]}>
+              {MONTH_SHORT[monthIdx]}
+            </Text>
+            <View style={yearStyles.dayLetterRow}>
+              {["S","M","T","W","T","F","S"].map((l, i) => (
+                <Text key={i} style={[yearStyles.dayLetter, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>{l}</Text>
+              ))}
+            </View>
+            <View style={yearStyles.daysWrap}>
+              {cells.map((day, ci) => {
+                if (!day) {
+                  return <View key={`e${monthIdx}-${ci}`} style={yearStyles.dayCell} />;
+                }
+                const dateStr = `${viewYear}-${String(monthIdx + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+                const dotColor = activeDays[dateStr];
+                const isToday = dateStr === currentTodayStr;
+                const hasEvent = !!dotColor;
+
+                if (!hasEvent && !isToday) {
+                  return (
+                    <View key={dateStr} style={yearStyles.dayCell}>
+                      <View style={[yearStyles.emptyDot, { backgroundColor: colors.border }]} />
+                    </View>
+                  );
+                }
+
+                return (
+                  <TouchableOpacity key={dateStr} style={yearStyles.dayCell} onPress={() => onDayPress(dateStr)} activeOpacity={0.65}>
+                    <View style={[yearStyles.activeDot, { backgroundColor: isToday ? colors.primary : dotColor }]}>
+                      <Text style={[yearStyles.activeDotText, { color: "#FFFFFF", fontFamily: "Inter_700Bold" }]}>{day}</Text>
+                    </View>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+          </View>
+        );
+      })}
+    </View>
+  );
+}
+
 // ─── Routine Card ─────────────────────────────────────────────────────────────
 
 function RoutineCard({ routine, onEdit, onDelete, completedCount, totalCount, colors }: {
@@ -1787,7 +1864,7 @@ export default function CalendarScreen() {
   const currentTodayStr = todayStr();
 
   // View mode
-  const [viewMode, setViewMode] = useState<"month" | "week">("month");
+  const [viewMode, setViewMode] = useState<"month" | "week" | "year">("month");
   const [viewYear, setViewYear] = useState(today.getFullYear());
   const [viewMonth, setViewMonth] = useState(today.getMonth());
   const [weekStart, setWeekStart] = useState(() => getWeekStart(today));
@@ -2010,12 +2087,15 @@ export default function CalendarScreen() {
 
   function goToToday() {
     if (viewMode === "month") { setViewYear(today.getFullYear()); setViewMonth(today.getMonth()); }
+    else if (viewMode === "year") setViewYear(today.getFullYear());
     else setWeekStart(getWeekStart(new Date()));
   }
 
   const prevPeriod = () => {
     if (viewMode === "month") {
       if (viewMonth === 0) { setViewMonth(11); setViewYear((y) => y - 1); } else setViewMonth((m) => m - 1);
+    } else if (viewMode === "year") {
+      setViewYear((y) => y - 1);
     } else {
       setWeekStart((ws) => { const d = new Date(ws); d.setDate(d.getDate() - 7); return d; });
     }
@@ -2024,6 +2104,8 @@ export default function CalendarScreen() {
   const nextPeriod = () => {
     if (viewMode === "month") {
       if (viewMonth === 11) { setViewMonth(0); setViewYear((y) => y + 1); } else setViewMonth((m) => m + 1);
+    } else if (viewMode === "year") {
+      setViewYear((y) => y + 1);
     } else {
       setWeekStart((ws) => { const d = new Date(ws); d.setDate(d.getDate() + 7); return d; });
     }
@@ -2031,6 +2113,8 @@ export default function CalendarScreen() {
 
   const navLabel = viewMode === "month"
     ? `${MONTH_NAMES[viewMonth]} ${viewYear}`
+    : viewMode === "year"
+    ? String(viewYear)
     : formatWeekLabel(weekStart);
 
   async function handleSaveSchedule(s: WorkSchedule) {
@@ -2104,7 +2188,7 @@ export default function CalendarScreen() {
         {/* ── View mode toggle ────────────────────────────────────────────── */}
         <View style={styles.viewToggleRow}>
           <View style={[styles.viewToggle, { backgroundColor: colors.muted, borderColor: colors.border }]}>
-            {(["month", "week"] as const).map((mode) => (
+            {(["month", "week", "year"] as const).map((mode) => (
               <TouchableOpacity
                 key={mode}
                 style={[styles.viewTogglePill, viewMode === mode && { backgroundColor: colors.card }]}
@@ -2133,11 +2217,13 @@ export default function CalendarScreen() {
         </View>
 
         {/* ── Day-of-week headers ──────────────────────────────────────────── */}
-        <View style={styles.weekRow}>
-          {WEEK_DAYS.map((d, i) => (
-            <Text key={i} style={[styles.weekDay, { color: colors.mutedForeground, fontFamily: "Inter_500Medium" }]}>{d}</Text>
-          ))}
-        </View>
+        {viewMode !== "year" && (
+          <View style={styles.weekRow}>
+            {WEEK_DAYS.map((d, i) => (
+              <Text key={i} style={[styles.weekDay, { color: colors.mutedForeground, fontFamily: "Inter_500Medium" }]}>{d}</Text>
+            ))}
+          </View>
+        )}
 
         {/* ── Calendar grid ────────────────────────────────────────────────── */}
         {viewMode === "month" ? (
@@ -2149,9 +2235,17 @@ export default function CalendarScreen() {
             onDayPress={handleDayPress}
             colors={colors}
           />
-        ) : (
+        ) : viewMode === "week" ? (
           <WeekView
             weekStart={weekStart}
+            eventsByDate={eventsByDate}
+            currentTodayStr={currentTodayStr}
+            onDayPress={handleDayPress}
+            colors={colors}
+          />
+        ) : (
+          <YearView
+            viewYear={viewYear}
             eventsByDate={eventsByDate}
             currentTodayStr={currentTodayStr}
             onDayPress={handleDayPress}
@@ -2683,7 +2777,7 @@ const styles = StyleSheet.create({
   // View toggle
   viewToggleRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 16, marginBottom: 12 },
   viewToggle: { flexDirection: "row", borderRadius: 100, borderWidth: 1, padding: 3 },
-  viewTogglePill: { paddingHorizontal: 18, paddingVertical: 7, borderRadius: 100 },
+  viewTogglePill: { paddingHorizontal: 14, paddingVertical: 7, borderRadius: 100 },
   viewToggleText: { fontSize: 13 },
   todayBtn: { borderWidth: 1, borderRadius: 100, paddingHorizontal: 14, paddingVertical: 7 },
   todayBtnText: { fontSize: 13 },
@@ -2738,4 +2832,62 @@ const styles = StyleSheet.create({
   dayPill: { width: 24, height: 24, borderRadius: 12, justifyContent: "center", alignItems: "center" },
   dayPillText: { fontSize: 10 },
   routineActivityCount: { fontSize: 12 },
+});
+
+// ─── Year view styles ─────────────────────────────────────────────────────────
+
+const yearStyles = StyleSheet.create({
+  outerGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    paddingHorizontal: 12,
+    marginBottom: 28,
+  },
+  monthBlock: {
+    width: "50%",
+    paddingHorizontal: 6,
+    paddingBottom: 22,
+  },
+  monthName: {
+    fontSize: 12,
+    letterSpacing: 0.6,
+    textTransform: "uppercase",
+    marginBottom: 6,
+  },
+  dayLetterRow: {
+    flexDirection: "row",
+    marginBottom: 3,
+  },
+  dayLetter: {
+    width: `${100 / 7}%` as `${number}%`,
+    textAlign: "center",
+    fontSize: 8,
+    letterSpacing: 0.1,
+  },
+  daysWrap: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+  },
+  dayCell: {
+    width: `${100 / 7}%` as `${number}%`,
+    aspectRatio: 1,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  emptyDot: {
+    width: 3,
+    height: 3,
+    borderRadius: 1.5,
+  },
+  activeDot: {
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  activeDotText: {
+    fontSize: 8,
+    lineHeight: 10,
+  },
 });
