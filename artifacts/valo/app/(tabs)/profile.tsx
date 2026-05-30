@@ -28,6 +28,9 @@ import {
   syncGoogleCalendarEvents,
   isGoogleCalendarConnected,
   disconnectGoogleCalendar,
+  fetchGoogleCalendars,
+  saveGoogleCalendarSelections,
+  type GoogleCalendarInfo,
 } from "@/lib/googleCalendar";
 import { useListGoals, useListHabits, useGetDashboard, useGetStreakData } from "@workspace/api-client-react";
 
@@ -528,6 +531,8 @@ export default function ProfileScreen() {
   const [connectingGCal, setConnectingGCal] = useState(false);
   const [gCalSyncing, setGCalSyncing] = useState(false);
   const [gCalCount, setGCalCount] = useState<number | null>(null);
+  const [googleCalendars, setGoogleCalendars] = useState<GoogleCalendarInfo[]>([]);
+  const [loadingCalendars, setLoadingCalendars] = useState(false);
 
   const handleLogOut = async () => {
     try {
@@ -583,7 +588,27 @@ export default function ProfileScreen() {
       if (c.user_identity) setUserIdentity(c.user_identity);
       if (c.user_motivation) setUserMotivation(c.user_motivation);
     }
-    setIsGCalConnected(await isGoogleCalendarConnected(getToken));
+    const connected = await isGoogleCalendarConnected(getToken);
+    setIsGCalConnected(connected);
+    if (connected) void loadGoogleCalendars();
+  }
+
+  async function loadGoogleCalendars() {
+    const token = await getToken();
+    if (!token) return;
+    setLoadingCalendars(true);
+    const cals = await fetchGoogleCalendars(token);
+    if (cals) setGoogleCalendars(cals);
+    setLoadingCalendars(false);
+  }
+
+  async function toggleGoogleCalendar(calendarId: string, newValue: boolean) {
+    const updated = googleCalendars.map((c) =>
+      c.calendarId === calendarId ? { ...c, isSelected: newValue } : c,
+    );
+    setGoogleCalendars(updated);
+    const token = await getToken();
+    if (token) await saveGoogleCalendarSelections(token, updated);
   }
 
   // ── AppState — re-check GCal on foreground (user returns from browser) ─────
@@ -605,6 +630,7 @@ export default function ProfileScreen() {
               setGCalCount(count);
             }
             setGCalSyncing(false);
+            void loadGoogleCalendars();
           }
         })();
       }
@@ -1113,6 +1139,40 @@ export default function ProfileScreen() {
                 Disconnect
               </Text>
             </TouchableOpacity>
+          )}
+
+          {/* Calendar selection */}
+          {isGCalConnected && googleCalendars.length > 0 && (
+            <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border, padding: 14, marginBottom: 10 }]}>
+              <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
+                <Text style={[styles.sectionLabel, { color: colors.foreground, fontFamily: "Inter_600SemiBold", fontSize: 13 }]}>
+                  Synced Calendars
+                </Text>
+                {loadingCalendars && (
+                  <Text style={{ fontSize: 11, color: colors.mutedForeground, fontFamily: "Inter_400Regular" }}>Loading…</Text>
+                )}
+              </View>
+              {googleCalendars.map((cal, idx) => (
+                <View
+                  key={cal.calendarId}
+                  style={[
+                    { flexDirection: "row", alignItems: "center", paddingVertical: 9, gap: 10 },
+                    idx < googleCalendars.length - 1 && { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border },
+                  ]}
+                >
+                  <View style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: cal.calendarColor ?? "#888888", flexShrink: 0 }} />
+                  <Text style={{ flex: 1, fontSize: 14, color: colors.foreground, fontFamily: "Inter_400Regular" }} numberOfLines={1}>
+                    {cal.calendarName}
+                  </Text>
+                  <Switch
+                    value={cal.isSelected}
+                    onValueChange={(v) => void toggleGoogleCalendar(cal.calendarId, v)}
+                    trackColor={{ false: colors.border, true: colors.primary }}
+                    thumbColor="#FFFFFF"
+                  />
+                </View>
+              ))}
+            </View>
           )}
 
           {/* Other integrations */}

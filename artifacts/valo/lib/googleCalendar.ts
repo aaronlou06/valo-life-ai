@@ -95,3 +95,44 @@ export type GoogleCalendarEvent = {
   endTime: string | null;
   description: string | null;
 };
+
+export type GoogleCalendarInfo = {
+  calendarId: string;
+  calendarName: string;
+  calendarColor: string | null;
+  isSelected: boolean;
+};
+
+export async function fetchGoogleCalendars(
+  authToken: string,
+): Promise<GoogleCalendarInfo[] | null> {
+  try {
+    const res = await fetch(`${getApiBase()}/api/google-calendar/calendars`, {
+      headers: { Authorization: `Bearer ${authToken}` },
+    });
+    if (!res.ok) return null;
+    const data = (await res.json()) as { calendars: GoogleCalendarInfo[] };
+    return data.calendars;
+  } catch {
+    return null;
+  }
+}
+
+export async function saveGoogleCalendarSelections(
+  authToken: string,
+  selections: GoogleCalendarInfo[],
+): Promise<boolean> {
+  try {
+    const res = await fetch(`${getApiBase()}/api/google-calendar/calendars/selections`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${authToken}`,
+      },
+      body: JSON.stringify({ selections }),
+    });
+    return res.ok;
+  } catch {
+    return false;
+  }
+}

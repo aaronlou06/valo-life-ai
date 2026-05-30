@@ -1,7 +1,7 @@
 import { Router, type IRouter } from "express";
 import { eq, and } from "drizzle-orm";
 import crypto from "crypto";
-import { db, googleTokensTable, calendarEventsTable } from "@workspace/db";
+import { db, googleTokensTable, calendarEventsTable, googleCalendarSelectionsTable } from "@workspace/db";
 import { requireAuth, type AuthenticatedRequest } from "../middlewares/requireAuth";
 import { encrypt, decrypt, signState } from "../lib/tokenCrypto";
 import { logger } from "../lib/logger";
@@ -270,6 +270,28 @@ router.get("/auth/google/callback", async (req, res): Promise<void> => {
   );
 });
 
+async function fetchCalendarItems(
+  calendarId: string,
+  accessToken: string,
+  params: URLSearchParams,
+): Promise<Record<string, unknown>[]> {
+  const res = await fetch(
+    `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calendarId)}/events?${params}`,
+    { headers: { Authorization: `Bearer ${accessToken}` } },
+  );
+  if (!res.ok) {
+    const body = await res.text().catch(() => "(unreadable)");
+    logger.error({ calendarId, status: res.status, body }, "syncCalendarEvents: Google Calendar API error");
+    return [];
+  }
+  const data = (await res.json()) as { items?: Record<string, unknown>[]; summary?: string; nextPageToken?: string };
+  logger.info(
+    { calendarId, calendarName: data.summary ?? "(unknown)", itemCount: (data.items ?? []).length, hasNextPage: !!data.nextPageToken },
+    "syncCalendarEvents: Google API responded",
+  );
+  return data.items ?? [];
+}
+
 async function syncCalendarEvents(userId: string, accessToken: string): Promise<void> {
   const now = new Date();
   const end = new Date(now);
@@ -283,52 +305,43 @@ async function syncCalendarEvents(userId: string, accessToken: string): Promise<
     maxResults: "250",
   });
 
-  logger.info({ userId, timeMin: now.toISOString(), timeMax: end.toISOString() }, "syncCalendarEvents: fetching from Google");
+  // Determine which calendars to sync — fall back to primary if no selections stored
+  const stored = await db
+    .select()
+    .from(googleCalendarSelectionsTable)
+    .where(eq(googleCalendarSelectionsTable.userId, userId));
 
-  const gcalRes = await fetch(
-    `https://www.googleapis.com/calendar/v3/calendars/primary/events?${params}`,
-    { headers: { Authorization: `Bearer ${accessToken}` } },
-  );
+  const calendarIds: string[] =
+    stored.length === 0
+      ? ["primary"]
+      : stored.filter((s) => s.isSelected).map((s) => s.calendarId);
 
-  if (!gcalRes.ok) {
-    const body = await gcalRes.text().catch(() => "(unreadable)");
-    logger.error({ userId, status: gcalRes.status, body }, "syncCalendarEvents: Google Calendar API error");
+  if (calendarIds.length === 0) {
+    logger.info({ userId }, "syncCalendarEvents: no calendars selected — skipping");
+    await db
+      .delete(calendarEventsTable)
+      .where(and(eq(calendarEventsTable.userId, userId), eq(calendarEventsTable.type, "google")));
     return;
   }
 
-  const gcalData = (await gcalRes.json()) as { items?: Record<string, unknown>[]; nextPageToken?: string; summary?: string };
-  const items = gcalData.items ?? [];
+  logger.info({ userId, calendarIds, timeMin: now.toISOString(), timeMax: end.toISOString() }, "syncCalendarEvents: fetching from Google");
 
-  logger.info(
-    { userId, calendarName: gcalData.summary ?? "(unknown)", itemCount: items.length, hasNextPage: !!gcalData.nextPageToken },
-    "syncCalendarEvents: Google API responded",
-  );
-
-  if (items.length > 0) {
-    const sample = items.slice(0, 3).map((i) => ({
-      summary: (i.summary as string | undefined) ?? "(no title)",
-      start: (i.start as Record<string, string> | undefined)?.dateTime ?? (i.start as Record<string, string> | undefined)?.date ?? null,
-    }));
-    logger.info({ userId, sample }, "syncCalendarEvents: first few events");
-  }
+  const allItems = (
+    await Promise.all(calendarIds.map((id) => fetchCalendarItems(id, accessToken, params)))
+  ).flat();
 
   await db
     .delete(calendarEventsTable)
-    .where(
-      and(
-        eq(calendarEventsTable.userId, userId),
-        eq(calendarEventsTable.type, "google"),
-      ),
-    );
+    .where(and(eq(calendarEventsTable.userId, userId), eq(calendarEventsTable.type, "google")));
 
   logger.info({ userId }, "syncCalendarEvents: existing rows deleted");
 
-  if (items.length === 0) {
+  if (allItems.length === 0) {
     logger.info({ userId }, "syncCalendarEvents: no events returned by Google — nothing to insert");
     return;
   }
 
-  const rows = items.map((item) => {
+  const rows = allItems.map((item) => {
     const startRaw =
       (item.start as Record<string, string> | undefined)?.dateTime ??
       (item.start as Record<string, string> | undefined)?.date ??
