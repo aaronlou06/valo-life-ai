@@ -28,7 +28,7 @@ import {
   useListInsights,
 } from "@workspace/api-client-react";
 import { useTodayCards, type TodayCardResult, type PrimaryAction } from "@/hooks/useTodayCards";
-import { trackEvent } from "@/services/telemetry";
+import { trackEvent, initTelemetrySession } from "@/services/telemetry";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -1035,7 +1035,7 @@ function TomorrowPrep({
 export default function TodayScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
-  const { name, getToken } = useValoAuth();
+  const { name, getToken, userId } = useValoAuth();
   const router = useRouter();
 
   const { data: dashboard, isLoading, refetch, isRefetching } = useGetDashboard();
@@ -1047,13 +1047,41 @@ export default function TodayScreen() {
   const { isSyncing: isHealthSyncing, syncNow } = useHealthKitSync();
   const { serverCards, bonusCard: serverBonusCard, hasError, refetchCards } = useTodayCards();
 
+  useFocusEffect(
+    useCallback(() => {
+      const mode = new Date().getHours() < 18 ? "morning" : "evening";
+      const sid = initTelemetrySession(userId ?? null, getToken);
+      sessionIdRef.current = sid;
+      startTimestampRef.current = Date.now();
+      hasTrackedFirstActionRef.current = false;
+      trackEvent("today.screen_view", { mode, sessionId: sid });
+    }, [userId, getToken]),
+  );
+
+  const trackFirstAction = useCallback(() => {
+    if (hasTrackedFirstActionRef.current) return;
+    hasTrackedFirstActionRef.current = true;
+    const ms = Date.now() - startTimestampRef.current;
+    trackEvent("today.time_to_first_action", { ms, sessionId: sessionIdRef.current });
+  }, []);
+
   const handleCardAction = useCallback(
     (action: PrimaryAction) => {
-      trackEvent("today.primary_cta_click", { actionType: action.actionType, payload: action.payload });
+      trackFirstAction();
+      trackEvent("today.card_action_click", {
+        sessionId: sessionIdRef.current,
+        cardType: action.actionType,
+        actionLabel: action.label,
+        actionType: action.actionType,
+      });
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
       switch (action.actionType) {
         case "start_checkin":
         case "open_voice":
+          trackEvent("checkin.start_from_today", {
+            sessionId: sessionIdRef.current,
+            triggerCardType: action.actionType,
+          });
           router.push("/(tabs)/checkin");
           break;
         case "open_goals":
@@ -1066,7 +1094,7 @@ export default function TodayScreen() {
           break;
       }
     },
-    [router],
+    [router, trackFirstAction],
   );
 
   const [modeOverride, setModeOverride] = useState<"morning" | "evening" | null>(null);
@@ -1074,6 +1102,9 @@ export default function TodayScreen() {
   const [intentionSaved, setIntentionSaved] = useState(false);
   const [callTime, setCallTime] = useState<string | null>(null);
   const wasSyncing = useRef(false);
+  const sessionIdRef = useRef<string>("");
+  const startTimestampRef = useRef<number>(0);
+  const hasTrackedFirstActionRef = useRef<boolean>(false);
 
   const hour = new Date().getHours();
   const isMorning = modeOverride != null ? modeOverride === "morning" : hour < 18;
@@ -1151,6 +1182,8 @@ export default function TodayScreen() {
   const debriefPrompt = getDebriefPrompt(callTime, todayEvents.length);
 
   const goToCheckIn = () => {
+    trackFirstAction();
+    trackEvent("checkin.start_from_today", { sessionId: sessionIdRef.current });
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     router.push("/(tabs)/checkin");
   };

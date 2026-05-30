@@ -20,6 +20,7 @@ import profileRouter from "./profile";
 import todayCardsRouter from "./todayCards";
 import routinesRouter from "./routines";
 import habitCompletionsRouter from "./habit-completions";
+import telemetryRouter from "./telemetry";
 
 const router: IRouter = Router();
 
@@ -44,5 +45,6 @@ router.use(profileRouter);
 router.use(todayCardsRouter);
 router.use(routinesRouter);
 router.use(habitCompletionsRouter);
+router.use(telemetryRouter);
 
 export default router;

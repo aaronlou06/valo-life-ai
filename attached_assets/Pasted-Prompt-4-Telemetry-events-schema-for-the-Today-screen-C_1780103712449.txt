@@ -1,0 +1,45 @@
+Prompt 4 — Telemetry & events schema for the Today screen
+Context
+
+You want to measure cognitive load via proxies: primary CTA click rate, time to first action, number of interactive touches, card counts, and drop-off.
+Current state
+
+There’s likely an existing telemetry/analytics service (Segment/PostHog/Amplitude) or logging service. If not, add a simple POST to /api/telemetry to store events.
+Goal
+
+Define a minimal events schema, implement client-side event calls, and add server endpoint to accept telemetry (if server-side logging desired).
+Acceptance criteria
+
+Events listed below are fired from Today screen.
+Events include userId, timestamp, screen session id, and minimal contextual props.
+Dashboard or raw logs can compute primary CTA click rate and time-to-first-action.
+Event list (names + payload keys)
+
+today.screen_view
+props: { userId, mode:"morning"/"evening", sessionId, timestamp }
+today.cards_fetched
+props: { userId, sessionId, count, source:"server"|"fallback", latencyMs }
+today.primary_cta_click
+props: { userId, sessionId, from:'today_screen', timestamp }
+today.card_action_click
+props: { userId, sessionId, cardType, actionLabel, actionType, timestamp }
+today.time_to_first_action
+props: { userId, sessionId, ms }
+checkin.start_from_today
+props: { userId, sessionId, triggerCardType? }
+vapi.context_length_tokens
+props: { userId, tokens }
+Implementation guidance (client)
+
+On Today screen mount: emit today.screen_view with generated sessionId (UUIDv4), record startTimestamp.
+When cards fetched successfully: emit today.cards_fetched with count and latency.
+On first user interaction (button tap or card CTA): compute ms = now - startTimestamp and emit today.time_to_first_action.
+Emit today.primary_cta_click on main CTA press and today.card_action_click on each card primary action.
+Server telemetry endpoint (optional)
+
+// routes/telemetry.js
+router.post('/telemetry', authOptional, async (req,res)=>{
+  const { event, userId, sessionId, props } = req.body;
+  await db.query(`INSERT INTO telemetry_events (event, user_id, session_id, props, created_at) VALUES ($1,$2,$3,$4, now())`, [event, userId, sessionId, JSON.stringify(props)]);
+  res.json({ ok:true });
+});

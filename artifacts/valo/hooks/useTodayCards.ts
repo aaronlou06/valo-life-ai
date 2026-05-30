@@ -56,6 +56,7 @@ export function useTodayCards() {
     if (!token) return;
     setIsLoading(true);
     setHasError(false);
+    const fetchStart = Date.now();
     try {
       const res = await fetch(`${getApiBase()}/api/today/cards`, {
         headers: { Authorization: `Bearer ${token}` },
@@ -66,9 +67,10 @@ export function useTodayCards() {
       }
       const json = (await res.json()) as TodayCardsResponse;
       const cards = json.cards ?? [];
+      const latencyMs = Date.now() - fetchStart;
       setServerCards(cards);
       setBonusCard(json.bonusCard ?? null);
-      trackEvent("today.cards_fetched", { count: cards.length });
+      trackEvent("today.cards_fetched", { count: cards.length, source: "server", latencyMs });
     } catch {
       setHasError(true);
     } finally {
