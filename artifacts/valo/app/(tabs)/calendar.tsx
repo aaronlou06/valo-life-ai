@@ -1750,6 +1750,9 @@ export default function CalendarScreen() {
   const [editingRoutine, setEditingRoutine] = useState<Routine | null>(null);
   const [showRoutineModal, setShowRoutineModal] = useState(false);
   const [routineHabitsSheet, setRoutineHabitsSheet] = useState<{ routineId: string; routineName: string; date: string } | null>(null);
+  const [standaloneOpen, setStandaloneOpen] = useState(true);
+  const [upcomingOpen, setUpcomingOpen] = useState(true);
+  const [googleCalOpen, setGoogleCalOpen] = useState(true);
 
   const { data: events = [], isFetching, refetch } = useListCalendarEvents();
   const { mutateAsync: createEvent } = useCreateCalendarEvent();
@@ -2180,63 +2183,120 @@ export default function CalendarScreen() {
           const isAddingStandalone = addHabitRoutineId === "";
           return (
             <View style={styles.section}>
-              <View style={styles.sectionHeader}>
+              <TouchableOpacity
+                style={styles.sectionHeader}
+                onPress={() => setStandaloneOpen((v) => !v)}
+                activeOpacity={0.7}
+              >
                 <Text style={[styles.sectionTitle, { color: colors.foreground, fontFamily: "Inter_600SemiBold" }]}>Standalone Habits</Text>
-                <TouchableOpacity
-                  style={[styles.sectionAddBtn, { backgroundColor: colors.primary }]}
-                  onPress={() => { setNewHabitName(""); setAddHabitRoutineId(""); }}
-                >
-                  <Feather name="plus" size={15} color={colors.primaryForeground} />
-                </TouchableOpacity>
-              </View>
-              {standaloneHabits.length === 0 && !isAddingStandalone ? (
-                <View style={[styles.emptyState, { borderColor: colors.border, backgroundColor: colors.card }]}>
-                  <Feather name="check-circle" size={24} color={colors.mutedForeground} />
-                  <Text style={[styles.emptyText, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>No standalone habits yet</Text>
-                </View>
-              ) : (
-                standaloneHabits.map((habit) => (
-                  <HabitRow
-                    key={habit.id}
-                    habit={habit}
-                    colors={colors}
-                    onToggle={() => toggleHabit(habit.id, habit.completedToday, habit.streak)}
-                    onDelete={() => handleDeleteHabit(habit.id)}
-                  />
-                ))
-              )}
-              {isAddingStandalone && (
-                <View style={[calStyles.habitInputRow, { backgroundColor: colors.card, borderColor: colors.border }]}>
-                  <TextInput
-                    style={[calStyles.habitInput, { color: colors.foreground, fontFamily: "Inter_400Regular" }]}
-                    value={newHabitName}
-                    onChangeText={setNewHabitName}
-                    placeholder="Name this habit..."
-                    placeholderTextColor={colors.mutedForeground}
-                    onSubmitEditing={() => handleAddHabit(null)}
-                    returnKeyType="done"
-                    autoFocus
-                  />
-                  <TouchableOpacity onPress={() => handleAddHabit(null)} style={[calStyles.habitAddBtn, { backgroundColor: colors.primary }]}>
-                    <Feather name="check" size={14} color={colors.primaryForeground} />
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                  <TouchableOpacity
+                    style={[styles.sectionAddBtn, { backgroundColor: colors.primary }]}
+                    onPress={(e) => { e.stopPropagation?.(); setNewHabitName(""); setAddHabitRoutineId(""); }}
+                  >
+                    <Feather name="plus" size={15} color={colors.primaryForeground} />
                   </TouchableOpacity>
-                  <TouchableOpacity onPress={() => { setAddHabitRoutineId(null); setNewHabitName(""); }} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-                    <Feather name="x" size={14} color={colors.mutedForeground} />
-                  </TouchableOpacity>
+                  <Feather name={standaloneOpen ? "chevron-up" : "chevron-down"} size={16} color={colors.mutedForeground} />
                 </View>
+              </TouchableOpacity>
+              {standaloneOpen && (
+                <>
+                  {standaloneHabits.length === 0 && !isAddingStandalone ? (
+                    <View style={[styles.emptyState, { borderColor: colors.border, backgroundColor: colors.card }]}>
+                      <Feather name="check-circle" size={24} color={colors.mutedForeground} />
+                      <Text style={[styles.emptyText, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>No standalone habits yet</Text>
+                    </View>
+                  ) : (
+                    standaloneHabits.map((habit) => (
+                      <HabitRow
+                        key={habit.id}
+                        habit={habit}
+                        colors={colors}
+                        onToggle={() => toggleHabit(habit.id, habit.completedToday, habit.streak)}
+                        onDelete={() => handleDeleteHabit(habit.id)}
+                      />
+                    ))
+                  )}
+                  {isAddingStandalone && (
+                    <View style={[calStyles.habitInputRow, { backgroundColor: colors.card, borderColor: colors.border }]}>
+                      <TextInput
+                        style={[calStyles.habitInput, { color: colors.foreground, fontFamily: "Inter_400Regular" }]}
+                        value={newHabitName}
+                        onChangeText={setNewHabitName}
+                        placeholder="Name this habit..."
+                        placeholderTextColor={colors.mutedForeground}
+                        onSubmitEditing={() => handleAddHabit(null)}
+                        returnKeyType="done"
+                        autoFocus
+                      />
+                      <TouchableOpacity onPress={() => handleAddHabit(null)} style={[calStyles.habitAddBtn, { backgroundColor: colors.primary }]}>
+                        <Feather name="check" size={14} color={colors.primaryForeground} />
+                      </TouchableOpacity>
+                      <TouchableOpacity onPress={() => { setAddHabitRoutineId(null); setNewHabitName(""); }} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                        <Feather name="x" size={14} color={colors.mutedForeground} />
+                      </TouchableOpacity>
+                    </View>
+                  )}
+                </>
               )}
             </View>
           );
         })()}
 
-        {/* ── Google Calendar events ────────────────────────────────────────── */}
+        {/* ── Coming Up This Week ───────────────────────────────────────────── */}
+        <View style={[styles.section, { marginTop: 8 }]}>
+          <TouchableOpacity
+            style={styles.sectionHeader}
+            onPress={() => setUpcomingOpen((v) => !v)}
+            activeOpacity={0.7}
+          >
+            <Text style={[styles.sectionTitle, { color: colors.foreground, fontFamily: "Inter_600SemiBold" }]}>Coming Up This Week</Text>
+            <Feather name={upcomingOpen ? "chevron-up" : "chevron-down"} size={16} color={colors.mutedForeground} />
+          </TouchableOpacity>
+          {upcomingOpen && (
+            upcomingEvents.length === 0 ? (
+              <View style={[styles.emptyState, { borderColor: colors.border, backgroundColor: colors.card }]}>
+                <Feather name="calendar" size={28} color={colors.mutedForeground} />
+                <Text style={[styles.emptyText, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>Nothing scheduled this week</Text>
+              </View>
+            ) : (
+              upcomingEvents.map((event) => {
+                const bc = typeBadgeColor(event.type);
+                return (
+                  <View key={event.id} style={[styles.eventCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+                    <View style={styles.eventTop}>
+                      <Text style={[styles.eventTitle, { color: colors.foreground, fontFamily: "Inter_500Medium" }]} numberOfLines={2}>{event.title}</Text>
+                      <View style={[styles.typeBadge, { backgroundColor: bc + "22" }]}>
+                        <Text style={[styles.typeBadgeText, { color: bc, fontFamily: "Inter_500Medium" }]}>{typeBadgeLabel(event.type)}</Text>
+                      </View>
+                    </View>
+                    <View style={styles.eventDateRow}>
+                      <Feather name="calendar" size={12} color={colors.mutedForeground} />
+                      <Text style={[styles.eventDate, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>{formatEventDate(event.date)}</Text>
+                    </View>
+                    {event.notes ? <Text style={[styles.eventNotes, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]} numberOfLines={2}>{event.notes}</Text> : null}
+                  </View>
+                );
+              })
+            )
+          )}
+        </View>
+
+        {/* ── From Google Calendar ──────────────────────────────────────────── */}
         {upcomingGoogleEvents.length > 0 && (
           <View style={[styles.section, { marginTop: 8 }]}>
-            <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 10 }}>
-              <View style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: "#4285F4" }} />
-              <Text style={[styles.sectionTitle, { color: colors.foreground, fontFamily: "Inter_600SemiBold", marginBottom: 0 }]}>From Google Calendar</Text>
-            </View>
-            {upcomingGoogleEvents.map((event) => {
+            <TouchableOpacity
+              style={styles.sectionHeader}
+              onPress={() => setGoogleCalOpen((v) => !v)}
+              activeOpacity={0.7}
+            >
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                <View style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: "#4285F4" }} />
+                <Text style={[styles.sectionTitle, { color: colors.foreground, fontFamily: "Inter_600SemiBold" }]}>From Google Calendar</Text>
+              </View>
+              <Feather name={googleCalOpen ? "chevron-up" : "chevron-down"} size={16} color={colors.mutedForeground} />
+            </TouchableOpacity>
+            {googleCalOpen && upcomingGoogleEvents.map((event) => {
               const dateParts = event.date.split("-").map(Number);
               const dateLabel = new Date(dateParts[0]!, (dateParts[1] ?? 1) - 1, dateParts[2]).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
               const timeLabel = event.startTime
@@ -2261,36 +2321,6 @@ export default function CalendarScreen() {
             })}
           </View>
         )}
-
-        {/* ── Upcoming events ───────────────────────────────────────────────── */}
-        <View style={[styles.section, { marginTop: 8 }]}>
-          <Text style={[styles.sectionTitle, { color: colors.foreground, fontFamily: "Inter_600SemiBold" }]}>Coming Up This Week</Text>
-          {upcomingEvents.length === 0 ? (
-            <View style={[styles.emptyState, { borderColor: colors.border, backgroundColor: colors.card }]}>
-              <Feather name="calendar" size={28} color={colors.mutedForeground} />
-              <Text style={[styles.emptyText, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>Nothing scheduled this week</Text>
-            </View>
-          ) : (
-            upcomingEvents.map((event) => {
-              const bc = typeBadgeColor(event.type);
-              return (
-                <View key={event.id} style={[styles.eventCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
-                  <View style={styles.eventTop}>
-                    <Text style={[styles.eventTitle, { color: colors.foreground, fontFamily: "Inter_500Medium" }]} numberOfLines={2}>{event.title}</Text>
-                    <View style={[styles.typeBadge, { backgroundColor: bc + "22" }]}>
-                      <Text style={[styles.typeBadgeText, { color: bc, fontFamily: "Inter_500Medium" }]}>{typeBadgeLabel(event.type)}</Text>
-                    </View>
-                  </View>
-                  <View style={styles.eventDateRow}>
-                    <Feather name="calendar" size={12} color={colors.mutedForeground} />
-                    <Text style={[styles.eventDate, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>{formatEventDate(event.date)}</Text>
-                  </View>
-                  {event.notes ? <Text style={[styles.eventNotes, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]} numberOfLines={2}>{event.notes}</Text> : null}
-                </View>
-              );
-            })
-          )}
-        </View>
       </ScrollView>
 
       <EventTypePickerModal
