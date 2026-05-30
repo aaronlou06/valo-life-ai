@@ -12,6 +12,8 @@ import {
   Platform,
   Switch,
   Image,
+  AppState,
+  type AppStateStatus,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Feather } from "@expo/vector-icons";
@@ -25,6 +27,7 @@ import {
   connectGoogleCalendar,
   syncGoogleCalendarEvents,
   isGoogleCalendarConnected,
+  disconnectGoogleCalendar,
 } from "@/lib/googleCalendar";
 import { useListGoals, useListHabits, useGetDashboard, useGetStreakData } from "@workspace/api-client-react";
 
@@ -580,8 +583,35 @@ export default function ProfileScreen() {
       if (c.user_identity) setUserIdentity(c.user_identity);
       if (c.user_motivation) setUserMotivation(c.user_motivation);
     }
-    setIsGCalConnected(await isGoogleCalendarConnected());
+    setIsGCalConnected(await isGoogleCalendarConnected(getToken));
   }
+
+  // ── AppState — re-check GCal on foreground (user returns from browser) ─────
+  const isGCalConnectedRef = useRef(isGCalConnected);
+  useEffect(() => { isGCalConnectedRef.current = isGCalConnected; }, [isGCalConnected]);
+
+  useEffect(() => {
+    const handleAppStateChange = (nextState: AppStateStatus) => {
+      if (nextState === "active") {
+        void (async () => {
+          const connected = await isGoogleCalendarConnected(getToken);
+          const wasConnected = isGCalConnectedRef.current;
+          setIsGCalConnected(connected);
+          if (connected && !wasConnected) {
+            setGCalSyncing(true);
+            const token = await getToken();
+            if (token) {
+              const count = await syncGoogleCalendarEvents(token);
+              setGCalCount(count);
+            }
+            setGCalSyncing(false);
+          }
+        })();
+      }
+    };
+    const sub = AppState.addEventListener("change", handleAppStateChange);
+    return () => sub.remove();
+  }, []);
 
   // ── Saved indicator ───────────────────────────────────────────────────────
   function showSaved(field: string) {
@@ -592,17 +622,31 @@ export default function ProfileScreen() {
   // ── Google Calendar connect ────────────────────────────────────────────────
   async function handleGCalConnect() {
     setConnectingGCal(true);
-    const connected = await connectGoogleCalendar();
+    await connectGoogleCalendar(getToken);
     setConnectingGCal(false);
-    if (!connected) return;
-    setIsGCalConnected(true);
-    setGCalSyncing(true);
-    const token = await getToken();
-    if (token) {
-      const count = await syncGoogleCalendarEvents(token);
-      setGCalCount(count);
-    }
-    setGCalSyncing(false);
+    // Actual connection confirmed when app returns to foreground via AppState listener
+  }
+
+  // ── Google Calendar disconnect ─────────────────────────────────────────────
+  async function handleGCalDisconnect() {
+    Alert.alert(
+      "Disconnect Google Calendar",
+      "This will remove your Google Calendar connection and delete all synced events from Valo.",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Disconnect",
+          style: "destructive",
+          onPress: async () => {
+            const ok = await disconnectGoogleCalendar(getToken);
+            if (ok) {
+              setIsGCalConnected(false);
+              setGCalCount(null);
+            }
+          },
+        },
+      ],
+    );
   }
 
   // ── PATCH helpers ─────────────────────────────────────────────────────────
@@ -1057,6 +1101,19 @@ export default function ProfileScreen() {
               </View>
             )}
           </TouchableOpacity>
+
+          {isGCalConnected && (
+            <TouchableOpacity
+              onPress={() => void handleGCalDisconnect()}
+              style={{ alignSelf: "flex-end", marginTop: -6, marginBottom: 4, paddingVertical: 4, paddingHorizontal: 2 }}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              activeOpacity={0.6}
+            >
+              <Text style={{ fontSize: 12, color: colors.mutedForeground, fontFamily: "Inter_400Regular" }}>
+                Disconnect
+              </Text>
+            </TouchableOpacity>
+          )}
 
           {/* Other integrations */}
           <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border, padding: 0, overflow: "hidden" }]}>

@@ -1,0 +1,51 @@
+Google Calendar OAuth (device / native flow) Context & current state
+Mobile: Expo SDK 54 / React Native 0.81.5, EAS builds planned for native flows.
+Backend: Node/Express API on Replit (or other host). OpenAPI client exists on frontend.
+You already have calendar sync code prepared but need OAuth flow and native handling.
+Goal
+
+Implement a robust Google Calendar OAuth device flow that works on iOS devices (expo-web-browser / native), stores refresh tokens securely server-side, syncs events, and surfaces calendar data for Today and Check‑In features.
+Acceptance criteria
+
+User can initiate Google OAuth on device, grant calendar read (and optional write) scopes, and successfully return to the app.
+Server receives authorization code, exchanges for access + refresh tokens, stores tokens encrypted (or in secrets manager), and responds with a successful connection state.
+Mobile shows calendar-connected state; events for today and tomorrow appear in Today screen.
+Refresh token rotation works (server refreshes tokens before expiry).
+Timezone conversions handled correctly (events show in user's local time).
+Files to modify / create
+
+Frontend: src/screens/ConnectCalendar.tsx (or integrate into existing Connect Devices screen)
+Frontend: src/services/calendarAuth.ts (OAuth launch + redirect handling)
+Backend: routes/googleOAuth.js (POST /auth/google/callback, GET /auth/google/init)
+Backend: services/googleCalendarService.js (sync, refresh token flow)
+Backend: migrations: add table google_tokens (user_id, provider, access_token_enc, refresh_token_enc, scope, expires_at, created_at)
+Implementation steps
+
+Create Google Cloud OAuth client (Web / iOS): configure OAuth Consent Screen, add redirect URIs. For mobile OAuth, use the expo-web-browser flow with a production redirect URL you control (or use AppAuth).
+Frontend: implement an OAuth launcher that opens Google consent in a browser and captures authorization code via redirect URL (or use universal links / deep link to app).
+Backend: implement /auth/google/init (returns auth URL) and /auth/google/callback to accept authorization code, exchange for tokens using Google token endpoint, and store tokens encrypted (AES + server master key or KMS).
+Persist user token metadata in google_tokens table, with expiry timestamp. Use refresh token to keep access token valid.
+Implement googleCalendarService.syncForUser(userId) to fetch events for today/tomorrow and write to calendar_events table, mapping timezone-aware start/end datetimes.
+Frontend: after connection, call backend endpoint to fetch today's events and display.
+Edge cases & tips
+
+Request minimal scopes (calendar.readonly) unless you plan to create events: request calendar.events and calendar.events.readonly depending on need.
+Use incremental sync: store calendar sync tokens (nextSyncToken) and use Google’s sync API to avoid re-fetching all events.
+For privacy, store only event metadata you need (title, start, end, allDay flag, location); do not store attendee details unless necessary.
+Test steps
+
+Create test Google project & test account. Run flow on device (TestFlight or dev client with deep linking).
+Verify tokens inserted in db, then call server sync and confirm events appear in Today.
+Simulate expired access token: force refresh logic to run and confirm server refreshes using stored refresh_token.
+Rollback plan
+
+Feature-flag the calendar connection (enable only for testers).
+If errors appear, quickly disable /auth/google/init or return current state (not connected) to avoid blocking users.
+Privacy & security
+
+Encrypt refresh tokens at rest; store server master key in env or KMS.
+Ask explicit consent for read vs read+write access; show a brief in-app description of why calendar data is needed.
+Provide a “Disconnect and delete synced events” option.
+Estimated effort
+
+1–3 days (mostly provisioning and testing across redirect handling, device deep link behavior).

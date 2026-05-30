@@ -26,7 +26,7 @@ export default function StepConnect({ name, onComplete }: Props) {
   const [gCalSyncing, setGCalSyncing] = useState(false);
 
   useEffect(() => {
-    void isGoogleCalendarConnected().then(setGCalConnected);
+    void isGoogleCalendarConnected(getToken).then(setGCalConnected);
   }, []);
 
   const firstName = name.split(" ")[0] || "there";
@@ -43,16 +43,8 @@ export default function StepConnect({ name, onComplete }: Props) {
   };
 
   const handleGCal = async () => {
-    const connected = await connectGoogleCalendar();
-    if (!connected) return;
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    setGCalConnected(true);
-    setGCalSyncing(true);
-    const token = await getToken();
-    if (token) {
-      await syncGoogleCalendarEvents(token);
-    }
-    setGCalSyncing(false);
+    await connectGoogleCalendar(getToken);
+    // Connection confirmed when the user returns from the browser; no immediate state change needed
   };
 
   const connections = [
