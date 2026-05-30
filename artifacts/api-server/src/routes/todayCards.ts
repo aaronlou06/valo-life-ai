@@ -29,10 +29,17 @@ function daysUntil(dateStr: string): number {
   return Math.round((target.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
 }
 
+export interface PrimaryAction {
+  label: string;
+  actionType: "start_checkin" | "open_goals" | "open_habits" | "open_voice" | "open_log" | "open_insights";
+  payload: Record<string, unknown>;
+}
+
 export interface TodayCard {
   type: string;
   priority: number;
   data: Record<string, unknown>;
+  primaryAction: PrimaryAction;
   bonus?: boolean;
 }
 
@@ -134,6 +141,12 @@ router.get("/today/cards", requireAuth, async (req, res): Promise<void> => {
       avgHrv,
       avgSleep,
     },
+    primaryAction:
+      readiness === "Low"
+        ? { label: "Talk to Valo about recovery", actionType: "start_checkin", payload: { focus: "recovery" } }
+        : hasWearable
+          ? { label: "Log today's metrics", actionType: "open_log", payload: {} }
+          : { label: "Log your sleep and HRV", actionType: "open_log", payload: { focus: "health" } },
   });
 
   // 2. Goal deadline — priority 1 when due within 7 days
@@ -150,6 +163,7 @@ router.get("/today/cards", requireAuth, async (req, res): Promise<void> => {
         percent: urgentGoal.progressPercent,
         daysLeft: urgentGoal.targetDate != null ? daysUntil(urgentGoal.targetDate) : null,
       },
+      primaryAction: { label: "Update goal progress", actionType: "open_goals", payload: { goalId: urgentGoal.id } },
     });
   } else {
     const activeGoal = goals
@@ -164,6 +178,7 @@ router.get("/today/cards", requireAuth, async (req, res): Promise<void> => {
           percent: activeGoal.progressPercent,
           daysLeft: activeGoal.targetDate != null ? daysUntil(activeGoal.targetDate) : null,
         },
+        primaryAction: { label: "Update goal progress", actionType: "open_goals", payload: { goalId: activeGoal.id } },
       });
     }
   }
@@ -171,7 +186,12 @@ router.get("/today/cards", requireAuth, async (req, res): Promise<void> => {
   // 3. Win card — yesterday's debrief win (high priority if present)
   const win = yesterdayDebriefRows[0]?.oneWin;
   if (win) {
-    candidates.push({ type: "win", priority: 1, data: { text: win } });
+    candidates.push({
+      type: "win",
+      priority: 1,
+      data: { text: win },
+      primaryAction: { label: "Keep the momentum going", actionType: "start_checkin", payload: { focus: "win" } },
+    });
   }
 
   // 4. Streak card — habits with streak ≥ 5 get priority 2, shorter streaks lower
@@ -183,6 +203,7 @@ router.get("/today/cards", requireAuth, async (req, res): Promise<void> => {
       type: "streak",
       priority: 2,
       data: { habitName: topStreakHabit.name, streakDays: topStreakHabit.streak },
+      primaryAction: { label: "Log today's habits", actionType: "open_habits", payload: {} },
     });
   } else {
     const anyStreakHabit = habits
@@ -193,6 +214,7 @@ router.get("/today/cards", requireAuth, async (req, res): Promise<void> => {
         type: "streak",
         priority: 5,
         data: { habitName: anyStreakHabit.name, streakDays: anyStreakHabit.streak },
+        primaryAction: { label: "Log today's habits", actionType: "open_habits", payload: {} },
       });
     }
   }
@@ -200,13 +222,23 @@ router.get("/today/cards", requireAuth, async (req, res): Promise<void> => {
   // 5. Motivation card — filler from onboarding text
   const motivation = profileRows[0]?.userMotivation;
   if (motivation) {
-    candidates.push({ type: "motivation", priority: 7, data: { text: motivation } });
+    candidates.push({
+      type: "motivation",
+      priority: 7,
+      data: { text: motivation },
+      primaryAction: { label: "Start your evening debrief", actionType: "open_voice", payload: {} },
+    });
   }
 
   // 6. Pattern card — latest AI insight, lowest priority filler
   const latestInsight = latestInsights[0];
   if (latestInsight?.content) {
-    candidates.push({ type: "pattern", priority: 8, data: { text: latestInsight.content } });
+    candidates.push({
+      type: "pattern",
+      priority: 8,
+      data: { text: latestInsight.content },
+      primaryAction: { label: "Explore your insights", actionType: "open_insights", payload: {} },
+    });
   }
 
   // Sort and pick top 3
@@ -219,16 +251,19 @@ router.get("/today/cards", requireAuth, async (req, res): Promise<void> => {
       type: "recovery",
       priority: 99,
       data: { hrv: null, sleep: null, rhr: null, readiness: "No data" },
+      primaryAction: { label: "Log your sleep and HRV", actionType: "open_log", payload: { focus: "health" } },
     },
     {
       type: "goal_progress",
       priority: 99,
       data: { goalName: "Add your first goal to start tracking progress." },
+      primaryAction: { label: "Add a goal", actionType: "open_goals", payload: {} },
     },
     {
       type: "motivation",
       priority: 99,
       data: { text: "Every check-in helps Valo understand you better." },
+      primaryAction: { label: "Start your evening debrief", actionType: "open_voice", payload: {} },
     },
   ];
   let fi = 0;
@@ -253,6 +288,7 @@ router.get("/today/cards", requireAuth, async (req, res): Promise<void> => {
         message: `You completed "${completedGoal.title}". Outstanding work.`,
         streak: maxHabitStreak,
       },
+      primaryAction: { label: "Celebrate with Valo", actionType: "start_checkin", payload: { focus: "win" } },
     };
   } else if (maxHabitStreak >= 3) {
     bonusCard = {
@@ -263,6 +299,7 @@ router.get("/today/cards", requireAuth, async (req, res): Promise<void> => {
         message: `${maxHabitStreak}-day streak — you're building something real.`,
         streak: maxHabitStreak,
       },
+      primaryAction: { label: "Celebrate with Valo", actionType: "start_checkin", payload: { focus: "win" } },
     };
   }
 

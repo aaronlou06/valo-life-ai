@@ -1,0 +1,136 @@
+Prompt 1 — Backend: /api/today/cards + SQL migrations + nightly aggregation job
+Context
+
+Repo uses Node.js / Express backend on Replit, PostgreSQL.
+There are existing tables: users, daily_logs (raw), goals, habits, calendar_events, voice_debriefs.
+The app needs a deterministic /api/today/cards endpoint that returns exactly 3 Valo-picked cards (recovery, goal_progress, motivation, win, streak, pattern, tomorrow_prep) using hot/warm/cold aggregation.
+Current state
+
+daily_logs contain raw metrics; daily_summaries and weekly_rollups tables do not yet exist.
+There is a job runner or cron capability (or add a simple node-cron worker).
+Auth middleware exists (JWT).
+Goal
+
+Add DB migrations for daily_summaries and weekly_rollups.
+Implement nightly aggregation job to upsert daily_summaries and weekly_rollups.
+Implement POST /api/today/cards (auth required) returning 3 cards with one primaryAction each.
+Acceptance criteria
+
+GET/POST endpoints work under JWT auth.
+/api/today/cards returns an array of exactly 1–3 card objects (preferably 3) for an authenticated user.
+daily_summaries populated daily (or on-demand via test runner).
+Endpoint latency < 300ms for typical user (using aggregated tables).
+Cards contain primaryAction with { label, actionType, payload }.
+Files to modify / create
+
+migrations/xxxx_create_daily_summaries.sql
+migrations/xxxx_create_weekly_rollups.sql
+jobs/aggregateDailySummaries.js (cron job)
+routes/todayCards.js (new route) + add to main router (e.g., server/index.js or api/index.js)
+services/todayCardsService.js (scoring logic)
+Example SQL migration (paste & adapt):
+
+-- migrations/xxxx_create_daily_summaries.sql
+CREATE TABLE IF NOT EXISTS daily_summaries (
+  id BIGSERIAL PRIMARY KEY,
+  user_id UUID NOT NULL REFERENCES users(id),
+  day DATE NOT NULL,
+  steps INT,
+  sleep_hours NUMERIC(5,2),
+  hrv_ms NUMERIC(8,2),
+  resting_hr NUMERIC(6,2),
+  active_calories NUMERIC(8,2),
+  mood_avg NUMERIC(4,2),
+  habit_completion_rate NUMERIC(5,2),
+  created_at TIMESTAMPTZ DEFAULT now(),
+  UNIQUE(user_id, day)
+);
+-- migrations/xxxx_create_weekly_rollups.sql
+CREATE TABLE IF NOT EXISTS weekly_rollups (
+  id BIGSERIAL PRIMARY KEY,
+  user_id UUID NOT NULL REFERENCES users(id),
+  week_start DATE NOT NULL,
+  avg_steps INT,
+  avg_sleep_hours NUMERIC(5,2),
+  avg_hrv_ms NUMERIC(6,2),
+  avg_resting_hr NUMERIC(5,2),
+  mood_avg NUMERIC(4,2),
+  created_at TIMESTAMPTZ DEFAULT now(),
+  UNIQUE(user_id, week_start)
+);
+Example nightly aggregation job (pseudocode — create jobs/aggregateDailySummaries.js):
+
+// jobs/aggregateDailySummaries.js
+import db from '../db'; // adapt to your db client
+import { subDays, startOfDay } from 'date-fns';
+async function upsertDailySummaryForDate(userId, day) {
+  // query raw daily_logs for day
+  const raw = await db.query(
+    `SELECT SUM(steps) as steps, AVG(hrv_ms) as hrv, AVG(sleep_hours) as sleep, AVG(resting_hr) as resting_hr, SUM(active_calories) as active_calories, AVG(mood) as mood
+     FROM daily_logs WHERE user_id=$1 AND date::date = $2`, [userId, day]);
+  // upsert into daily_summaries
+  await db.query(
+    `INSERT INTO daily_summaries (user_id, day, steps, sleep_hours, hrv_ms, resting_hr, active_calories, mood_avg)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
+     ON CONFLICT (user_id, day) DO UPDATE SET steps=EXCLUDED.steps, sleep_hours=EXCLUDED.sleep_hours, hrv_ms=EXCLUDED.hrv_ms, resting_hr=EXCLUDED.resting_hr, active_calories=EXCLUDED.active_calories, mood_avg=EXCLUDED.mood_avg, created_at=now()`,
+    [userId, day, raw.rows[0].steps || 0, raw.rows[0].sleep || null, raw.rows[0].hrv || null, raw.rows[0].resting_hr || null, raw.rows[0].active_calories || null, raw.rows[0].mood || null]
+  );
+}
+export default async function runDailyAggregation() {
+  const users = await db.query(`SELECT id FROM users WHERE active = true`);
+  const yesterday = startOfDay(subDays(new Date(), 1));
+  for (const u of users.rows) {
+    await upsertDailySummaryForDate(u.id, yesterday);
+  }
+  // optionally compute weekly_rollups
+}
+Example /api/today/cards route (concise):
+
+// routes/todayCards.js
+import express from 'express';
+import auth from '../middleware/auth';
+import { computeTodayCards } from '../services/todayCardsService';
+const router = express.Router();
+router.post('/cards', auth, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const date = req.body.date ? new Date(req.body.date) : new Date();
+    const cards = await computeTodayCards(userId, date);
+    return res.json(cards.slice(0,3));
+  } catch (err) {
+    console.error('today/cards error', err);
+    res.status(500).json({ error: 'could not compute today cards' });
+  }
+});
+export default router;
+Scoring & selection guidance (to implement in todayCardsService.js)
+
+Pull last 14-day averages from daily_summaries.
+Determine signals:
+Recovery card: if today’s HRV or sleep < 85% of 14-day avg => high priority.
+Goal deadline card: nearest deadline within 7 days => priority.
+Streak/win card: voice_debriefs/ habit_completions yesterday reported a win or streak >=3 => priority.
+Motivation: fallback card from users.motivation_text.
+Create card object with shape:
+{
+  "id":"recovery-2026-06-02",
+  "type":"recovery",
+  "priority":1,
+  "title":"Recovery low today",
+  "subtitle":"HRV 48 ms (14-day avg 68)",
+  "data":{"hrv":48,"avg_hrv":68},
+  "primaryAction":{"label":"Talk to Valo about recovery","actionType":"start_checkin","payload":{"focus":"recovery"}}
+}
+Test steps
+
+Run migrations.
+Insert mock daily_logs rows for a test user for last 14 days and yesterday.
+Run the nightly aggregation job locally or via node jobs/aggregateDailySummaries.js.
+Call POST /api/today/cards with the test user JWT and verify response length and card content.
+Assert daily_summaries has expected rows.
+Rollback instructions
+
+If migration causes issues, revert with:
+DROP TABLE weekly_rollups, daily_summaries (only after verifying no dependent code)
+Revert route addition by removing registration from main router and redeploy.
+Keep a backup SQL dump before applying migrations.
