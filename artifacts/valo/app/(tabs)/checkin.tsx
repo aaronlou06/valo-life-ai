@@ -1,6 +1,7 @@
 import React, { useRef, useEffect, useCallback, useState } from "react";
 import { useFocusEffect } from "expo-router";
 import { consumeVoiceTrigger } from "@/lib/voiceTrigger";
+import { trackEvent } from "@/services/telemetry";
 import {
   View,
   Text,
@@ -1795,6 +1796,8 @@ export default function CheckInScreen() {
 
   // ── Animation refs ──────────────────────────────────────────────────────────
   const scrollRef = useRef<ScrollView>(null);
+  const mountedAtRef = useRef<number>(Date.now());
+  const firstActionTrackedRef = useRef(false);
   const pulseScale = useRef(new Animated.Value(1)).current;
   const pulseOpacity = useRef(new Animated.Value(0.5)).current;
   const processingDots = useRef(new Animated.Value(0)).current;
@@ -1981,6 +1984,9 @@ export default function CheckInScreen() {
 
   useFocusEffect(
     useCallback(() => {
+      mountedAtRef.current = Date.now();
+      firstActionTrackedRef.current = false;
+      trackEvent("checkin.screen_view");
       if (consumeVoiceTrigger()) startCall();
     }, [startCall])
   );
@@ -1990,6 +1996,11 @@ export default function CheckInScreen() {
   const handleMicPress = useCallback(() => {
     if (isLoading || isEnding) return;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+    trackEvent("today.primary_cta_click", { action: isActive ? "end_call" : "start_call" });
+    if (!firstActionTrackedRef.current) {
+      firstActionTrackedRef.current = true;
+      trackEvent("today.time_to_first_action", { ms: Date.now() - mountedAtRef.current });
+    }
     if (isActive) endCall();
     else startCall();
   }, [isActive, isLoading, isEnding, startCall, endCall]);
@@ -2027,6 +2038,7 @@ export default function CheckInScreen() {
   const STRESS_EFFORT: Record<string, number> = { Low: 1, Moderate: 4, High: 7, "Very high": 10 };
 
   const handleGuidedSave = useCallback(async () => {
+    trackEvent("checkin.start", { type: "guided", answerCount: Object.keys(answers).length });
     setIsSaving(true);
     try {
       const moodScore = answers.mood ? MOOD_SCORE[answers.mood] : undefined;
@@ -2048,6 +2060,7 @@ export default function CheckInScreen() {
       ]);
 
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      trackEvent("checkin.complete", { type: "guided" });
       setSaved(true);
       setTimeout(() => { setSaved(false); setAnswers({}); }, 2000);
     } catch {

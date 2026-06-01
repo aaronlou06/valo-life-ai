@@ -222,4 +222,44 @@ router.delete("/auth/account", requireAuth, async (req, res): Promise<void> => {
   res.json({ ok: true });
 });
 
+// GET /api/auth/export — download all user data as JSON
+router.get("/auth/export", requireAuth, async (req, res): Promise<void> => {
+  const userId = (req as AuthenticatedRequest).userId;
+
+  const [user, profile, logs, moods, goals, habits, habitCompletions, insights, logEntries, routines] =
+    await Promise.all([
+      db
+        .select({ email: usersTable.email, createdAt: usersTable.createdAt })
+        .from(usersTable)
+        .where(eq(usersTable.id, Number(userId)))
+        .limit(1),
+      db.select().from(userProfilesTable).where(eq(userProfilesTable.userId, userId)).limit(1),
+      db.select().from(dailyLogsTable).where(eq(dailyLogsTable.userId, userId)),
+      db.select().from(moodEntriesTable).where(eq(moodEntriesTable.userId, userId)),
+      db.select().from(goalsTable).where(eq(goalsTable.userId, userId)),
+      db.select().from(habitsTable).where(eq(habitsTable.userId, userId)),
+      db.select().from(habitCompletionsTable).where(eq(habitCompletionsTable.userId, userId)),
+      db.select().from(insightsTable).where(eq(insightsTable.userId, userId)),
+      db.select().from(logEntriesTable).where(eq(logEntriesTable.userId, userId)),
+      db.select().from(routinesTable).where(eq(routinesTable.userId, userId)),
+    ]);
+
+  const today = new Date().toISOString().split("T")[0];
+  res.setHeader("Content-Disposition", `attachment; filename="valo-export-${today}.json"`);
+  res.setHeader("Content-Type", "application/json");
+  res.json({
+    exportedAt: new Date().toISOString(),
+    user: user[0] ?? null,
+    profile: profile[0] ?? null,
+    dailyLogs: logs,
+    moods,
+    goals,
+    habits,
+    habitCompletions,
+    insights,
+    logEntries,
+    routines,
+  });
+});
+
 export default router;

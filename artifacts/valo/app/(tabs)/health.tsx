@@ -13,7 +13,7 @@ import {
 } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { Feather } from "@expo/vector-icons";
-import { useFocusEffect } from "expo-router";
+import { useFocusEffect, useRouter } from "expo-router";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   useListDailyLogHistory,
@@ -661,6 +661,7 @@ export default function HealthScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const qc = useQueryClient();
+  const router = useRouter();
 
   const [showAddWorkout, setShowAddWorkout] = useState(false);
   const [savingWorkout, setSavingWorkout] = useState(false);
@@ -933,12 +934,27 @@ export default function HealthScreen() {
           >
             Meals and nutrients
           </Text>
-          <PlaceholderCard
-            icon="book-open"
-            title="Meal Planning"
-            message="Personalised meal plans and nutrition tracking coming soon."
-            colors={colors}
-          />
+          <TouchableOpacity
+            activeOpacity={0.8}
+            onPress={() => router.push("/meal-planner" as any)}
+            style={[
+              styles.placeholderCard,
+              { backgroundColor: colors.card, borderColor: colors.border },
+            ]}
+          >
+            <View style={[styles.placeholderIconBox, { backgroundColor: colors.muted }]}>
+              <Feather name="book-open" size={20} color={colors.primary} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={[styles.placeholderTitle, { color: colors.foreground }]}>
+                Meal Planning
+              </Text>
+              <Text style={[styles.placeholderMessage, { color: colors.mutedForeground }]}>
+                Generate a personalised meal plan with grocery list
+              </Text>
+            </View>
+            <Feather name="chevron-right" size={16} color={colors.mutedForeground} />
+          </TouchableOpacity>
         </View>
 
         <View

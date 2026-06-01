@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from "react";
+import React, { useState, useCallback, useEffect } from "react";
 import {
   View,
   Text,
@@ -26,6 +26,7 @@ import {
   type InsightEntry,
 } from "@workspace/api-client-react";
 import { useColors } from "@/hooks/useColors";
+import { trackEvent } from "@/services/telemetry";
 import * as Haptics from "expo-haptics";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -469,6 +470,12 @@ export default function InsightsScreen() {
   const refreshMutation = useRefreshInsights();
 
   const loading = insightsLoading || moodsLoading || historyLoading;
+
+  useEffect(() => {
+    if (!insightsLoading && insights.length > 0) {
+      trackEvent("insight_shown", { count: insights.length });
+    }
+  }, [insightsLoading, insights.length]);
 
   useFocusEffect(
     useCallback(() => {

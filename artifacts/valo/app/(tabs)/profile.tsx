@@ -1109,6 +1109,8 @@ export default function ProfileScreen() {
             {[
               { key: "apple-health", icon: "heart", label: "Apple Health" },
               { key: "google-fit", icon: "activity", label: "Google Fit" },
+              { key: "garmin", icon: "watch", label: "Garmin Connect" },
+              { key: "whoop", icon: "zap", label: "Whoop" },
               { key: "instacart", icon: "shopping-cart", label: "Instacart" },
             ].map((item, idx, arr) => (
               <View

@@ -22,6 +22,8 @@ import todayCardsRouter from "./todayCards";
 import routinesRouter from "./routines";
 import habitCompletionsRouter from "./habit-completions";
 import telemetryRouter from "./telemetry";
+import mealRouter from "./meal";
+import feedbackRouter from "./feedback";
 
 const router: IRouter = Router();
 
@@ -48,5 +50,7 @@ router.use(todayCardsRouter);
 router.use(routinesRouter);
 router.use(habitCompletionsRouter);
 router.use(telemetryRouter);
+router.use(mealRouter);
+router.use(feedbackRouter);
 
 export default router;
