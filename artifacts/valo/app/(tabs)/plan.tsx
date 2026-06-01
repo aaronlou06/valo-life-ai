@@ -87,6 +87,7 @@ const DAY_LETTERS    = ["S","M","T","W","T","F","S"];
 const DAY_SHORT_NAMES = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
 const ROUTINES_KEY_FOR = (uid: string) => `@valo/routines-${uid}`;
 const SCHEDULE_KEY_FOR  = (uid: string) => `@valo/work-schedule-${uid}`;
+const SECTIONS_OPEN_KEY = "valo:plan_sections_open";
 const CELL_MIN_H    = 80;
 const MAX_CELL_PILLS = 3;
 
@@ -949,7 +950,7 @@ function ScheduleSetupModal({
           <View style={[Sh.bottomSheet, { backgroundColor: colors.background }]}>
             <View style={[Sh.sheetHandle, { backgroundColor: colors.border }]} />
             <View style={Sh.sheetHeader}>
-              <Text style={[Sh.sheetTitle, { color: colors.foreground, fontFamily: "Inter_700Bold" }]}>My Schedule</Text>
+              <Text style={[Sh.sheetTitle, { color: colors.foreground, fontFamily: "Inter_700Bold" }]}>Work/School Schedule</Text>
               <TouchableOpacity onPress={onClose} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
                 <Feather name="x" size={22} color={colors.mutedForeground} />
               </TouchableOpacity>
@@ -1027,7 +1028,7 @@ function MyScheduleCard({ schedule, onEdit, colors }: { schedule: WorkSchedule |
         <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
           <Feather name="briefcase" size={14} color={colors.primary} />
           <Text style={[schedStyles.cardTitle, { color: colors.foreground, fontFamily: "Inter_600SemiBold" }]}>
-            {schedule ? schedule.name : "My Schedule"}
+            {schedule ? schedule.name : "Work/School Schedule"}
           </Text>
         </View>
         <TouchableOpacity onPress={onEdit} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
@@ -1979,6 +1980,9 @@ export default function PlanScreen() {
   const { data: habits = [] } = useListHabits();
   const [newHabitName, setNewHabitName] = useState("");
   const [showHabitInput, setShowHabitInput] = useState(false);
+
+  // ── Section collapse state (persisted) ──────────────────────────────────
+  const [sectionOpen, setSectionOpen] = useState({ goals: true, habits: true, schedule: true });
   const [addHabitRoutineId, setAddHabitRoutineId] = useState<string | null>(null);
   const createHabitMutation = useCreateHabit();
   const updateHabitMutation = useUpdateHabit();
@@ -2007,6 +2011,15 @@ export default function PlanScreen() {
     [dbRoutines],
   );
 
+  // ── Load persisted section open/close state ──
+  useEffect(() => {
+    AsyncStorage.getItem(SECTIONS_OPEN_KEY)
+      .then((raw) => {
+        if (raw) setSectionOpen(JSON.parse(raw) as { goals: boolean; habits: boolean; schedule: boolean });
+      })
+      .catch(() => {});
+  }, []);
+
   // ── Migrate legacy AsyncStorage routines on first load ──
   useEffect(() => {
     if (!userId || dbRoutines.length > 0) return;
@@ -2029,6 +2042,14 @@ export default function PlanScreen() {
       .catch(() => {});
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [userId]);
+
+  function toggleSection(key: "goals" | "habits" | "schedule") {
+    setSectionOpen((prev) => {
+      const next = { ...prev, [key]: !prev[key] };
+      AsyncStorage.setItem(SECTIONS_OPEN_KEY, JSON.stringify(next)).catch(() => {});
+      return next;
+    });
+  }
 
   // ── Derived data ──
   const eventsByDate = useMemo(() => {
@@ -2248,12 +2269,16 @@ export default function PlanScreen() {
         {/* ── Big Goals ──────────────────────────────────────────────────── */}
         <View style={planStyles.section}>
           <View style={planStyles.sectionHeader}>
-            <Text style={[planStyles.sectionTitle, { color: colors.foreground, fontFamily: "Inter_600SemiBold" }]}>Big Goals</Text>
+            <TouchableOpacity onPress={() => toggleSection("goals")} style={planStyles.sectionToggleBtn} activeOpacity={0.7}>
+              <Text style={[planStyles.sectionTitle, { color: colors.foreground, fontFamily: "Inter_600SemiBold" }]}>Big Goals</Text>
+              <Feather name={sectionOpen.goals ? "chevron-up" : "chevron-down"} size={18} color={colors.mutedForeground} />
+            </TouchableOpacity>
             <TouchableOpacity onPress={() => setShowGoalInput((v) => !v)}>
               <Feather name={showGoalInput ? "x" : "plus"} size={20} color={colors.primary} />
             </TouchableOpacity>
           </View>
 
+          {sectionOpen.goals && (<>
           {showGoalInput && (
             <View style={[planStyles.inputRow, { backgroundColor: colors.card, borderColor: colors.border }]}>
               <TextInput
@@ -2330,17 +2355,22 @@ export default function PlanScreen() {
               </View>
             ))
           )}
+          </>)}
         </View>
 
         {/* ── Daily Habits ───────────────────────────────────────────────── */}
         <View style={planStyles.section}>
           <View style={planStyles.sectionHeader}>
-            <Text style={[planStyles.sectionTitle, { color: colors.foreground, fontFamily: "Inter_600SemiBold" }]}>Daily Habits</Text>
+            <TouchableOpacity onPress={() => toggleSection("habits")} style={planStyles.sectionToggleBtn} activeOpacity={0.7}>
+              <Text style={[planStyles.sectionTitle, { color: colors.foreground, fontFamily: "Inter_600SemiBold" }]}>Daily Habits</Text>
+              <Feather name={sectionOpen.habits ? "chevron-up" : "chevron-down"} size={18} color={colors.mutedForeground} />
+            </TouchableOpacity>
             <TouchableOpacity onPress={() => setShowHabitInput((v) => !v)}>
               <Feather name={showHabitInput ? "x" : "plus"} size={20} color={colors.primary} />
             </TouchableOpacity>
           </View>
 
+          {sectionOpen.habits && (<>
           {showHabitInput && (
             <View style={[planStyles.inputRow, { backgroundColor: colors.card, borderColor: colors.border }]}>
               <TextInput
@@ -2375,16 +2405,22 @@ export default function PlanScreen() {
               />
             ))
           )}
+          </>)}
         </View>
 
-        {/* ── My Schedule ────────────────────────────────────────────────── */}
+        {/* ── Work/School Schedule ─────────────────────────────────────── */}
         <View style={[planStyles.section, { paddingHorizontal: 0 }]}>
-          <View style={[planStyles.sectionHeader, { paddingHorizontal: 20, marginBottom: 10 }]}>
-            <Text style={[planStyles.sectionTitle, { color: colors.foreground, fontFamily: "Inter_600SemiBold" }]}>My Schedule</Text>
+          <View style={[planStyles.sectionHeader, { paddingHorizontal: 20, marginBottom: sectionOpen.schedule ? 10 : 0 }]}>
+            <TouchableOpacity onPress={() => toggleSection("schedule")} style={planStyles.sectionToggleBtn} activeOpacity={0.7}>
+              <Text style={[planStyles.sectionTitle, { color: colors.foreground, fontFamily: "Inter_600SemiBold" }]}>Work/School Schedule</Text>
+              <Feather name={sectionOpen.schedule ? "chevron-up" : "chevron-down"} size={18} color={colors.mutedForeground} />
+            </TouchableOpacity>
           </View>
-          <View style={{ paddingHorizontal: 20 }}>
-            <MyScheduleCard schedule={schedule} onEdit={() => setShowScheduleSetup(true)} colors={colors} />
-          </View>
+          {sectionOpen.schedule && (
+            <View style={{ paddingHorizontal: 20 }}>
+              <MyScheduleCard schedule={schedule} onEdit={() => setShowScheduleSetup(true)} colors={colors} />
+            </View>
+          )}
         </View>
 
         {/* ── Calendar ───────────────────────────────────────────────────── */}
@@ -2803,6 +2839,7 @@ const planStyles = StyleSheet.create({
   section: { paddingHorizontal: 20, gap: 10, marginBottom: 24 },
   sectionHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
   sectionTitle: { fontSize: 17, marginBottom: 2 },
+  sectionToggleBtn: { flex: 1, flexDirection: "row", alignItems: "center", gap: 6 },
   sectionAddBtn: { width: 28, height: 28, borderRadius: 14, justifyContent: "center", alignItems: "center" },
 
   // Goals
