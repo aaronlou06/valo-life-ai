@@ -102,6 +102,16 @@ function getTodayISO(): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 
+function greeting(hour: number): string {
+  if (hour < 12) return "Good morning";
+  if (hour < 17) return "Good afternoon";
+  return "Good evening";
+}
+
+function todayLabel(): string {
+  return new Date().toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" });
+}
+
 function getDailyPrompt(): string {
   const now = new Date();
   const start = new Date(now.getFullYear(), 0, 0);
@@ -1599,6 +1609,142 @@ function GuidedCheckin({
   );
 }
 
+// ─── PillarCard ───────────────────────────────────────────────────────────────
+
+function PillarCard({ title, score, status, colors }: {
+  title: string; score: number; status?: string | null; colors: Colors;
+}) {
+  const pct = Math.min(100, Math.max(0, score));
+  const barColor = pct >= 70 ? GOOD_GREEN : pct >= 40 ? OK_AMBER : LOW_RED;
+  return (
+    <View style={[pillarCard.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
+      <View style={pillarCard.row}>
+        <Text style={[pillarCard.title, { color: colors.foreground, fontFamily: "Inter_600SemiBold" }]}>
+          {title}
+        </Text>
+        <Text style={[pillarCard.score, { color: barColor, fontFamily: "Inter_700Bold" }]}>
+          {score}
+        </Text>
+      </View>
+      <View style={[pillarCard.track, { backgroundColor: colors.muted }]}>
+        <View style={[pillarCard.fill, { width: `${pct}%` as any, backgroundColor: barColor }]} />
+      </View>
+      {!!status && (
+        <Text style={[pillarCard.status, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
+          {status}
+        </Text>
+      )}
+    </View>
+  );
+}
+
+const pillarCard = StyleSheet.create({
+  card: { borderRadius: 14, borderWidth: 1, padding: 16, gap: 8 },
+  row: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+  title: { fontSize: 15 },
+  score: { fontSize: 22 },
+  track: { height: 5, borderRadius: 3, overflow: "hidden" },
+  fill: { height: 5, borderRadius: 3 },
+  status: { fontSize: 13, lineHeight: 18 },
+});
+
+// ─── MetricTilesGrid ──────────────────────────────────────────────────────────
+
+function MetricTilesGrid({ sleepHours, hrv, steps, rhr, colors, onLogSleep, onLogHrv, onLogSteps, onLogRhr }: {
+  sleepHours: number | null; hrv: number | null; steps: number | null; rhr: number | null;
+  colors: Colors;
+  onLogSleep: () => void; onLogHrv: () => void; onLogSteps: () => void; onLogRhr: () => void;
+}) {
+  const tiles = [
+    { label: "SLEEP", value: sleepHours != null ? `${sleepHours}h` : null, icon: "moon" as const, onPress: onLogSleep },
+    { label: "HRV", value: hrv != null ? `${hrv} ms` : null, icon: "activity" as const, onPress: onLogHrv },
+    { label: "STEPS", value: steps != null ? steps.toLocaleString() : null, icon: "trending-up" as const, onPress: onLogSteps },
+    { label: "RHR", value: rhr != null ? `${rhr} bpm` : null, icon: "heart" as const, onPress: onLogRhr },
+  ];
+  return (
+    <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 10 }}>
+      {tiles.map((t) => (
+        <TouchableOpacity
+          key={t.label}
+          style={[metricTile.tile, { backgroundColor: colors.card, borderColor: colors.border }]}
+          onPress={t.onPress}
+          activeOpacity={0.75}
+        >
+          <Feather name={t.icon} size={16} color={t.value ? colors.foreground : colors.primary} />
+          <Text style={[metricTile.label, { color: colors.mutedForeground, fontFamily: "Inter_500Medium" }]}>
+            {t.label}
+          </Text>
+          {t.value ? (
+            <Text style={[metricTile.value, { color: colors.foreground, fontFamily: "Inter_700Bold" }]}>
+              {t.value}
+            </Text>
+          ) : (
+            <Text style={[metricTile.logIt, { color: colors.primary, fontFamily: "Inter_500Medium" }]}>
+              Log it
+            </Text>
+          )}
+        </TouchableOpacity>
+      ))}
+    </View>
+  );
+}
+
+const metricTile = StyleSheet.create({
+  tile: { flex: 1, minWidth: "44%", maxWidth: "48%", borderRadius: 14, borderWidth: 1, padding: 16, gap: 4 },
+  label: { fontSize: 10, letterSpacing: 0.7 },
+  value: { fontSize: 22 },
+  logIt: { fontSize: 13 },
+});
+
+// ─── MorningCheckInRow ────────────────────────────────────────────────────────
+
+function MorningCheckInRow({ moodValue, sleepValue, energyValue, onMood, onSleep, onEnergy, colors }: {
+  moodValue: string; sleepValue: string; energyValue: string;
+  onMood: () => void; onSleep: () => void; onEnergy: () => void;
+  colors: Colors;
+}) {
+  const items = [
+    { label: "Mood", value: moodValue, onPress: onMood, icon: "smile" as const },
+    { label: "Sleep", value: sleepValue, onPress: onSleep, icon: "moon" as const },
+    { label: "Energy", value: energyValue, onPress: onEnergy, icon: "zap" as const },
+  ];
+  return (
+    <View style={{ flexDirection: "row", gap: 10 }}>
+      {items.map((item) => {
+        const logged = item.value !== "—";
+        return (
+          <TouchableOpacity
+            key={item.label}
+            style={[morningCard.card, {
+              backgroundColor: logged ? colors.primary + "18" : colors.card,
+              borderColor: logged ? colors.primary + "44" : colors.border,
+            }]}
+            onPress={item.onPress}
+            activeOpacity={0.75}
+          >
+            <Feather name={item.icon} size={18} color={logged ? colors.primary : colors.mutedForeground} />
+            <Text style={[morningCard.label, { color: colors.mutedForeground, fontFamily: "Inter_500Medium" }]}>
+              {item.label}
+            </Text>
+            <Text style={[morningCard.value, {
+              color: logged ? colors.foreground : colors.mutedForeground,
+              fontFamily: logged ? "Inter_700Bold" : "Inter_400Regular",
+            }]}>
+              {item.value}
+            </Text>
+          </TouchableOpacity>
+        );
+      })}
+    </View>
+  );
+}
+
+const morningCard = StyleSheet.create({
+  card: { flex: 1, borderRadius: 14, borderWidth: 1, padding: 14, gap: 5, alignItems: "center" },
+  label: { fontSize: 11, letterSpacing: 0.5 },
+  value: { fontSize: 18 },
+});
+
 // ─── Main screen ──────────────────────────────────────────────────────────────
 
 type HabitItem = { id: number; name: string; completedToday: boolean; streak: number; category: string };
@@ -1606,7 +1752,7 @@ type HabitItem = { id: number; name: string; completedToday: boolean; streak: nu
 export default function CheckInScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
-  const { userId, getToken } = useValoAuth();
+  const { userId, getToken, name } = useValoAuth();
   const safeUserId = userId ?? "";
 
   // ── Data hooks ──────────────────────────────────────────────────────────────
@@ -2026,6 +2172,8 @@ export default function CheckInScreen() {
 
   // ── Render ────────────────────────────────────────────────────────────────
 
+  const hour = new Date().getHours();
+
   return (
     <ScrollView
       ref={scrollRef}
@@ -2045,13 +2193,16 @@ export default function CheckInScreen() {
         tintColor={colors.foreground}
       />
 
-      {/* ── Header row: title + streak + completion ring ─────────────────── */}
+      {/* ── Greeting row ──────────────────────────────────────────────────── */}
       <View style={styles.topRow}>
-        <View style={{ flex: 1, gap: 4 }}>
-          <Text style={[styles.header, { color: colors.foreground, fontFamily: "Inter_700Bold" }]}>
-            Check in
+        <View style={{ flex: 1, gap: 2 }}>
+          <Text style={[styles.dateLabel, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
+            {todayLabel()}
           </Text>
-          <Animated.View style={[styles.streakRow, { transform: [{ scale: streakBounce }] }]}>
+          <Text style={[styles.header, { color: colors.foreground, fontFamily: "Inter_700Bold" }]}>
+            {greeting(hour)}{name ? `, ${name}` : ""}.
+          </Text>
+          <Animated.View style={[styles.streakRow, { transform: [{ scale: streakBounce }], marginTop: 4 }]}>
             <Feather name="zap" size={13} color={colors.primary} />
             <Text style={[styles.streakText, { color: colors.primary, fontFamily: "Inter_600SemiBold" }]}>
               {dashboard?.streak ?? 0} day streak
@@ -2063,60 +2214,304 @@ export default function CheckInScreen() {
         </Animated.View>
       </View>
 
-      {/* ── Section 1: Voice check-in ─────────────────────────────────────── */}
-      <View style={{ gap: 12 }}>
+      {/* ── Morning check-in: mood, sleep, energy ─────────────────────────── */}
+      <View style={{ gap: 10 }}>
         <Text style={[styles.sectionLabel, { color: colors.mutedForeground, fontFamily: "Inter_500Medium" }]}>
-          CHECK IN WITH VALO
+          MORNING CHECK-IN
         </Text>
+        <MorningCheckInRow
+          moodValue={quickLogValues.mood}
+          sleepValue={quickLogValues.sleep}
+          energyValue={quickLogValues.energy}
+          onMood={() => { void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setActiveModal("mood"); }}
+          onSleep={() => { void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setActiveModal("sleep"); }}
+          onEnergy={() => { void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setActiveModal("energy"); }}
+          colors={colors}
+        />
+      </View>
 
-        {/* Mic button */}
-        {!isEnding && !showSummary && (
-          <View style={styles.micSection}>
-            <View style={styles.micWrapper}>
-              {(isActive || isLoading) && (
-                <Animated.View
-                  style={[
-                    styles.pulseRing,
-                    { borderColor: ringColor, transform: [{ scale: pulseScale }], opacity: pulseOpacity },
-                  ]}
-                />
-              )}
+      {/* ── Metric tiles: Sleep, HRV, Steps, RHR ─────────────────────────── */}
+      <View style={{ gap: 10 }}>
+        <Text style={[styles.sectionLabel, { color: colors.mutedForeground, fontFamily: "Inter_500Medium" }]}>
+          TODAY'S METRICS
+        </Text>
+        <MetricTilesGrid
+          sleepHours={(dashboard as any)?.sleepHours ?? null}
+          hrv={(dashboard as any)?.hrv ?? null}
+          steps={(dashboard as any)?.steps ?? null}
+          rhr={(dashboard as any)?.restingHeartRate ?? null}
+          colors={colors}
+          onLogSleep={() => { void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setActiveModal("sleep"); }}
+          onLogHrv={() => { void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setActiveModal("sleep"); }}
+          onLogSteps={() => { void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setActiveModal("workout"); }}
+          onLogRhr={() => { void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setActiveModal("sleep"); }}
+        />
+      </View>
+
+      {/* ── Pillar scores ─────────────────────────────────────────────────── */}
+      <View style={{ gap: 10 }}>
+        <Text style={[styles.sectionLabel, { color: colors.mutedForeground, fontFamily: "Inter_500Medium" }]}>
+          PILLARS
+        </Text>
+        {dashboard ? (
+          <>
+            <PillarCard
+              title="Health"
+              score={(dashboard as any).healthScore ?? 0}
+              status={(dashboard as any).healthStatus ?? null}
+              colors={colors}
+            />
+            <PillarCard
+              title="Work & Mission"
+              score={(dashboard as any).workScore ?? 0}
+              status={(dashboard as any).workStatus ?? null}
+              colors={colors}
+            />
+            <PillarCard
+              title="Relationships"
+              score={(dashboard as any).relationshipScore ?? 0}
+              status={(dashboard as any).relationshipStatus ?? null}
+              colors={colors}
+            />
+          </>
+        ) : (
+          <ActivityIndicator color={colors.primary} style={{ marginVertical: 8 }} />
+        )}
+      </View>
+
+      {/* ── Quick log grid ────────────────────────────────────────────────── */}
+      <View style={{ gap: 10 }}>
+        <Text style={[styles.sectionLabel, { color: colors.mutedForeground, fontFamily: "Inter_500Medium" }]}>
+          QUICK LOG
+        </Text>
+        <View style={styles.quickGrid}>
+          {quickLogCards.map((type) => (
+            <QuickLogCard
+              key={type}
+              type={type}
+              value={quickLogValues[type]}
+              colors={colors}
+              onPress={() => { void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setActiveModal(type); }}
+            />
+          ))}
+        </View>
+      </View>
+
+      {/* ── Quick log full-screen modal ───────────────────────────────────── */}
+      <Modal
+        visible={!!activeModal}
+        animationType="slide"
+        presentationStyle="fullScreen"
+        onRequestClose={() => setActiveModal(null)}
+      >
+        <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
+          <View style={[fsModal.header, { borderBottomColor: colors.border, paddingTop: insets.top }]}>
+            <Text style={[fsModal.title, { color: colors.foreground, fontFamily: "Inter_700Bold" }]}>
+              {activeModal && QUICK_LOG_CONFIG[activeModal].label}
+            </Text>
+            <TouchableOpacity onPress={() => setActiveModal(null)} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}>
+              <Feather name="x" size={22} color={colors.foreground} />
+            </TouchableOpacity>
+          </View>
+          <ScrollView
+            style={{ flex: 1 }}
+            contentContainerStyle={fsModal.content}
+            keyboardShouldPersistTaps="handled"
+            showsVerticalScrollIndicator={false}
+            scrollEnabled={modalScrollEnabled}
+          >
+            {activeModal === "mood" && (
+              <MoodLogger
+                colors={colors}
+                onSave={handleMoodSave}
+                registerSave={(canSave, fn) => { setModalCanSave(canSave); modalSaveFnRef.current = fn; }}
+                onScrollEnabled={setModalScrollEnabled}
+              />
+            )}
+            {activeModal === "energy" && (
+              <EnergyLogger
+                colors={colors}
+                onSave={handleEnergySave}
+                registerSave={(canSave, fn) => { setModalCanSave(canSave); modalSaveFnRef.current = fn; }}
+                onScrollEnabled={setModalScrollEnabled}
+              />
+            )}
+            {activeModal === "workout" && (
+              <WorkoutLogger
+                colors={colors}
+                onSave={handleWorkoutSave}
+                registerSave={(canSave, fn) => { setModalCanSave(canSave); modalSaveFnRef.current = fn; }}
+              />
+            )}
+            {activeModal === "sleep" && (
+              <SleepLogger
+                colors={colors}
+                onSave={handleSleepSave}
+                registerSave={(canSave, fn) => { setModalCanSave(canSave); modalSaveFnRef.current = fn; }}
+              />
+            )}
+            {activeModal === "habits" && (
+              <HabitsLogger habits={allHabits} colors={colors} onToggle={handleHabitToggle} />
+            )}
+          </ScrollView>
+          <View style={[fsModal.footer, { borderTopColor: colors.border, paddingBottom: Math.max(insets.bottom, 20) }]}>
+            {activeModal === "habits" ? (
               <TouchableOpacity
-                onPress={handleMicPress}
-                disabled={isLoading || isEnding}
+                style={[fsModal.saveBtn, { backgroundColor: colors.primary }]}
+                onPress={() => setActiveModal(null)}
                 activeOpacity={0.8}
-                style={[
-                  styles.micButton,
-                  {
-                    backgroundColor: isActive ? colors.primary : colors.card,
-                    borderColor: isActive ? colors.primary : colors.border,
-                  },
-                ]}
               >
-                {isLoading ? (
-                  <ActivityIndicator color={colors.primary} size="large" />
+                <Text style={[fsModal.saveBtnText, { color: colors.primaryForeground, fontFamily: "Inter_600SemiBold" }]}>
+                  Done
+                </Text>
+              </TouchableOpacity>
+            ) : (
+              <TouchableOpacity
+                style={[fsModal.saveBtn, { backgroundColor: modalCanSave ? colors.primary : colors.muted }]}
+                onPress={() => modalSaveFnRef.current?.()}
+                disabled={!modalCanSave || isSavingLog}
+                activeOpacity={0.8}
+              >
+                {isSavingLog ? (
+                  <ActivityIndicator color={colors.primaryForeground} />
                 ) : (
-                  <Feather
-                    name={isActive ? "square" : "mic"}
-                    size={34}
-                    color={isActive ? colors.primaryForeground : colors.foreground}
-                  />
+                  <Text style={[fsModal.saveBtnText, { color: modalCanSave ? colors.primaryForeground : colors.mutedForeground, fontFamily: "Inter_600SemiBold" }]}>
+                    Save {activeModal && QUICK_LOG_CONFIG[activeModal].label.toLowerCase()}
+                  </Text>
                 )}
               </TouchableOpacity>
-            </View>
-
-            {!isActive && !isLoading && (
-              <View style={{ gap: 12, alignItems: "center", width: "100%" }}>
-                <Text style={[styles.micHint, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
-                  Tap to begin your evening debrief
-                </Text>
-                <DailyPromptCard colors={colors} />
-              </View>
             )}
           </View>
-        )}
+        </SafeAreaView>
+      </Modal>
 
-        {/* Ending / processing */}
+      {/* ── Habits inline ─────────────────────────────────────────────────── */}
+      <View style={{ gap: 10 }}>
+        <Text style={[styles.sectionLabel, { color: colors.mutedForeground, fontFamily: "Inter_500Medium" }]}>
+          HABITS
+        </Text>
+        {allHabits.length === 0 ? (
+          <View style={[styles.emptyHabitsCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+            <Text style={{ color: colors.mutedForeground, fontFamily: "Inter_400Regular", fontSize: 14, textAlign: "center" }}>
+              No habits yet. Add them in the Plan tab.
+            </Text>
+          </View>
+        ) : (
+          allHabits.map((h) => (
+            <TouchableOpacity
+              key={h.id}
+              style={[
+                styles.habitRow,
+                {
+                  backgroundColor: h.completedToday ? colors.primary + "18" : colors.card,
+                  borderColor: h.completedToday ? colors.primary + "44" : colors.border,
+                },
+              ]}
+              onPress={() => { void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); void handleHabitToggle(h.id, h.completedToday); }}
+              activeOpacity={0.75}
+            >
+              <View style={[styles.habitCheck, {
+                borderColor: h.completedToday ? colors.primary : colors.border,
+                backgroundColor: h.completedToday ? colors.primary : "transparent",
+              }]}>
+                {h.completedToday && <Feather name="check" size={13} color={colors.primaryForeground} />}
+              </View>
+              <Text style={[styles.habitName, { color: colors.foreground, fontFamily: "Inter_500Medium" }]}>
+                {h.name}
+              </Text>
+              {h.streak > 0 && (
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 3 }}>
+                  <Feather name="zap" size={11} color={colors.primary} />
+                  <Text style={{ fontSize: 12, color: colors.primary, fontFamily: "Inter_600SemiBold" }}>
+                    {h.streak}
+                  </Text>
+                </View>
+              )}
+            </TouchableOpacity>
+          ))
+        )}
+      </View>
+
+      {/* ── Full check-in (collapsible guided) ────────────────────────────── */}
+      <View style={{ gap: 12 }}>
+        <TouchableOpacity
+          style={[styles.fullLogRow, { backgroundColor: colors.card, borderColor: colors.border }]}
+          onPress={() => setShowFullLog((v) => !v)}
+          activeOpacity={0.75}
+        >
+          <View style={{ flex: 1 }}>
+            <Text style={[styles.fullLogTitle, { color: colors.foreground, fontFamily: "Inter_600SemiBold" }]}>
+              Full check-in
+            </Text>
+            <Text style={[styles.fullLogSub, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
+              {activeCards.length} guided questions
+            </Text>
+          </View>
+          {showFullLog && (
+            <TouchableOpacity
+              onPress={() => setShowConfigModal(true)}
+              style={[styles.customizeBtn, { borderColor: colors.border, backgroundColor: colors.muted }]}
+              activeOpacity={0.75}
+            >
+              <Feather name="sliders" size={13} color={colors.primary} />
+              <Text style={[styles.customizeBtnText, { color: colors.primary, fontFamily: "Inter_500Medium" }]}>
+                Customize
+              </Text>
+            </TouchableOpacity>
+          )}
+          <Feather name={showFullLog ? "chevron-up" : "chevron-down"} size={18} color={colors.mutedForeground} />
+        </TouchableOpacity>
+
+        {showFullLog && (
+          <GuidedCheckin
+            cards={activeCards}
+            answers={answers}
+            onAnswer={(id, val) => setAnswers((prev) => ({ ...prev, [id]: val }))}
+            isSaving={isSaving}
+            saved={saved}
+            onSave={handleGuidedSave}
+          />
+        )}
+      </View>
+
+      {guidedConfig && (
+        <GuidedConfigModal
+          visible={showConfigModal}
+          config={guidedConfig}
+          onChange={saveGuidedConfig}
+          onClose={() => setShowConfigModal(false)}
+        />
+      )}
+
+      {/* ── Smart upload ──────────────────────────────────────────────────── */}
+      <View style={{ gap: 12 }}>
+        <Text style={[styles.sectionLabel, { color: colors.mutedForeground, fontFamily: "Inter_500Medium" }]}>
+          SMART UPLOAD
+        </Text>
+        <View style={styles.uploadGrid}>
+          {UPLOAD_CARDS.map((card) => (
+            <SmartUploadCard
+              key={card.type}
+              card={card}
+              saving={savingUpload === card.type}
+              thumbnailUri={uploadedPhotos[card.type]}
+              colors={colors}
+              onPress={() => handleSmartUpload(card.type)}
+            />
+          ))}
+        </View>
+        <Text style={{ color: colors.mutedForeground, fontFamily: "Inter_400Regular", fontSize: 12, textAlign: "center" }}>
+          AI analysis coming soon
+        </Text>
+      </View>
+
+      {/* ── Evening debrief (at bottom) ───────────────────────────────────── */}
+      <View style={{ gap: 12 }}>
+        <Text style={[styles.sectionLabel, { color: colors.mutedForeground, fontFamily: "Inter_500Medium" }]}>
+          EVENING DEBRIEF
+        </Text>
+
+        {/* Processing */}
         {isEnding && (
           <View style={styles.processingContainer}>
             <ActivityIndicator color={colors.primary} size="large" />
@@ -2234,14 +2629,15 @@ export default function CheckInScreen() {
           </View>
         )}
 
-        {/* Pre-call: data tiles + prompts */}
+        {/* Pre-call: prompt + context + start button */}
         {isIdle && !showSummary && (
           <>
+            <DailyPromptCard colors={colors} />
             {ctxLoading ? (
               <View style={styles.ctxLoading}>
                 <ActivityIndicator color={colors.primary} size="small" />
                 <Text style={[styles.ctxLoadingText, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
-                  Loading your data…
+                  Loading your context…
                 </Text>
               </View>
             ) : ctx ? (
@@ -2250,12 +2646,18 @@ export default function CheckInScreen() {
                   WHAT VALO SEES TODAY
                 </Text>
                 <DataTiles ctx={ctx} />
-                <Text style={[styles.sectionLabel, { color: colors.mutedForeground, fontFamily: "Inter_500Medium", marginTop: 4 }]}>
-                  VALO WILL ASK ABOUT
-                </Text>
-                <PromptCards ctx={ctx} />
               </>
             ) : null}
+            <TouchableOpacity
+              style={[styles.debriefStartBtn, { backgroundColor: colors.primary }]}
+              onPress={handleMicPress}
+              activeOpacity={0.85}
+            >
+              <Feather name="mic" size={20} color={colors.primaryForeground} />
+              <Text style={[styles.debriefStartText, { color: colors.primaryForeground, fontFamily: "Inter_600SemiBold" }]}>
+                Start evening debrief
+              </Text>
+            </TouchableOpacity>
           </>
         )}
 
@@ -2357,192 +2759,6 @@ export default function CheckInScreen() {
         )}
       </View>
 
-      {/* ── Section 2: Quick Log ───────────────────────────────────────────── */}
-      <View style={{ gap: 12 }}>
-        <Text style={[styles.sectionLabel, { color: colors.mutedForeground, fontFamily: "Inter_500Medium" }]}>
-          QUICK LOG
-        </Text>
-        <View style={styles.quickGrid}>
-          {quickLogCards.map((type) => (
-            <QuickLogCard
-              key={type}
-              type={type}
-              value={quickLogValues[type]}
-              colors={colors}
-              onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setActiveModal(type); }}
-            />
-          ))}
-        </View>
-      </View>
-
-      {/* Quick log full-screen modal */}
-      <Modal
-        visible={!!activeModal}
-        animationType="slide"
-        presentationStyle="fullScreen"
-        onRequestClose={() => setActiveModal(null)}
-      >
-        <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
-          <View style={[fsModal.header, { borderBottomColor: colors.border, paddingTop: insets.top }]}>
-            <Text style={[fsModal.title, { color: colors.foreground, fontFamily: "Inter_700Bold" }]}>
-              {activeModal && QUICK_LOG_CONFIG[activeModal].label}
-            </Text>
-            <TouchableOpacity onPress={() => setActiveModal(null)} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}>
-              <Feather name="x" size={22} color={colors.foreground} />
-            </TouchableOpacity>
-          </View>
-          <ScrollView
-            style={{ flex: 1 }}
-            contentContainerStyle={fsModal.content}
-            keyboardShouldPersistTaps="handled"
-            showsVerticalScrollIndicator={false}
-            scrollEnabled={modalScrollEnabled}
-          >
-            {activeModal === "mood" && (
-              <MoodLogger
-                colors={colors}
-                onSave={handleMoodSave}
-                registerSave={(canSave, fn) => { setModalCanSave(canSave); modalSaveFnRef.current = fn; }}
-                onScrollEnabled={setModalScrollEnabled}
-              />
-            )}
-            {activeModal === "energy" && (
-              <EnergyLogger
-                colors={colors}
-                onSave={handleEnergySave}
-                registerSave={(canSave, fn) => { setModalCanSave(canSave); modalSaveFnRef.current = fn; }}
-                onScrollEnabled={setModalScrollEnabled}
-              />
-            )}
-            {activeModal === "workout" && (
-              <WorkoutLogger
-                colors={colors}
-                onSave={handleWorkoutSave}
-                registerSave={(canSave, fn) => { setModalCanSave(canSave); modalSaveFnRef.current = fn; }}
-              />
-            )}
-            {activeModal === "sleep" && (
-              <SleepLogger
-                colors={colors}
-                onSave={handleSleepSave}
-                registerSave={(canSave, fn) => { setModalCanSave(canSave); modalSaveFnRef.current = fn; }}
-              />
-            )}
-            {activeModal === "habits" && (
-              <HabitsLogger habits={allHabits} colors={colors} onToggle={handleHabitToggle} />
-            )}
-          </ScrollView>
-          <View style={[fsModal.footer, { borderTopColor: colors.border, paddingBottom: Math.max(insets.bottom, 20) }]}>
-            {activeModal === "habits" ? (
-              <TouchableOpacity
-                style={[fsModal.saveBtn, { backgroundColor: colors.primary }]}
-                onPress={() => setActiveModal(null)}
-                activeOpacity={0.8}
-              >
-                <Text style={[fsModal.saveBtnText, { color: colors.primaryForeground, fontFamily: "Inter_600SemiBold" }]}>
-                  Done
-                </Text>
-              </TouchableOpacity>
-            ) : (
-              <TouchableOpacity
-                style={[fsModal.saveBtn, { backgroundColor: modalCanSave ? colors.primary : colors.muted }]}
-                onPress={() => modalSaveFnRef.current?.()}
-                disabled={!modalCanSave || isSavingLog}
-                activeOpacity={0.8}
-              >
-                {isSavingLog ? (
-                  <ActivityIndicator color={colors.primaryForeground} />
-                ) : (
-                  <Text
-                    style={[
-                      fsModal.saveBtnText,
-                      {
-                        color: modalCanSave ? colors.primaryForeground : colors.mutedForeground,
-                        fontFamily: "Inter_600SemiBold",
-                      },
-                    ]}
-                  >
-                    Save {activeModal && QUICK_LOG_CONFIG[activeModal].label.toLowerCase()}
-                  </Text>
-                )}
-              </TouchableOpacity>
-            )}
-          </View>
-        </SafeAreaView>
-      </Modal>
-
-      {/* ── Section 3: Smart Upload ────────────────────────────────────────── */}
-      <View style={{ gap: 12 }}>
-        <Text style={[styles.sectionLabel, { color: colors.mutedForeground, fontFamily: "Inter_500Medium" }]}>
-          SMART UPLOAD
-        </Text>
-        <View style={styles.uploadGrid}>
-          {UPLOAD_CARDS.map((card) => (
-            <SmartUploadCard
-              key={card.type}
-              card={card}
-              saving={savingUpload === card.type}
-              thumbnailUri={uploadedPhotos[card.type]}
-              colors={colors}
-              onPress={() => handleSmartUpload(card.type)}
-            />
-          ))}
-        </View>
-        <Text style={{ color: colors.mutedForeground, fontFamily: "Inter_400Regular", fontSize: 12, textAlign: "center" }}>
-          AI analysis coming soon
-        </Text>
-      </View>
-
-      {/* ── Section 4: Full check-in (collapsible guided) ─────────────────── */}
-      <View style={{ gap: 12 }}>
-        <TouchableOpacity
-          style={[styles.fullLogRow, { backgroundColor: colors.card, borderColor: colors.border }]}
-          onPress={() => setShowFullLog((v) => !v)}
-          activeOpacity={0.75}
-        >
-          <View style={{ flex: 1 }}>
-            <Text style={[styles.fullLogTitle, { color: colors.foreground, fontFamily: "Inter_600SemiBold" }]}>
-              Full check-in
-            </Text>
-            <Text style={[styles.fullLogSub, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
-              {activeCards.length} guided questions
-            </Text>
-          </View>
-          {showFullLog && (
-            <TouchableOpacity
-              onPress={() => setShowConfigModal(true)}
-              style={[styles.customizeBtn, { borderColor: colors.border, backgroundColor: colors.muted }]}
-              activeOpacity={0.75}
-            >
-              <Feather name="sliders" size={13} color={colors.primary} />
-              <Text style={[styles.customizeBtnText, { color: colors.primary, fontFamily: "Inter_500Medium" }]}>
-                Customize
-              </Text>
-            </TouchableOpacity>
-          )}
-          <Feather name={showFullLog ? "chevron-up" : "chevron-down"} size={18} color={colors.mutedForeground} />
-        </TouchableOpacity>
-
-        {showFullLog && (
-          <GuidedCheckin
-            cards={activeCards}
-            answers={answers}
-            onAnswer={(id, val) => setAnswers((prev) => ({ ...prev, [id]: val }))}
-            isSaving={isSaving}
-            saved={saved}
-            onSave={handleGuidedSave}
-          />
-        )}
-      </View>
-
-      {guidedConfig && (
-        <GuidedConfigModal
-          visible={showConfigModal}
-          config={guidedConfig}
-          onChange={saveGuidedConfig}
-          onClose={() => setShowConfigModal(false)}
-        />
-      )}
     </ScrollView>
   );
 }
@@ -2578,9 +2794,30 @@ const styles = StyleSheet.create({
     alignItems: "flex-start",
     justifyContent: "space-between",
   },
-  header: { fontSize: 28 },
+  dateLabel: { fontSize: 13, marginBottom: 2 },
+  header: { fontSize: 26, lineHeight: 32 },
   streakRow: { flexDirection: "row", alignItems: "center", gap: 4 },
   streakText: { fontSize: 13 },
+
+  // Habits inline
+  emptyHabitsCard: {
+    borderRadius: 14,
+    borderWidth: 1,
+    padding: 20,
+    alignItems: "center" as const,
+  },
+
+  // Evening debrief button
+  debriefStartBtn: {
+    flexDirection: "row" as const,
+    alignItems: "center" as const,
+    justifyContent: "center" as const,
+    gap: 10,
+    height: 54,
+    borderRadius: 14,
+    marginTop: 4,
+  },
+  debriefStartText: { fontSize: 16 },
 
   // Section label
   sectionLabel: { fontSize: 11, letterSpacing: 0.9 },
