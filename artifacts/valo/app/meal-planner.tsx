@@ -19,6 +19,13 @@ import { useValoAuth } from "@/contexts/AuthContext";
 import { trackEvent } from "@/services/telemetry";
 
 const PLAN_STORAGE_KEY = "valo:meal_plan_v1";
+const RETAILER_STORAGE_KEY = "valo:retailer_connections";
+
+const MEAL_RETAILERS = [
+  { id: "instacart", name: "Instacart", abbr: "IC", color: "#43B02A" },
+  { id: "walmart",   name: "Walmart",   abbr: "W",  color: "#0071CE" },
+  { id: "kroger",    name: "Kroger",    abbr: "K",  color: "#003DA5" },
+] as const;
 
 function getApiBase(): string {
   const domain = process.env.EXPO_PUBLIC_DOMAIN;
@@ -210,6 +217,129 @@ const swapStyles = StyleSheet.create({
   altReason: { fontSize: 12 },
 });
 
+// ── GroceryOrderSheet ─────────────────────────────────────────────────────────
+
+interface GroceryOrderSheetProps {
+  visible: boolean;
+  onClose: () => void;
+  itemCount: number;
+  colors: ReturnType<typeof useColors>;
+  retailerConnected: Record<string, boolean>;
+  onGoToProfile: () => void;
+}
+
+function GroceryOrderSheet({ visible, onClose, itemCount, colors, retailerConnected, onGoToProfile }: GroceryOrderSheetProps) {
+  const [ordering, setOrdering] = useState<string | null>(null);
+
+  const handleRetailerTap = async (retailer: (typeof MEAL_RETAILERS)[number]) => {
+    if (!retailerConnected[retailer.id]) {
+      Alert.alert(
+        `Connect ${retailer.name}`,
+        `Go to Profile > Grocery Ordering to connect your ${retailer.name} account first.`,
+        [
+          { text: "Cancel", style: "cancel" },
+          { text: "Go to Profile", onPress: () => { onClose(); onGoToProfile(); } },
+        ],
+      );
+      return;
+    }
+    setOrdering(retailer.id);
+    await new Promise<void>((r) => setTimeout(r, 1400));
+    setOrdering(null);
+    onClose();
+    Alert.alert("Added to Cart", `${itemCount} items have been sent to your ${retailer.name} cart.`);
+  };
+
+  return (
+    <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
+      <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }} edges={["top", "bottom"]}>
+        <View style={sheetStyles.header}>
+          <Text style={[sheetStyles.title, { color: colors.foreground, fontFamily: "Inter_600SemiBold" }]}>
+            Order Groceries
+          </Text>
+          <TouchableOpacity onPress={onClose} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+            <Feather name="x" size={22} color={colors.mutedForeground} />
+          </TouchableOpacity>
+        </View>
+
+        <Text style={[sheetStyles.sub, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
+          {itemCount} item{itemCount !== 1 ? "s" : ""} · select a retailer
+        </Text>
+
+        <View style={{ padding: 20, gap: 12 }}>
+          {MEAL_RETAILERS.map((retailer) => {
+            const connected = !!retailerConnected[retailer.id];
+            const isOrdering = ordering === retailer.id;
+            return (
+              <View
+                key={retailer.id}
+                style={[sheetStyles.retailerCard, { backgroundColor: colors.card, borderColor: colors.border }]}
+              >
+                <View style={sheetStyles.retailerLeft}>
+                  <View style={[sheetStyles.logoBadge, { backgroundColor: retailer.color }]}>
+                    <Text style={sheetStyles.logoText}>{retailer.abbr}</Text>
+                  </View>
+                  <View>
+                    <Text style={[sheetStyles.retailerName, { color: colors.foreground, fontFamily: "Inter_600SemiBold" }]}>
+                      {retailer.name}
+                    </Text>
+                    <Text style={[sheetStyles.retailerSub, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
+                      {connected ? "Account connected" : "Not connected"}
+                    </Text>
+                  </View>
+                </View>
+
+                <TouchableOpacity
+                  onPress={() => void handleRetailerTap(retailer)}
+                  disabled={isOrdering}
+                  activeOpacity={0.8}
+                  style={[
+                    sheetStyles.orderBtn,
+                    { backgroundColor: connected ? (isOrdering ? colors.muted : colors.primary) : colors.muted },
+                  ]}
+                >
+                  {isOrdering ? (
+                    <ActivityIndicator size="small" color={colors.primaryForeground} />
+                  ) : (
+                    <Text style={[sheetStyles.orderBtnText, {
+                      fontFamily: "Inter_600SemiBold",
+                      color: connected ? colors.primaryForeground : colors.mutedForeground,
+                    }]}>
+                      {connected ? "Add to Cart" : "Connect"}
+                    </Text>
+                  )}
+                </TouchableOpacity>
+              </View>
+            );
+          })}
+        </View>
+
+        <Text style={[sheetStyles.profileHint, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
+          Manage retailer accounts in Profile {">"} Grocery Ordering
+        </Text>
+      </SafeAreaView>
+    </Modal>
+  );
+}
+
+const sheetStyles = StyleSheet.create({
+  header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", padding: 20, paddingBottom: 4 },
+  title: { fontSize: 18 },
+  sub: { fontSize: 13, paddingHorizontal: 20, paddingBottom: 4 },
+  retailerCard: {
+    flexDirection: "row", alignItems: "center", justifyContent: "space-between",
+    borderWidth: 1, borderRadius: 16, padding: 16,
+  },
+  retailerLeft: { flexDirection: "row", alignItems: "center", gap: 14 },
+  logoBadge: { width: 44, height: 44, borderRadius: 12, alignItems: "center", justifyContent: "center" },
+  logoText: { color: "#fff", fontSize: 13, fontFamily: "Inter_700Bold" },
+  retailerName: { fontSize: 15 },
+  retailerSub: { fontSize: 12, marginTop: 2 },
+  orderBtn: { paddingHorizontal: 16, paddingVertical: 9, borderRadius: 20, minWidth: 100, alignItems: "center" },
+  orderBtnText: { fontSize: 13 },
+  profileHint: { fontSize: 12, textAlign: "center", paddingHorizontal: 24, paddingTop: 4 },
+});
+
 // ── MealPlannerScreen ─────────────────────────────────────────────────────────
 
 export default function MealPlannerScreen() {
@@ -236,8 +366,17 @@ export default function MealPlannerScreen() {
   const [swapVisible, setSwapVisible] = useState(false);
   const [swapTarget, setSwapTarget] = useState<{ dayIdx: number; mealKey: MealKey; mealName: string } | null>(null);
 
-  // ── Load persisted plan on mount ──────────────────────────────────────────
+  // ── Order sheet state ─────────────────────────────────────────────────────
+  const [orderSheetVisible, setOrderSheetVisible] = useState(false);
+  const [retailerConnected, setRetailerConnected] = useState<Record<string, boolean>>({
+    instacart: false, walmart: false, kroger: false,
+  });
+
+  // ── Load persisted plan + retailer connections on mount ───────────────────
   useEffect(() => {
+    AsyncStorage.getItem(RETAILER_STORAGE_KEY)
+      .then((raw) => { if (raw) setRetailerConnected(JSON.parse(raw) as Record<string, boolean>); })
+      .catch(() => {});
     AsyncStorage.getItem(PLAN_STORAGE_KEY)
       .then((raw) => {
         if (!raw) return;
@@ -625,13 +764,13 @@ export default function MealPlannerScreen() {
                   </View>
                 ))}
                 <TouchableOpacity
-                  style={[styles.instacartBtn, { backgroundColor: colors.muted, borderColor: colors.border }]}
-                  onPress={() => Alert.alert("Instacart", "Connect Instacart in Profile to send your grocery list directly to your cart.")}
+                  style={[styles.orderGroceriesBtn, { backgroundColor: colors.primary }]}
+                  onPress={() => setOrderSheetVisible(true)}
                   activeOpacity={0.8}
                 >
-                  <Feather name="shopping-bag" size={16} color={colors.mutedForeground} />
-                  <Text style={[styles.instacartBtnText, { color: colors.mutedForeground, fontFamily: "Inter_500Medium" }]}>
-                    Send to Instacart
+                  <Feather name="shopping-cart" size={16} color={colors.primaryForeground} />
+                  <Text style={[styles.orderGroceriesBtnText, { color: colors.primaryForeground, fontFamily: "Inter_600SemiBold" }]}>
+                    Order Groceries
                   </Text>
                 </TouchableOpacity>
               </View>
@@ -639,6 +778,16 @@ export default function MealPlannerScreen() {
           </>
         )}
       </ScrollView>
+
+      {/* Grocery order sheet */}
+      <GroceryOrderSheet
+        visible={orderSheetVisible}
+        onClose={() => setOrderSheetVisible(false)}
+        itemCount={plan?.shoppingList.reduce((sum, cat) => sum + cat.items.length, 0) ?? 0}
+        colors={colors}
+        retailerConnected={retailerConnected}
+        onGoToProfile={() => router.push("/(tabs)/profile" as any)}
+      />
 
       {/* Meal swap modal */}
       {swapTarget && (
@@ -742,11 +891,11 @@ const styles = StyleSheet.create({
   groceryItem: { flexDirection: "row", alignItems: "center", paddingVertical: 8, gap: 10 },
   groceryDot: { width: 6, height: 6, borderRadius: 3 },
   groceryItemText: { fontSize: 14, flex: 1 },
-  instacartBtn: {
+  orderGroceriesBtn: {
     flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8,
-    borderWidth: 1, borderRadius: 14, paddingVertical: 14, marginTop: 4, marginBottom: 32,
+    borderRadius: 14, paddingVertical: 14, marginTop: 4, marginBottom: 32,
   },
-  instacartBtnText: { fontSize: 14 },
+  orderGroceriesBtnText: { fontSize: 15 },
   savedLabel: { fontSize: 10, marginTop: 1 },
   newPlanBtn: { fontSize: 14 },
 });

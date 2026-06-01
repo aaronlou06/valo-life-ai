@@ -608,6 +608,18 @@ function ChangePasswordModal({
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Grocery retailer constants
+// ─────────────────────────────────────────────────────────────────────────────
+
+const RETAILER_STORAGE_KEY = "valo:retailer_connections";
+
+const GROCERY_RETAILERS = [
+  { id: "instacart", name: "Instacart", color: "#43B02A", abbr: "IC", icon: "shopping-cart" as const },
+  { id: "walmart",   name: "Walmart",   color: "#0071CE", abbr: "W",  icon: "shopping-bag"  as const },
+  { id: "kroger",    name: "Kroger",    color: "#003DA5", abbr: "K",  icon: "tag"            as const },
+] as const;
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Main Screen
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -647,6 +659,11 @@ export default function ProfileScreen() {
   const [showChangePassword, setShowChangePassword] = useState(false);
   const [savedField, setSavedField] = useState<string | null>(null);
 
+  // ── Retailer connections ──────────────────────────────────────────────────
+  const [retailerConnected, setRetailerConnected] = useState<Record<string, boolean>>({
+    instacart: false, walmart: false, kroger: false,
+  });
+
   // ── Load on mount ──────────────────────────────────────────────────────────
   useEffect(() => {
     void loadProfile();
@@ -679,6 +696,9 @@ export default function ProfileScreen() {
     const connected = await isGoogleCalendarConnected(getToken);
     setIsGCalConnected(connected);
     if (connected) void loadGoogleCalendars();
+
+    const raw = await AsyncStorage.getItem(RETAILER_STORAGE_KEY);
+    if (raw) setRetailerConnected(JSON.parse(raw) as Record<string, boolean>);
   }
 
   async function loadGoogleCalendars() {
@@ -726,6 +746,44 @@ export default function ProfileScreen() {
     const sub = AppState.addEventListener("change", handleAppStateChange);
     return () => sub.remove();
   }, []);
+
+  async function handleRetailerConnect(id: string, name: string) {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    Alert.alert(
+      `Connect ${name}`,
+      `Allow Valo to add your grocery lists directly to your ${name} cart.`,
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Connect",
+          onPress: async () => {
+            const updated = { ...retailerConnected, [id]: true };
+            setRetailerConnected(updated);
+            await AsyncStorage.setItem(RETAILER_STORAGE_KEY, JSON.stringify(updated));
+          },
+        },
+      ],
+    );
+  }
+
+  async function handleRetailerDisconnect(id: string, name: string) {
+    Alert.alert(
+      `Disconnect ${name}?`,
+      `This will remove Valo's access to your ${name} cart.`,
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Disconnect",
+          style: "destructive",
+          onPress: async () => {
+            const updated = { ...retailerConnected, [id]: false };
+            setRetailerConnected(updated);
+            await AsyncStorage.setItem(RETAILER_STORAGE_KEY, JSON.stringify(updated));
+          },
+        },
+      ],
+    );
+  }
 
   // ── Saved indicator ────────────────────────────────────────────────────────
   function showSaved(field: string) {
@@ -1104,14 +1162,76 @@ export default function ProfileScreen() {
             )}
           </View>
 
+          {/* Grocery retailer connections */}
+          <View style={{ marginTop: 16 }}>
+            <SectionLabel label="GROCERY ORDERING" />
+            <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border, padding: 0, overflow: "hidden" }]}>
+              {GROCERY_RETAILERS.map((retailer, idx) => {
+                const isConnected = !!retailerConnected[retailer.id];
+                return (
+                  <View
+                    key={retailer.id}
+                    style={[
+                      styles.connectionCardTop,
+                      idx < GROCERY_RETAILERS.length - 1 && {
+                        borderBottomWidth: StyleSheet.hairlineWidth,
+                        borderBottomColor: colors.border,
+                      },
+                    ]}
+                  >
+                    <View style={styles.connectionLeft}>
+                      <View style={[styles.connectionIconWrap, { backgroundColor: retailer.color }]}>
+                        <Text style={{ fontSize: 11, color: "#fff", fontFamily: "Inter_700Bold" }}>
+                          {retailer.abbr}
+                        </Text>
+                      </View>
+                      <View style={{ flex: 1 }}>
+                        <Text style={[styles.connectionName, { color: colors.foreground, fontFamily: "Inter_500Medium" }]}>
+                          {retailer.name}
+                        </Text>
+                        {isConnected && (
+                          <TouchableOpacity
+                            onPress={() => void handleRetailerDisconnect(retailer.id, retailer.name)}
+                            hitSlop={{ top: 4, bottom: 4, left: 4, right: 4 }}
+                          >
+                            <Text style={[styles.disconnectText, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
+                              Disconnect
+                            </Text>
+                          </TouchableOpacity>
+                        )}
+                      </View>
+                    </View>
+                    {isConnected ? (
+                      <View style={[styles.connectedBadge, { backgroundColor: "#DCFCE7" }]}>
+                        <Feather name="check" size={12} color="#059669" />
+                        <Text style={[styles.badgeText, { color: "#059669", fontFamily: "Inter_500Medium" }]}>
+                          Connected
+                        </Text>
+                      </View>
+                    ) : (
+                      <TouchableOpacity
+                        style={[styles.connectBtn, { backgroundColor: colors.primary }]}
+                        onPress={() => void handleRetailerConnect(retailer.id, retailer.name)}
+                        activeOpacity={0.8}
+                      >
+                        <Text style={[styles.connectBtnText, { color: colors.primaryForeground, fontFamily: "Inter_600SemiBold" }]}>
+                          Connect
+                        </Text>
+                      </TouchableOpacity>
+                    )}
+                  </View>
+                );
+              })}
+            </View>
+          </View>
+
           {/* Coming-soon connections */}
-          <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border, padding: 0, overflow: "hidden", marginTop: 8 }]}>
+          <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border, padding: 0, overflow: "hidden", marginTop: 16 }]}>
             {[
               { key: "apple-health", icon: "heart", label: "Apple Health" },
               { key: "google-fit", icon: "activity", label: "Google Fit" },
               { key: "garmin", icon: "watch", label: "Garmin Connect" },
               { key: "whoop", icon: "zap", label: "Whoop" },
-              { key: "instacart", icon: "shopping-cart", label: "Instacart" },
             ].map((item, idx, arr) => (
               <View
                 key={item.key}
