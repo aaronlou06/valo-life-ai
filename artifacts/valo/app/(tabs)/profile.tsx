@@ -21,8 +21,6 @@ import * as Haptics from "expo-haptics";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useColors } from "@/hooks/useColors";
 import { useValoAuth } from "@/contexts/AuthContext";
-import { useHealthKitSync } from "@/hooks/useHealthKitSync";
-import { requestHealthKitPermissions } from "@/lib/healthKit";
 import {
   connectGoogleCalendar,
   syncGoogleCalendarEvents,
@@ -32,7 +30,12 @@ import {
   saveGoogleCalendarSelections,
   type GoogleCalendarInfo,
 } from "@/lib/googleCalendar";
-import { useListGoals, useListHabits, useGetDashboard, useGetStreakData } from "@workspace/api-client-react";
+import {
+  useListGoals,
+  useListHabits,
+  useGetDashboard,
+  useGetStreakData,
+} from "@workspace/api-client-react";
 
 function getApiBase(): string {
   const domain = process.env.EXPO_PUBLIC_DOMAIN;
@@ -63,35 +66,11 @@ const CORE_VALUES = [
   "Service", "Integrity", "Freedom", "Creativity", "Leadership",
 ];
 
-const TREND_DOMAINS = [
-  { key: "physical", label: "Physical", icon: "activity" },
-  { key: "mental", label: "Mental", icon: "sun" },
-  { key: "career", label: "Career", icon: "briefcase" },
-  { key: "relationships", label: "Relationships", icon: "users" },
-  { key: "habits", label: "Habits", icon: "check-circle" },
-] as const;
-
-const INTEGRATIONS = [
-  { key: "apple-health", label: "Apple Health", icon: "heart" },
-  { key: "google-calendar", label: "Google Calendar", icon: "grid" },
-  { key: "apple-calendar", label: "Apple Calendar", icon: "calendar" },
-  { key: "garmin", label: "Garmin", icon: "activity" },
-  { key: "whoop", label: "Whoop", icon: "zap" },
-  { key: "oura", label: "Oura", icon: "moon" },
-  { key: "spotify", label: "Spotify", icon: "music" },
-  { key: "superpower", label: "Superpower", icon: "star" },
-  { key: "screen-time", label: "Screen Time", icon: "smartphone" },
-] as const;
-
-// ─── Scroll picker constants (mirrors goals_insights.tsx) ─────────────────────
-
 const PICKER_ITEM_H = 44;
 const PICKER_VISIBLE = 5;
 const PICKER_HOURS = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12"];
 const PICKER_MINUTES = ["00", "05", "10", "15", "20", "25", "30", "35", "40", "45", "50", "55"];
 const PICKER_AMPM = ["AM", "PM"];
-
-// ─── Notification prefs ───────────────────────────────────────────────────────
 
 const NOTIF_PREFS_KEY = "@valo/notification-prefs";
 
@@ -163,11 +142,7 @@ function ChevronRow({
       ]}
     >
       <View style={styles.chevronLeft}>
-        <Feather
-          name={icon as any}
-          size={17}
-          color={rowColor ?? colors.mutedForeground}
-        />
+        <Feather name={icon as any} size={17} color={rowColor ?? colors.mutedForeground} />
         <Text
           style={[
             styles.chevronLabel,
@@ -186,23 +161,6 @@ function ChevronRow({
         {!destructive && <Feather name="chevron-right" size={16} color={colors.mutedForeground} />}
       </View>
     </TouchableOpacity>
-  );
-}
-
-function TrendCard({ label, icon }: { label: string; icon: string }) {
-  const colors = useColors();
-  const AMBER = "#F59E0B";
-  return (
-    <View style={[styles.trendCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
-      <View style={styles.trendTop}>
-        <Feather name={icon as any} size={13} color={colors.mutedForeground} />
-        <Text style={[styles.trendLabel, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
-          {label}
-        </Text>
-      </View>
-      <Text style={[styles.trendArrow, { color: AMBER }]}>{"→"}</Text>
-      <Text style={[styles.trendStatus, { color: AMBER, fontFamily: "Inter_500Medium" }]}>Steady</Text>
-    </View>
   );
 }
 
@@ -278,7 +236,7 @@ function PickerColumn({
   );
 }
 
-// ─── Time picker modal (scroll columns) ──────────────────────────────────────
+// ─── Time picker modal ────────────────────────────────────────────────────────
 
 function TimePickerModal({
   visible,
@@ -341,10 +299,7 @@ function TimePickerModal({
           <Text style={[styles.modalTitle, { color: colors.foreground, fontFamily: "Inter_600SemiBold" }]}>
             Check-in time
           </Text>
-
-          {/* Columns + selection indicator */}
           <View style={styles.pickerWrapper}>
-            {/* Selection indicator */}
             <View
               pointerEvents="none"
               style={[
@@ -357,27 +312,10 @@ function TimePickerModal({
                 },
               ]}
             />
-
-            <PickerColumn
-              items={PICKER_HOURS}
-              selectedIndex={hourIdx}
-              onSelect={setHourIdx}
-              colors={colors}
-            />
-            <PickerColumn
-              items={PICKER_MINUTES}
-              selectedIndex={minIdx}
-              onSelect={setMinIdx}
-              colors={colors}
-            />
-            <PickerColumn
-              items={PICKER_AMPM}
-              selectedIndex={ampmIdx}
-              onSelect={setAmpmIdx}
-              colors={colors}
-            />
+            <PickerColumn items={PICKER_HOURS} selectedIndex={hourIdx} onSelect={setHourIdx} colors={colors} />
+            <PickerColumn items={PICKER_MINUTES} selectedIndex={minIdx} onSelect={setMinIdx} colors={colors} />
+            <PickerColumn items={PICKER_AMPM} selectedIndex={ampmIdx} onSelect={setAmpmIdx} colors={colors} />
           </View>
-
           <View style={styles.modalActions}>
             <TouchableOpacity style={styles.modalCancelBtn} onPress={onClose}>
               <Text style={[styles.modalCancelText, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
@@ -459,7 +397,6 @@ function NotificationsModal({
               <Feather name="x" size={20} color={colors.mutedForeground} />
             </TouchableOpacity>
           </View>
-
           <View style={[styles.notifCard, { borderColor: colors.border }]}>
             {TOGGLES.map((t, idx) => (
               <View key={t.key}>
@@ -492,7 +429,6 @@ function NotificationsModal({
               </View>
             ))}
           </View>
-
           <View style={[styles.notifNote, { backgroundColor: colors.muted, borderColor: colors.border }]}>
             <Feather name="clock" size={13} color={colors.mutedForeground} />
             <Text style={[styles.notifNoteText, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
@@ -502,6 +438,168 @@ function NotificationsModal({
               </Text>
               {"."}
             </Text>
+          </View>
+        </TouchableOpacity>
+      </TouchableOpacity>
+    </Modal>
+  );
+}
+
+// ─── Change password modal ────────────────────────────────────────────────────
+
+function ChangePasswordModal({
+  visible,
+  getToken,
+  onClose,
+  onSuccess,
+}: {
+  visible: boolean;
+  getToken: () => Promise<string | null>;
+  onClose: () => void;
+  onSuccess: () => void;
+}) {
+  const colors = useColors();
+  const [currentPwd, setCurrentPwd] = useState("");
+  const [newPwd, setNewPwd] = useState("");
+  const [confirmPwd, setConfirmPwd] = useState("");
+  const [showCurrent, setShowCurrent] = useState(false);
+  const [showNew, setShowNew] = useState(false);
+  const [showConfirm, setShowConfirm] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (visible) {
+      setCurrentPwd("");
+      setNewPwd("");
+      setConfirmPwd("");
+      setError(null);
+      setLoading(false);
+      setShowCurrent(false);
+      setShowNew(false);
+      setShowConfirm(false);
+    }
+  }, [visible]);
+
+  async function handleSave() {
+    setError(null);
+    if (!currentPwd) { setError("Enter your current password."); return; }
+    if (newPwd.length < 8) { setError("New password must be at least 8 characters."); return; }
+    if (newPwd !== confirmPwd) { setError("New passwords do not match."); return; }
+
+    setLoading(true);
+    try {
+      const token = await getToken();
+      const res = await fetch(`${getApiBase()}/api/auth/change-password`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({ currentPassword: currentPwd, newPassword: newPwd }),
+      });
+      const data = (await res.json()) as { ok?: boolean; error?: string };
+      if (!res.ok) {
+        setError(data.error ?? "Something went wrong.");
+      } else {
+        onSuccess();
+      }
+    } catch {
+      setError("Could not connect. Please try again.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
+      <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={onClose}>
+        <TouchableOpacity
+          activeOpacity={1}
+          style={[styles.modalBox, { backgroundColor: colors.card, borderColor: colors.border }]}
+        >
+          <View style={styles.notifHeader}>
+            <Text style={[styles.modalTitle, { color: colors.foreground, fontFamily: "Inter_600SemiBold" }]}>
+              Change password
+            </Text>
+            <TouchableOpacity onPress={onClose} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+              <Feather name="x" size={20} color={colors.mutedForeground} />
+            </TouchableOpacity>
+          </View>
+
+          <View style={{ gap: 12 }}>
+            {/* Current password */}
+            <View style={[styles.pwdFieldWrap, { borderColor: colors.border, backgroundColor: colors.background }]}>
+              <TextInput
+                value={currentPwd}
+                onChangeText={setCurrentPwd}
+                placeholder="Current password"
+                placeholderTextColor={colors.mutedForeground}
+                secureTextEntry={!showCurrent}
+                style={[styles.pwdInput, { color: colors.foreground, fontFamily: "Inter_400Regular" }]}
+                autoCapitalize="none"
+              />
+              <TouchableOpacity onPress={() => setShowCurrent((v) => !v)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                <Feather name={showCurrent ? "eye-off" : "eye"} size={16} color={colors.mutedForeground} />
+              </TouchableOpacity>
+            </View>
+
+            {/* New password */}
+            <View style={[styles.pwdFieldWrap, { borderColor: colors.border, backgroundColor: colors.background }]}>
+              <TextInput
+                value={newPwd}
+                onChangeText={setNewPwd}
+                placeholder="New password"
+                placeholderTextColor={colors.mutedForeground}
+                secureTextEntry={!showNew}
+                style={[styles.pwdInput, { color: colors.foreground, fontFamily: "Inter_400Regular" }]}
+                autoCapitalize="none"
+              />
+              <TouchableOpacity onPress={() => setShowNew((v) => !v)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                <Feather name={showNew ? "eye-off" : "eye"} size={16} color={colors.mutedForeground} />
+              </TouchableOpacity>
+            </View>
+
+            {/* Confirm new password */}
+            <View style={[styles.pwdFieldWrap, { borderColor: colors.border, backgroundColor: colors.background }]}>
+              <TextInput
+                value={confirmPwd}
+                onChangeText={setConfirmPwd}
+                placeholder="Confirm new password"
+                placeholderTextColor={colors.mutedForeground}
+                secureTextEntry={!showConfirm}
+                style={[styles.pwdInput, { color: colors.foreground, fontFamily: "Inter_400Regular" }]}
+                autoCapitalize="none"
+                onSubmitEditing={() => { void handleSave(); }}
+                returnKeyType="done"
+              />
+              <TouchableOpacity onPress={() => setShowConfirm((v) => !v)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                <Feather name={showConfirm ? "eye-off" : "eye"} size={16} color={colors.mutedForeground} />
+              </TouchableOpacity>
+            </View>
+
+            {error ? (
+              <Text style={[styles.pwdError, { color: colors.destructive, fontFamily: "Inter_400Regular" }]}>
+                {error}
+              </Text>
+            ) : null}
+          </View>
+
+          <View style={styles.modalActions}>
+            <TouchableOpacity style={styles.modalCancelBtn} onPress={onClose}>
+              <Text style={[styles.modalCancelText, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
+                Cancel
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.modalSaveBtn, { backgroundColor: loading ? colors.muted : colors.primary }]}
+              onPress={() => { void handleSave(); }}
+              disabled={loading}
+            >
+              <Text style={[styles.modalSaveText, { color: loading ? colors.mutedForeground : colors.primaryForeground, fontFamily: "Inter_600SemiBold" }]}>
+                {loading ? "Saving…" : "Update"}
+              </Text>
+            </TouchableOpacity>
           </View>
         </TouchableOpacity>
       </TouchableOpacity>
@@ -523,10 +621,12 @@ export default function ProfileScreen() {
   const { data: habits } = useListHabits();
   const { data: dashboard } = useGetDashboard();
   const { data: streakData } = useGetStreakData();
-  const { isPermissionsGranted: isHealthConnected, syncNow: healthSyncNow, isSyncing: healthSyncing } = useHealthKitSync();
 
-  const [connectingHealth, setConnectingHealth] = useState(false);
-  const [healthDenied, setHealthDenied] = useState(false);
+  const topPad = Platform.OS === "web" ? Math.max(insets.top, 67) : insets.top;
+  const bottomPad = Platform.OS === "web" ? 34 : insets.bottom;
+  const tabBarH = Platform.OS === "web" ? 84 : 83;
+
+  // ── Google Calendar state ──────────────────────────────────────────────────
   const [isGCalConnected, setIsGCalConnected] = useState(false);
   const [connectingGCal, setConnectingGCal] = useState(false);
   const [gCalSyncing, setGCalSyncing] = useState(false);
@@ -534,21 +634,7 @@ export default function ProfileScreen() {
   const [googleCalendars, setGoogleCalendars] = useState<GoogleCalendarInfo[]>([]);
   const [loadingCalendars, setLoadingCalendars] = useState(false);
 
-  const handleLogOut = async () => {
-    try {
-      await signOut();
-      router.replace('/(auth)/sign-in');
-    } catch (e) {
-      console.error('Sign out error:', e);
-      router.replace('/(auth)/sign-in');
-    }
-  };
-
-  const topPad = Platform.OS === "web" ? Math.max(insets.top, 67) : insets.top;
-  const bottomPad = Platform.OS === "web" ? 34 : insets.bottom;
-  const tabBarH = Platform.OS === "web" ? 84 : 83;
-
-  // ── State ─────────────────────────────────────────────────────────────────
+  // ── UI state ───────────────────────────────────────────────────────────────
   const [editingName, setEditingName] = useState(false);
   const [nameInput, setNameInput] = useState(name ?? "");
   const [callTime, setCallTime] = useState("20:30");
@@ -558,9 +644,10 @@ export default function ProfileScreen() {
   const [coreValues, setCoreValues] = useState<string[]>([]);
   const [showTimePicker, setShowTimePicker] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
+  const [showChangePassword, setShowChangePassword] = useState(false);
   const [savedField, setSavedField] = useState<string | null>(null);
 
-  // ── Load on mount ─────────────────────────────────────────────────────────
+  // ── Load on mount ──────────────────────────────────────────────────────────
   useEffect(() => {
     void loadProfile();
   }, []);
@@ -588,6 +675,7 @@ export default function ProfileScreen() {
       if (c.user_identity) setUserIdentity(c.user_identity);
       if (c.user_motivation) setUserMotivation(c.user_motivation);
     }
+
     const connected = await isGoogleCalendarConnected(getToken);
     setIsGCalConnected(connected);
     if (connected) void loadGoogleCalendars();
@@ -639,21 +727,19 @@ export default function ProfileScreen() {
     return () => sub.remove();
   }, []);
 
-  // ── Saved indicator ───────────────────────────────────────────────────────
+  // ── Saved indicator ────────────────────────────────────────────────────────
   function showSaved(field: string) {
     setSavedField(field);
     setTimeout(() => setSavedField((cur) => (cur === field ? null : cur)), 2000);
   }
 
-  // ── Google Calendar connect ────────────────────────────────────────────────
+  // ── Google Calendar ────────────────────────────────────────────────────────
   async function handleGCalConnect() {
     setConnectingGCal(true);
     await connectGoogleCalendar(getToken);
     setConnectingGCal(false);
-    // Actual connection confirmed when app returns to foreground via AppState listener
   }
 
-  // ── Google Calendar disconnect ─────────────────────────────────────────────
   async function handleGCalDisconnect() {
     Alert.alert(
       "Disconnect Google Calendar",
@@ -668,6 +754,7 @@ export default function ProfileScreen() {
             if (ok) {
               setIsGCalConnected(false);
               setGCalCount(null);
+              setGoogleCalendars([]);
             }
           },
         },
@@ -675,7 +762,7 @@ export default function ProfileScreen() {
     );
   }
 
-  // ── PATCH helpers ─────────────────────────────────────────────────────────
+  // ── PATCH helpers ──────────────────────────────────────────────────────────
   async function patchSettings(body: Record<string, unknown>, field: string) {
     const token = await getToken();
     try {
@@ -706,7 +793,7 @@ export default function ProfileScreen() {
     } catch {}
   }
 
-  // ── Name save ─────────────────────────────────────────────────────────────
+  // ── Name save ──────────────────────────────────────────────────────────────
   async function handleNameSave() {
     const trimmed = nameInput.trim();
     setEditingName(false);
@@ -715,7 +802,17 @@ export default function ProfileScreen() {
     await patchSettings({ name: trimmed }, "name");
   }
 
-  // ── Sign out / delete ─────────────────────────────────────────────────────
+  // ── Sign out ───────────────────────────────────────────────────────────────
+  async function handleLogOut() {
+    try {
+      await signOut();
+      router.replace("/(auth)/sign-in");
+    } catch {
+      router.replace("/(auth)/sign-in");
+    }
+  }
+
+  // ── Data reset ─────────────────────────────────────────────────────────────
   async function handleResetData() {
     const token = await getToken();
     const headers: Record<string, string> = token ? { Authorization: `Bearer ${token}` } : {};
@@ -727,13 +824,13 @@ export default function ProfileScreen() {
       fetch(`${base}/api/calendar-events`, { headers }).catch(() => null),
     ]);
 
-    const goals: { id: number }[] = goalsRes?.ok ? await goalsRes.json().catch(() => []) : [];
-    const habits: { id: number }[] = habitsRes?.ok ? await habitsRes.json().catch(() => []) : [];
+    const goalsList: { id: number }[] = goalsRes?.ok ? await goalsRes.json().catch(() => []) : [];
+    const habitsList: { id: number }[] = habitsRes?.ok ? await habitsRes.json().catch(() => []) : [];
     const calEvents: { id: number }[] = calRes?.ok ? await calRes.json().catch(() => []) : [];
 
     await Promise.allSettled([
-      ...goals.map((g) => fetch(`${base}/api/goals/${g.id}`, { method: "DELETE", headers })),
-      ...habits.map((h) => fetch(`${base}/api/habits/${h.id}`, { method: "DELETE", headers })),
+      ...goalsList.map((g) => fetch(`${base}/api/goals/${g.id}`, { method: "DELETE", headers })),
+      ...habitsList.map((h) => fetch(`${base}/api/habits/${h.id}`, { method: "DELETE", headers })),
       ...calEvents.map((e) => fetch(`${base}/api/calendar-events/${e.id}`, { method: "DELETE", headers })),
     ]);
 
@@ -746,7 +843,7 @@ export default function ProfileScreen() {
 
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     Alert.alert("Data reset. Fresh start!", undefined, [
-      { text: "OK", onPress: () => router.replace("/(tabs)/today" as any) },
+      { text: "OK", onPress: () => router.replace("/(tabs)/checkin" as any) },
     ]);
   }
 
@@ -761,14 +858,42 @@ export default function ProfileScreen() {
     );
   }
 
+  // ── Delete account ─────────────────────────────────────────────────────────
   function handleDeleteAccount() {
     Alert.alert(
-      "Delete account",
-      "This will permanently remove your account and all your data. Are you sure?",
+      "Delete account?",
+      "This permanently removes your account and all your data. This cannot be undone.",
       [
         { text: "Cancel", style: "cancel" },
-        { text: "Delete", style: "destructive", onPress: () => { void signOut(); } },
-      ]
+        {
+          text: "Delete",
+          style: "destructive",
+          onPress: () => {
+            Alert.alert(
+              "Are you sure?",
+              "Tap Confirm to permanently delete your Valo account.",
+              [
+                { text: "Cancel", style: "cancel" },
+                {
+                  text: "Confirm delete",
+                  style: "destructive",
+                  onPress: async () => {
+                    try {
+                      const token = await getToken();
+                      await fetch(`${getApiBase()}/api/auth/account`, {
+                        method: "DELETE",
+                        headers: token ? { Authorization: `Bearer ${token}` } : {},
+                      });
+                    } catch {}
+                    await signOut();
+                    router.replace("/(auth)/sign-in");
+                  },
+                },
+              ],
+            );
+          },
+        },
+      ],
     );
   }
 
@@ -796,10 +921,9 @@ export default function ProfileScreen() {
         />
 
         {/* ══════════════════════════════════════════════════════════════════
-            SECTION 1 — Your Valo
+            SECTION 1 — Header
         ══════════════════════════════════════════════════════════════════ */}
         <View style={styles.section}>
-          <SectionLabel label="YOUR VALO" />
           <View style={[styles.avatarCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
             <View style={[styles.avatar, { backgroundColor: colors.primary }]}>
               <Text style={[styles.avatarText, { color: colors.primaryForeground, fontFamily: "Inter_700Bold" }]}>
@@ -876,13 +1000,138 @@ export default function ProfileScreen() {
         </View>
 
         {/* ══════════════════════════════════════════════════════════════════
-            SECTION 2 — Life Trends
+            SECTION 2 — Connections
         ══════════════════════════════════════════════════════════════════ */}
         <View style={styles.section}>
-          <SectionLabel label="LIFE TRENDS" />
-          <View style={styles.trendsGrid}>
-            {TREND_DOMAINS.map((d) => (
-              <TrendCard key={d.key} label={d.label} icon={d.icon} />
+          <SectionLabel label="CONNECTIONS" />
+
+          {/* Google Calendar */}
+          <View style={[styles.connectionCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+            <View style={styles.connectionCardTop}>
+              <View style={styles.connectionLeft}>
+                <View style={[styles.connectionIconWrap, { backgroundColor: colors.muted }]}>
+                  <Feather name="grid" size={16} color={isGCalConnected ? "#059669" : colors.mutedForeground} />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.connectionName, { color: colors.foreground, fontFamily: "Inter_500Medium" }]}>
+                    Google Calendar
+                  </Text>
+                  {isGCalConnected && gCalCount !== null && (
+                    <Text style={[styles.connectionSub, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
+                      {gCalCount} {gCalCount === 1 ? "event" : "events"} synced
+                    </Text>
+                  )}
+                </View>
+              </View>
+
+              {isGCalConnected ? (
+                <View style={[styles.connectedBadge, { backgroundColor: "#DCFCE7" }]}>
+                  <Feather name="check" size={12} color="#059669" />
+                  <Text style={[styles.badgeText, { color: "#059669", fontFamily: "Inter_500Medium" }]}>
+                    Connected
+                  </Text>
+                </View>
+              ) : connectingGCal || gCalSyncing ? (
+                <View style={[styles.connectedBadge, { backgroundColor: colors.muted }]}>
+                  <Text style={[styles.badgeText, { color: colors.mutedForeground, fontFamily: "Inter_500Medium" }]}>
+                    {gCalSyncing ? "Syncing…" : "Connecting…"}
+                  </Text>
+                </View>
+              ) : (
+                <TouchableOpacity
+                  style={[styles.connectBtn, { backgroundColor: colors.primary }]}
+                  onPress={() => { void handleGCalConnect(); }}
+                  activeOpacity={0.8}
+                >
+                  <Text style={[styles.connectBtnText, { color: colors.primaryForeground, fontFamily: "Inter_600SemiBold" }]}>
+                    Connect
+                  </Text>
+                </TouchableOpacity>
+              )}
+            </View>
+
+            {/* Disconnect link */}
+            {isGCalConnected && (
+              <TouchableOpacity
+                onPress={() => { void handleGCalDisconnect(); }}
+                style={styles.disconnectLink}
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                activeOpacity={0.6}
+              >
+                <Text style={[styles.disconnectText, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
+                  Disconnect
+                </Text>
+              </TouchableOpacity>
+            )}
+
+            {/* Calendar selection */}
+            {isGCalConnected && googleCalendars.length > 0 && (
+              <View style={[styles.calendarList, { borderTopColor: colors.border }]}>
+                <View style={styles.calendarListHeader}>
+                  <Text style={[styles.calendarListTitle, { color: colors.foreground, fontFamily: "Inter_600SemiBold" }]}>
+                    Synced calendars
+                  </Text>
+                  {loadingCalendars && (
+                    <Text style={[styles.calendarListLoading, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
+                      Loading…
+                    </Text>
+                  )}
+                </View>
+                {googleCalendars.map((cal, idx) => (
+                  <View
+                    key={cal.calendarId}
+                    style={[
+                      styles.calendarRow,
+                      idx < googleCalendars.length - 1 && {
+                        borderBottomWidth: StyleSheet.hairlineWidth,
+                        borderBottomColor: colors.border,
+                      },
+                    ]}
+                  >
+                    <View style={[styles.calDot, { backgroundColor: cal.calendarColor ?? "#888888" }]} />
+                    <Text style={[styles.calName, { color: colors.foreground, fontFamily: "Inter_400Regular" }]} numberOfLines={1}>
+                      {cal.calendarName}
+                    </Text>
+                    <Switch
+                      value={cal.isSelected}
+                      onValueChange={(v) => { void toggleGoogleCalendar(cal.calendarId, v); }}
+                      trackColor={{ false: colors.border, true: colors.primary }}
+                      thumbColor="#FFFFFF"
+                    />
+                  </View>
+                ))}
+              </View>
+            )}
+          </View>
+
+          {/* Coming-soon connections */}
+          <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border, padding: 0, overflow: "hidden", marginTop: 8 }]}>
+            {[
+              { key: "apple-health", icon: "heart", label: "Apple Health" },
+              { key: "google-fit", icon: "activity", label: "Google Fit" },
+              { key: "instacart", icon: "shopping-cart", label: "Instacart" },
+            ].map((item, idx, arr) => (
+              <View
+                key={item.key}
+                style={[
+                  styles.comingSoonRow,
+                  idx < arr.length - 1 && { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border },
+                ]}
+              >
+                <View style={styles.connectionLeft}>
+                  <View style={[styles.connectionIconWrap, { backgroundColor: colors.muted }]}>
+                    <Feather name={item.icon as any} size={16} color={colors.mutedForeground} />
+                  </View>
+                  <Text style={[styles.connectionName, { color: colors.foreground, fontFamily: "Inter_500Medium" }]}>
+                    {item.label}
+                  </Text>
+                </View>
+                <View style={[styles.comingSoonBadge, { backgroundColor: colors.muted }]}>
+                  <Text style={[styles.badgeText, { color: colors.mutedForeground, fontFamily: "Inter_500Medium" }]}>
+                    Coming soon
+                  </Text>
+                </View>
+              </View>
             ))}
           </View>
         </View>
@@ -998,13 +1247,17 @@ export default function ProfileScreen() {
         </View>
 
         {/* ══════════════════════════════════════════════════════════════════
-            SECTION 4 — Account
+            SECTION 4 — Account Settings
         ══════════════════════════════════════════════════════════════════ */}
         <View style={styles.section}>
           <SectionLabel label="ACCOUNT" />
           <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border, padding: 0, overflow: "hidden" }]}>
             <ChevronRow icon="mail" label="Email" value={email ?? undefined} onPress={() => {}} />
-            <ChevronRow icon="lock" label="Change password" onPress={() => Alert.alert("Coming soon")} />
+            <ChevronRow
+              icon="lock"
+              label="Change password"
+              onPress={() => setShowChangePassword(true)}
+            />
             <ChevronRow
               icon="phone"
               label="Check-in time"
@@ -1021,193 +1274,7 @@ export default function ProfileScreen() {
         </View>
 
         {/* ══════════════════════════════════════════════════════════════════
-            SECTION 5 — Connected Data
-        ══════════════════════════════════════════════════════════════════ */}
-        <View style={styles.section}>
-          <SectionLabel label="CONNECTED DATA" />
-
-          {/* Apple Health — standalone row, no overflow:hidden parent */}
-          <TouchableOpacity
-            activeOpacity={0.7}
-            style={[styles.integrationStandalone, { backgroundColor: colors.card, borderColor: colors.border }]}
-            onPress={async () => {
-              setHealthDenied(false);
-              setConnectingHealth(true);
-              const granted = await requestHealthKitPermissions();
-              setConnectingHealth(false);
-              if (granted) {
-                Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-                await healthSyncNow();
-              } else {
-                setHealthDenied(true);
-              }
-            }}
-          >
-            <View style={styles.chevronLeft}>
-              <Feather
-                name="heart"
-                size={17}
-                color={isHealthConnected ? "#059669" : colors.mutedForeground}
-              />
-              <View>
-                <Text style={[styles.chevronLabel, { color: colors.foreground, fontFamily: "Inter_400Regular" }]}>
-                  Apple Health
-                </Text>
-                {healthDenied && (
-                  <Text style={{ fontSize: 11, color: "#DC2626", fontFamily: "Inter_400Regular", marginTop: 1 }}>
-                    Permission denied
-                  </Text>
-                )}
-              </View>
-            </View>
-            {isHealthConnected ? (
-              <View style={[styles.statusBadge, { backgroundColor: "#DCFCE7" }]}>
-                <Feather name="check" size={12} color="#059669" />
-                <Text style={[styles.statusText, { color: "#059669", fontFamily: "Inter_500Medium" }]}>
-                  Connected
-                </Text>
-              </View>
-            ) : connectingHealth || healthSyncing ? (
-              <View style={[styles.statusBadge, { backgroundColor: colors.muted }]}>
-                <Text style={[styles.statusText, { color: colors.mutedForeground, fontFamily: "Inter_500Medium" }]}>
-                  {healthSyncing ? "Syncing…" : "Connecting…"}
-                </Text>
-              </View>
-            ) : (
-              <View style={[styles.connectActionBtn, { backgroundColor: colors.primary }]}>
-                <Text style={[styles.connectActionText, { color: colors.primaryForeground, fontFamily: "Inter_600SemiBold" }]}>
-                  Connect
-                </Text>
-              </View>
-            )}
-          </TouchableOpacity>
-
-          {/* Google Calendar — standalone row */}
-          <TouchableOpacity
-            activeOpacity={0.7}
-            style={[styles.integrationStandalone, { backgroundColor: colors.card, borderColor: colors.border }]}
-            onPress={handleGCalConnect}
-            disabled={isGCalConnected || connectingGCal || gCalSyncing}
-          >
-            <View style={styles.chevronLeft}>
-              <Feather
-                name="grid"
-                size={17}
-                color={isGCalConnected ? "#059669" : colors.mutedForeground}
-              />
-              <View>
-                <Text style={[styles.chevronLabel, { color: colors.foreground, fontFamily: "Inter_400Regular" }]}>
-                  Google Calendar
-                </Text>
-                {isGCalConnected && gCalCount !== null && (
-                  <Text style={{ fontSize: 11, color: colors.mutedForeground, fontFamily: "Inter_400Regular", marginTop: 1 }}>
-                    {gCalCount} {gCalCount === 1 ? "event" : "events"} synced
-                  </Text>
-                )}
-              </View>
-            </View>
-            {isGCalConnected ? (
-              <View style={[styles.statusBadge, { backgroundColor: "#DCFCE7" }]}>
-                <Feather name="check" size={12} color="#059669" />
-                <Text style={[styles.statusText, { color: "#059669", fontFamily: "Inter_500Medium" }]}>
-                  Connected
-                </Text>
-              </View>
-            ) : connectingGCal || gCalSyncing ? (
-              <View style={[styles.statusBadge, { backgroundColor: colors.muted }]}>
-                <Text style={[styles.statusText, { color: colors.mutedForeground, fontFamily: "Inter_500Medium" }]}>
-                  {gCalSyncing ? "Syncing…" : "Connecting…"}
-                </Text>
-              </View>
-            ) : (
-              <View style={[styles.connectActionBtn, { backgroundColor: colors.primary }]}>
-                <Text style={[styles.connectActionText, { color: colors.primaryForeground, fontFamily: "Inter_600SemiBold" }]}>
-                  Connect
-                </Text>
-              </View>
-            )}
-          </TouchableOpacity>
-
-          {isGCalConnected && (
-            <TouchableOpacity
-              onPress={() => void handleGCalDisconnect()}
-              style={{ alignSelf: "flex-end", marginTop: -6, marginBottom: 4, paddingVertical: 4, paddingHorizontal: 2 }}
-              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-              activeOpacity={0.6}
-            >
-              <Text style={{ fontSize: 12, color: colors.mutedForeground, fontFamily: "Inter_400Regular" }}>
-                Disconnect
-              </Text>
-            </TouchableOpacity>
-          )}
-
-          {/* Calendar selection */}
-          {isGCalConnected && googleCalendars.length > 0 && (
-            <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border, padding: 14, marginBottom: 10 }]}>
-              <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
-                <Text style={[styles.sectionLabel, { color: colors.foreground, fontFamily: "Inter_600SemiBold", fontSize: 13 }]}>
-                  Synced Calendars
-                </Text>
-                {loadingCalendars && (
-                  <Text style={{ fontSize: 11, color: colors.mutedForeground, fontFamily: "Inter_400Regular" }}>Loading…</Text>
-                )}
-              </View>
-              {googleCalendars.map((cal, idx) => (
-                <View
-                  key={cal.calendarId}
-                  style={[
-                    { flexDirection: "row", alignItems: "center", paddingVertical: 9, gap: 10 },
-                    idx < googleCalendars.length - 1 && { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border },
-                  ]}
-                >
-                  <View style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: cal.calendarColor ?? "#888888", flexShrink: 0 }} />
-                  <Text style={{ flex: 1, fontSize: 14, color: colors.foreground, fontFamily: "Inter_400Regular" }} numberOfLines={1}>
-                    {cal.calendarName}
-                  </Text>
-                  <Switch
-                    value={cal.isSelected}
-                    onValueChange={(v) => void toggleGoogleCalendar(cal.calendarId, v)}
-                    trackColor={{ false: colors.border, true: colors.primary }}
-                    thumbColor="#FFFFFF"
-                  />
-                </View>
-              ))}
-            </View>
-          )}
-
-          {/* Other integrations */}
-          <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border, padding: 0, overflow: "hidden" }]}>
-            {INTEGRATIONS.filter((i) => i.key !== "apple-health" && i.key !== "google-calendar").map((integration, idx, arr) => (
-              <TouchableOpacity
-                key={integration.key}
-                onPress={() => Alert.alert("Coming soon")}
-                activeOpacity={0.7}
-                style={[
-                  styles.integrationRow,
-                  idx < arr.length - 1 && {
-                    borderBottomWidth: StyleSheet.hairlineWidth,
-                    borderBottomColor: colors.border,
-                  },
-                ]}
-              >
-                <View style={styles.chevronLeft}>
-                  <Feather name={integration.icon as any} size={17} color={colors.mutedForeground} />
-                  <Text style={[styles.chevronLabel, { color: colors.foreground, fontFamily: "Inter_400Regular" }]}>
-                    {integration.label}
-                  </Text>
-                </View>
-                <View style={[styles.statusBadge, { backgroundColor: colors.muted }]}>
-                  <Text style={[styles.statusText, { color: colors.mutedForeground, fontFamily: "Inter_500Medium" }]}>
-                    Not connected
-                  </Text>
-                </View>
-              </TouchableOpacity>
-            ))}
-          </View>
-        </View>
-
-        {/* ══════════════════════════════════════════════════════════════════
-            SECTION 6 — Membership
+            SECTION 5 — Membership
         ══════════════════════════════════════════════════════════════════ */}
         <View style={styles.section}>
           <SectionLabel label="MEMBERSHIP" />
@@ -1235,18 +1302,49 @@ export default function ProfileScreen() {
         </View>
 
         {/* ══════════════════════════════════════════════════════════════════
-            SECTION 7 — Admin
+            SECTION 6 — More
         ══════════════════════════════════════════════════════════════════ */}
         <View style={styles.section}>
-          <SectionLabel label="ADMIN" />
+          <SectionLabel label="MORE" />
           <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border, padding: 0, overflow: "hidden" }]}>
             <ChevronRow icon="download" label="Export my data" onPress={() => Alert.alert("Coming soon")} />
             <ChevronRow icon="refresh-cw" label="Reset my data" onPress={promptResetData} accentColor="#C17B3F" />
             <ChevronRow icon="shield" label="Privacy settings" onPress={() => Alert.alert("Coming soon")} />
-            <ChevronRow icon="eye" label="What Valo knows about me" onPress={() => Alert.alert("Coming soon")} />
-            <ChevronRow icon="log-out" label="Log out" onPress={handleLogOut} />
-            <ChevronRow icon="trash-2" label="Delete account" onPress={handleDeleteAccount} destructive last />
+            <ChevronRow icon="eye" label="What Valo knows about me" onPress={() => Alert.alert("Coming soon")} last />
           </View>
+        </View>
+
+        {/* ══════════════════════════════════════════════════════════════════
+            SECTION 7 — Sign out + danger
+        ══════════════════════════════════════════════════════════════════ */}
+        <View style={[styles.section, { marginBottom: 8 }]}>
+          <TouchableOpacity
+            style={[styles.signOutBtn, { backgroundColor: colors.card, borderColor: colors.border }]}
+            onPress={() => {
+              Alert.alert("Sign out", "Are you sure you want to sign out?", [
+                { text: "Cancel", style: "cancel" },
+                { text: "Sign out", onPress: () => { void handleLogOut(); } },
+              ]);
+            }}
+            activeOpacity={0.8}
+          >
+            <Feather name="log-out" size={16} color={colors.foreground} />
+            <Text style={[styles.signOutText, { color: colors.foreground, fontFamily: "Inter_500Medium" }]}>
+              Sign out
+            </Text>
+          </TouchableOpacity>
+        </View>
+
+        <View style={[styles.section, { marginBottom: 0 }]}>
+          <TouchableOpacity
+            style={styles.deleteAccountBtn}
+            onPress={handleDeleteAccount}
+            activeOpacity={0.7}
+          >
+            <Text style={[styles.deleteAccountText, { color: colors.destructive, fontFamily: "Inter_400Regular" }]}>
+              Delete account
+            </Text>
+          </TouchableOpacity>
         </View>
       </ScrollView>
 
@@ -1265,6 +1363,16 @@ export default function ProfileScreen() {
         visible={showNotifications}
         callTime={callTime}
         onClose={() => setShowNotifications(false)}
+      />
+
+      <ChangePasswordModal
+        visible={showChangePassword}
+        getToken={getToken}
+        onClose={() => setShowChangePassword(false)}
+        onSuccess={() => {
+          setShowChangePassword(false);
+          Alert.alert("Password updated", "Your password has been changed successfully.");
+        }}
       />
     </>
   );
@@ -1332,29 +1440,98 @@ const styles = StyleSheet.create({
   },
   statChipText: { fontSize: 12 },
   savedBadge: { fontSize: 12 },
-  // Trends
-  trendsGrid: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 10,
-  },
-  trendCard: {
-    borderRadius: 14,
+  // Connections
+  connectionCard: {
+    borderRadius: 16,
     borderWidth: 1,
+    overflow: "hidden",
+  },
+  connectionCardTop: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
     padding: 14,
-    minWidth: "30%",
+    paddingHorizontal: 16,
+  },
+  connectionLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
     flex: 1,
+  },
+  connectionIconWrap: {
+    width: 34,
+    height: 34,
+    borderRadius: 10,
+    alignItems: "center",
+    justifyContent: "center",
+    flexShrink: 0,
+  },
+  connectionName: { fontSize: 15 },
+  connectionSub: { fontSize: 12, marginTop: 1 },
+  connectedBadge: {
+    flexDirection: "row",
     alignItems: "center",
     gap: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 100,
   },
-  trendTop: {
+  badgeText: { fontSize: 11 },
+  connectBtn: {
+    paddingHorizontal: 14,
+    paddingVertical: 7,
+    borderRadius: 20,
+  },
+  connectBtnText: { fontSize: 13 },
+  disconnectLink: {
+    paddingHorizontal: 16,
+    paddingBottom: 12,
+    alignSelf: "flex-start",
+  },
+  disconnectText: { fontSize: 12 },
+  calendarList: {
+    borderTopWidth: StyleSheet.hairlineWidth,
+    paddingHorizontal: 16,
+    paddingTop: 12,
+    paddingBottom: 4,
+  },
+  calendarListHeader: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 5,
+    justifyContent: "space-between",
+    marginBottom: 8,
   },
-  trendLabel: { fontSize: 11 },
-  trendArrow: { fontSize: 20, lineHeight: 26 },
-  trendStatus: { fontSize: 10 },
+  calendarListTitle: { fontSize: 13 },
+  calendarListLoading: { fontSize: 11 },
+  calendarRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 9,
+    gap: 10,
+  },
+  calDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    flexShrink: 0,
+  },
+  calName: {
+    flex: 1,
+    fontSize: 14,
+  },
+  comingSoonRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+  },
+  comingSoonBadge: {
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 100,
+  },
   // Identity
   identityField: {
     gap: 10,
@@ -1395,7 +1572,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
   },
   chipText: { fontSize: 12, lineHeight: 16 },
-  // Rows
+  // Chevron rows
   chevronRow: {
     flexDirection: "row",
     alignItems: "center",
@@ -1416,38 +1593,6 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   chevronValue: { fontSize: 13 },
-  integrationStandalone: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    borderRadius: 12,
-    borderWidth: StyleSheet.hairlineWidth,
-    marginBottom: 8,
-  },
-  integrationRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-  },
-  statusBadge: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 100,
-  },
-  statusText: { fontSize: 11 },
-  connectActionBtn: {
-    paddingHorizontal: 14,
-    paddingVertical: 6,
-    borderRadius: 20,
-  },
-  connectActionText: { fontSize: 13 },
   // Membership
   membershipRow: {
     flexDirection: "row",
@@ -1469,6 +1614,22 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   upgradeText: { fontSize: 15 },
+  // Sign out / delete
+  signOutBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 10,
+    height: 52,
+    borderRadius: 14,
+    borderWidth: 1,
+  },
+  signOutText: { fontSize: 15 },
+  deleteAccountBtn: {
+    alignItems: "center",
+    paddingVertical: 12,
+  },
+  deleteAccountText: { fontSize: 14 },
   // Modals (shared)
   modalOverlay: {
     flex: 1,
@@ -1552,5 +1713,23 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: 13,
     lineHeight: 19,
+  },
+  // Password modal
+  pwdFieldWrap: {
+    flexDirection: "row",
+    alignItems: "center",
+    borderWidth: 1,
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    height: 48,
+  },
+  pwdInput: {
+    flex: 1,
+    fontSize: 15,
+    height: 48,
+  },
+  pwdError: {
+    fontSize: 13,
+    lineHeight: 18,
   },
 });

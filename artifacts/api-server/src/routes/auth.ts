@@ -2,7 +2,23 @@ import { Router, type IRouter } from "express";
 import bcrypt from "bcryptjs";
 import { randomBytes } from "crypto";
 import { eq } from "drizzle-orm";
-import { db, usersTable, userProfilesTable } from "@workspace/db";
+import {
+  db,
+  usersTable,
+  userProfilesTable,
+  dailyLogsTable,
+  moodEntriesTable,
+  goalsTable,
+  habitsTable,
+  habitCompletionsTable,
+  insightsTable,
+  logEntriesTable,
+  calendarEventsTable,
+  routinesTable,
+  googleTokensTable,
+  googleCalendarSelectionsTable,
+} from "@workspace/db";
+import { requireAuth, type AuthenticatedRequest } from "../middlewares/requireAuth";
 
 const router: IRouter = Router();
 
@@ -142,6 +158,68 @@ router.get("/auth/me", async (req, res): Promise<void> => {
     .limit(1);
 
   res.json({ userId: String(user.id), email: user.email, name: profile?.name ?? null });
+});
+
+router.post("/auth/change-password", requireAuth, async (req, res): Promise<void> => {
+  const userId = (req as AuthenticatedRequest).userId;
+  const { currentPassword, newPassword } = req.body ?? {};
+
+  if (!currentPassword || !newPassword) {
+    res.status(400).json({ error: "currentPassword and newPassword are required" });
+    return;
+  }
+  if (typeof newPassword !== "string" || newPassword.length < 8) {
+    res.status(400).json({ error: "New password must be at least 8 characters" });
+    return;
+  }
+
+  const [user] = await db
+    .select()
+    .from(usersTable)
+    .where(eq(usersTable.id, Number(userId)))
+    .limit(1);
+
+  if (!user) {
+    res.status(404).json({ error: "User not found" });
+    return;
+  }
+
+  const valid = await bcrypt.compare(String(currentPassword), user.passwordHash);
+  if (!valid) {
+    res.status(401).json({ error: "Current password is incorrect" });
+    return;
+  }
+
+  const passwordHash = await bcrypt.hash(String(newPassword), 12);
+  await db
+    .update(usersTable)
+    .set({ passwordHash })
+    .where(eq(usersTable.id, Number(userId)));
+
+  res.json({ ok: true });
+});
+
+router.delete("/auth/account", requireAuth, async (req, res): Promise<void> => {
+  const userId = (req as AuthenticatedRequest).userId;
+
+  await Promise.allSettled([
+    db.delete(dailyLogsTable).where(eq(dailyLogsTable.userId, userId)),
+    db.delete(moodEntriesTable).where(eq(moodEntriesTable.userId, userId)),
+    db.delete(goalsTable).where(eq(goalsTable.userId, userId)),
+    db.delete(habitsTable).where(eq(habitsTable.userId, userId)),
+    db.delete(habitCompletionsTable).where(eq(habitCompletionsTable.userId, userId)),
+    db.delete(insightsTable).where(eq(insightsTable.userId, userId)),
+    db.delete(logEntriesTable).where(eq(logEntriesTable.userId, userId)),
+    db.delete(calendarEventsTable).where(eq(calendarEventsTable.userId, userId)),
+    db.delete(routinesTable).where(eq(routinesTable.userId, userId)),
+    db.delete(googleTokensTable).where(eq(googleTokensTable.userId, userId)),
+    db.delete(googleCalendarSelectionsTable).where(eq(googleCalendarSelectionsTable.userId, userId)),
+    db.delete(userProfilesTable).where(eq(userProfilesTable.userId, userId)),
+  ]);
+
+  await db.delete(usersTable).where(eq(usersTable.id, Number(userId)));
+
+  res.json({ ok: true });
 });
 
 export default router;
