@@ -60,6 +60,21 @@ paths:
               schema:
                 $ref: "#/components/schemas/DailyLogOrNull"
 
+  /daily-logs/history:
+    get:
+      operationId: listDailyLogHistory
+      tags: [daily-logs]
+      summary: Get last 30 days of daily logs for the authenticated user
+      responses:
+        "200":
+          description: List of daily logs ordered by date descending
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/DailyLog"
+
   /daily-logs:
     post:
       operationId: upsertDailyLog
@@ -346,6 +361,21 @@ paths:
                 type: array
                 items:
                   $ref: "#/components/schemas/InsightPattern"
+
+  /log-entries/history:
+    get:
+      operationId: listLogEntryHistory
+      tags: [log-entries]
+      summary: Get last 30 days of log entries for the authenticated user
+      responses:
+        "200":
+          description: List of log entries ordered by date descending
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/LogEntry"
 
   /log-entries:
     get:

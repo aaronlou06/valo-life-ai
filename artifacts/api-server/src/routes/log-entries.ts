@@ -1,9 +1,21 @@
 import { Router, type IRouter } from "express";
-import { eq, and, desc } from "drizzle-orm";
+import { eq, and, desc, gte } from "drizzle-orm";
 import { db, logEntriesTable } from "@workspace/db";
 import { requireAuth, type AuthenticatedRequest } from "../middlewares/requireAuth";
 
 const router: IRouter = Router();
+
+router.get("/log-entries/history", requireAuth, async (req, res): Promise<void> => {
+  const userId = (req as AuthenticatedRequest).userId;
+  const d = new Date();
+  d.setDate(d.getDate() - 30);
+  const since = d.toISOString().split("T")[0]!;
+  const entries = await db.select().from(logEntriesTable)
+    .where(and(eq(logEntriesTable.userId, userId), gte(logEntriesTable.date, since)))
+    .orderBy(desc(logEntriesTable.createdAt))
+    .limit(100);
+  res.json(entries);
+});
 
 router.get("/log-entries", requireAuth, async (req, res): Promise<void> => {
   const userId = (req as AuthenticatedRequest).userId;

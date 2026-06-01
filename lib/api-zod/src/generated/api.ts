@@ -34,6 +34,25 @@ export const GetTodayLogResponse = zod.union([
 ]);
 
 /**
+ * @summary Get last 30 days of daily logs for the authenticated user
+ */
+export const ListDailyLogHistoryResponseItem = zod.object({
+  id: zod.number(),
+  userId: zod.string(),
+  date: zod.string(),
+  sleepHours: zod.number().nullish(),
+  hrv: zod.number().nullish(),
+  restingHeartRate: zod.number().nullish(),
+  steps: zod.number().nullish(),
+  workoutType: zod.string().nullish(),
+  workoutDuration: zod.number().nullish(),
+  workoutEffort: zod.number().nullish(),
+});
+export const ListDailyLogHistoryResponse = zod.array(
+  ListDailyLogHistoryResponseItem,
+);
+
+/**
  * @summary Create or update today's daily log
  */
 export const UpsertDailyLogBody = zod.object({
@@ -293,6 +312,22 @@ export const ListInsightPatternsResponseItem = zod.object({
 });
 export const ListInsightPatternsResponse = zod.array(
   ListInsightPatternsResponseItem,
+);
+
+/**
+ * @summary Get last 30 days of log entries for the authenticated user
+ */
+export const ListLogEntryHistoryResponseItem = zod.object({
+  id: zod.number(),
+  userId: zod.string(),
+  date: zod.string(),
+  type: zod.string(),
+  title: zod.string(),
+  subtitle: zod.string().nullish(),
+  value: zod.string().nullish(),
+});
+export const ListLogEntryHistoryResponse = zod.array(
+  ListLogEntryHistoryResponseItem,
 );
 
 /**

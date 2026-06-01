@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { eq, and } from "drizzle-orm";
+import { eq, and, desc } from "drizzle-orm";
 import { db, dailyLogsTable } from "@workspace/db";
 import { requireAuth, type AuthenticatedRequest } from "../middlewares/requireAuth";
 
@@ -8,6 +8,18 @@ const router: IRouter = Router();
 function today(): string {
   return new Date().toISOString().split("T")[0]!;
 }
+
+router.get("/daily-logs/history", requireAuth, async (req, res): Promise<void> => {
+  const userId = (req as AuthenticatedRequest).userId;
+  const d = new Date();
+  d.setDate(d.getDate() - 30);
+  const since = d.toISOString().split("T")[0]!;
+  const logs = await db.select().from(dailyLogsTable)
+    .where(and(eq(dailyLogsTable.userId, userId)))
+    .orderBy(desc(dailyLogsTable.date))
+    .limit(30);
+  res.json(logs.filter((l) => l.date >= since));
+});
 
 router.get("/daily-logs/today", requireAuth, async (req, res): Promise<void> => {
   const userId = (req as AuthenticatedRequest).userId;
