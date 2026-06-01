@@ -2066,11 +2066,26 @@ export default function PlanScreen() {
     const d = new Date();
     d.setDate(d.getDate() + 7);
     const maxDate = toISODate(d);
+
+    // Build a set of titles that appear more than once — those are recurring user events
+    const titleCounts = new Map<string, number>();
+    for (const ev of events) {
+      if (ev.type !== "routine" && ev.type !== "habit" && ev.type !== "google" && ev.type !== "work") {
+        titleCounts.set(ev.title, (titleCounts.get(ev.title) ?? 0) + 1);
+      }
+    }
+    const recurringTitles = new Set(
+      [...titleCounts.entries()].filter(([, n]) => n > 1).map(([t]) => t),
+    );
+
     return [...events]
       .filter((e) => {
         const date = e.date.includes("T") ? e.date.split("T")[0]! : e.date;
         if (date < currentTodayStr || date > maxDate) return false;
-        return e.type !== "routine" && e.type !== "habit" && e.type !== "google";
+        // Strip all routine-like, repeated, and work-schedule entries
+        if (e.type === "routine" || e.type === "habit" || e.type === "google" || e.type === "work") return false;
+        if (recurringTitles.has(e.title)) return false;
+        return true;
       })
       .sort((a, b) => a.date.localeCompare(b.date));
   }, [events, currentTodayStr]);
