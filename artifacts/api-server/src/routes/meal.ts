@@ -40,6 +40,12 @@ Calories/day: ${caloriesTarget}
 Weekly grocery budget: ${budgetDesc}
 Allergies/restrictions: ${allergyStr}
 
+Rules for the shoppingList:
+- List ONLY the specific ingredients required to prepare the exact meals you generate above.
+- Include quantities (e.g. "2 chicken breasts", "1 cup rolled oats", "3 large eggs", "400g canned chickpeas").
+- Group into the categories below. Do NOT add items that are not actually used in any meal.
+- Consolidate duplicates across days (e.g. if chicken appears Monday and Wednesday, write "4 chicken breasts" once).
+
 Return ONLY valid JSON — no markdown, no prose — matching this schema exactly:
 {
   "days": [
@@ -56,14 +62,14 @@ Return ONLY valid JSON — no markdown, no prose — matching this schema exactl
     }
   ],
   "shoppingList": [
-    { "category": "Produce",   "items": ["..."] },
-    { "category": "Proteins",  "items": ["..."] },
-    { "category": "Dairy",     "items": ["..."] },
-    { "category": "Grains",    "items": ["..."] },
-    { "category": "Pantry",    "items": ["..."] }
+    { "category": "Produce",   "items": ["3 bananas", "1 bag spinach", "..."] },
+    { "category": "Proteins",  "items": ["4 chicken breasts (600g)", "..."] },
+    { "category": "Dairy",     "items": ["500ml Greek yogurt", "..."] },
+    { "category": "Grains",    "items": ["1 cup rolled oats", "..."] },
+    { "category": "Pantry",    "items": ["2 tbsp olive oil", "..."] }
   ],
   "weeklyMacros": { "avg_calories": 0, "avg_protein_g": 0, "avg_carbs_g": 0, "avg_fat_g": 0 },
-  "estimatedWeeklyBudget": "..."
+  "estimatedWeeklyBudget": "$XX–$XX"
 }`;
 
   try {

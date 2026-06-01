@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from "react";
+import React, { useState, useCallback, useEffect, useRef } from "react";
 import {
   View,
   Text,
@@ -8,9 +8,8 @@ import {
   ActivityIndicator,
   Modal,
   Alert,
-  TextInput,
-  Platform,
 } from "react-native";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { Feather } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
@@ -18,6 +17,8 @@ import * as Haptics from "expo-haptics";
 import { useColors } from "@/hooks/useColors";
 import { useValoAuth } from "@/contexts/AuthContext";
 import { trackEvent } from "@/services/telemetry";
+
+const PLAN_STORAGE_KEY = "valo:meal_plan_v1";
 
 function getApiBase(): string {
   const domain = process.env.EXPO_PUBLIC_DOMAIN;
@@ -229,10 +230,53 @@ export default function MealPlannerScreen() {
   const [generating, setGenerating] = useState(false);
   const [activeTab, setActiveTab] = useState<Tab>("plan");
   const [expandedDay, setExpandedDay] = useState<number | null>(0);
+  const [savedAt, setSavedAt] = useState<string | null>(null);
 
   // ── Swap state ──────────────────────────────────────────────────────────────
   const [swapVisible, setSwapVisible] = useState(false);
   const [swapTarget, setSwapTarget] = useState<{ dayIdx: number; mealKey: MealKey; mealName: string } | null>(null);
+
+  // ── Load persisted plan on mount ──────────────────────────────────────────
+  useEffect(() => {
+    AsyncStorage.getItem(PLAN_STORAGE_KEY)
+      .then((raw) => {
+        if (!raw) return;
+        const saved = JSON.parse(raw) as { plan: MealPlan; savedAt: string; prefs: { dietType: DietType; calories: number; budget: BudgetType; allergies: string[] } };
+        setPlan(saved.plan);
+        setSavedAt(saved.savedAt);
+        setDietType(saved.prefs.dietType);
+        setCalories(saved.prefs.calories);
+        setBudget(saved.prefs.budget);
+        setAllergies(saved.prefs.allergies);
+        setExpandedDay(0);
+      })
+      .catch(() => {});
+  }, []);
+
+  const savePlan = useCallback(async (newPlan: MealPlan) => {
+    const payload = {
+      plan: newPlan,
+      savedAt: new Date().toISOString(),
+      prefs: { dietType, calories, budget, allergies },
+    };
+    await AsyncStorage.setItem(PLAN_STORAGE_KEY, JSON.stringify(payload));
+    setSavedAt(payload.savedAt);
+  }, [dietType, calories, budget, allergies]);
+
+  const clearPlan = () => {
+    Alert.alert("Start over?", "This will clear your current meal plan.", [
+      { text: "Cancel", style: "cancel" },
+      {
+        text: "Clear",
+        style: "destructive",
+        onPress: () => {
+          void AsyncStorage.removeItem(PLAN_STORAGE_KEY);
+          setPlan(null);
+          setSavedAt(null);
+        },
+      },
+    ]);
+  };
 
   const toggleAllergy = (a: string) => {
     setAllergies((prev) => prev.includes(a) ? prev.filter((x) => x !== a) : [...prev, a]);
@@ -254,9 +298,11 @@ export default function MealPlannerScreen() {
       });
       const data = await res.json();
       if (data.plan) {
-        setPlan(data.plan as MealPlan);
+        const newPlan = data.plan as MealPlan;
+        setPlan(newPlan);
         setExpandedDay(0);
         setActiveTab("plan");
+        void savePlan(newPlan);
         trackEvent("meal_plan_generated", { dietType, calories, budget, days });
       } else {
         Alert.alert("Error", "Could not generate meal plan. Please try again.");
@@ -291,7 +337,9 @@ export default function MealPlannerScreen() {
         },
       };
     });
-    setPlan({ ...plan, days: newDays });
+    const updatedPlan = { ...plan, days: newDays };
+    setPlan(updatedPlan);
+    void savePlan(updatedPlan);
   };
 
   return (
@@ -304,15 +352,28 @@ export default function MealPlannerScreen() {
         <TouchableOpacity onPress={() => router.back()} hitSlop={{ top: 8, bottom: 8, left: 12, right: 12 }}>
           <Feather name="arrow-left" size={22} color={colors.foreground} />
         </TouchableOpacity>
-        <Text style={[styles.headerTitle, { color: colors.foreground, fontFamily: "Inter_600SemiBold" }]}>
-          Meal Planner
-        </Text>
-        <View style={{ width: 22 }} />
+        <View style={{ alignItems: "center" }}>
+          <Text style={[styles.headerTitle, { color: colors.foreground, fontFamily: "Inter_600SemiBold" }]}>
+            Meal Planner
+          </Text>
+          {savedAt && (
+            <Text style={[styles.savedLabel, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
+              saved
+            </Text>
+          )}
+        </View>
+        {plan ? (
+          <TouchableOpacity onPress={clearPlan} hitSlop={{ top: 8, bottom: 8, left: 12, right: 12 }}>
+            <Text style={[styles.newPlanBtn, { color: colors.primary, fontFamily: "Inter_500Medium" }]}>New</Text>
+          </TouchableOpacity>
+        ) : (
+          <View style={{ width: 30 }} />
+        )}
       </View>
 
       <ScrollView
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={{ paddingBottom: insets.bottom + 40 }}
+        contentContainerStyle={{ paddingBottom: insets.bottom + 80 }}
       >
         {/* ── Form ── */}
         <View style={styles.section}>
@@ -443,7 +504,7 @@ export default function MealPlannerScreen() {
             </View>
           ) : (
             <Text style={[styles.generateBtnText, { color: colors.primaryForeground, fontFamily: "Inter_600SemiBold" }]}>
-              Generate {days}-Day Plan
+              {plan ? "Regenerate Plan" : `Generate ${days}-Day Plan`}
             </Text>
           )}
         </TouchableOpacity>
@@ -683,7 +744,9 @@ const styles = StyleSheet.create({
   groceryItemText: { fontSize: 14, flex: 1 },
   instacartBtn: {
     flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8,
-    borderWidth: 1, borderRadius: 14, paddingVertical: 14, marginTop: 4, marginBottom: 8,
+    borderWidth: 1, borderRadius: 14, paddingVertical: 14, marginTop: 4, marginBottom: 32,
   },
   instacartBtnText: { fontSize: 14 },
+  savedLabel: { fontSize: 10, marginTop: 1 },
+  newPlanBtn: { fontSize: 14 },
 });
