@@ -39,7 +39,7 @@ export default function SignInScreen() {
     setError("");
     try {
       await signIn(email.trim(), password);
-      router.replace("/(tabs)/today");
+      router.replace("/(tabs)/checkin");
     } catch (e: any) {
       setError(e.message ?? "Sign in failed. Please try again.");
     } finally {

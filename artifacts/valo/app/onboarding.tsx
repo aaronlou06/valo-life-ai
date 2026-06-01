@@ -168,7 +168,7 @@ export default function OnboardingScreen() {
     }
     await AsyncStorage.setItem("@valo/onboarding-complete", "true");
     markOnboardingComplete();
-    router.replace("/(tabs)/today");
+    router.replace("/(tabs)/checkin");
   }, [patchOnboarding, router]);
 
   // ── Welcome → Language ────────────────────────────────────────────────────

@@ -431,11 +431,11 @@ function QuickLogCard({
 // ── Modal sub-loggers ─────────────────────────────────────────────────────────
 
 const MOOD_OPTIONS = [
-  { emoji: "😔", score: 2,  label: "Low"     },
-  { emoji: "😕", score: 4,  label: "Okay"    },
-  { emoji: "😐", score: 6,  label: "Neutral" },
-  { emoji: "🙂", score: 8,  label: "Good"    },
-  { emoji: "😊", score: 10, label: "Great"   },
+  { score: 2,  label: "Low"     },
+  { score: 4,  label: "Okay"    },
+  { score: 6,  label: "Neutral" },
+  { score: 8,  label: "Good"    },
+  { score: 10, label: "Great"   },
 ];
 
 const ENERGY_OPTIONS = [
@@ -464,7 +464,7 @@ function ValueSlider({
   colors: Colors;
   value: number | null;
   onChange: (v: number) => void;
-  anchors: Array<{ label: string; position: number; isEmoji?: boolean }>;
+  anchors: Array<{ label: string; position: number }>;
   onScrollEnabled?: (enabled: boolean) => void;
 }) {
   const [trackWidth, setTrackWidth] = useState(0);
@@ -557,7 +557,7 @@ function ValueSlider({
       </View>
       {trackWidth > 0 && (
         <View style={{ height: 36, position: "relative" }}>
-          {anchors.map(({ label, position, isEmoji }) => {
+          {anchors.map(({ label, position }) => {
             const centerX = ((position - 1) / 9) * trackWidth;
             return (
               <View
@@ -569,20 +569,16 @@ function ValueSlider({
                   alignItems: "center",
                 }}
               >
-                {isEmoji ? (
-                  <Text style={{ fontSize: 18 }}>{label}</Text>
-                ) : (
-                  <Text
-                    style={{
-                      fontSize: 10,
-                      color: colors.mutedForeground,
-                      fontFamily: "Inter_400Regular",
-                      textAlign: "center",
-                    }}
-                  >
-                    {label}
-                  </Text>
-                )}
+                <Text
+                  style={{
+                    fontSize: 10,
+                    color: colors.mutedForeground,
+                    fontFamily: "Inter_400Regular",
+                    textAlign: "center",
+                  }}
+                >
+                  {label}
+                </Text>
               </View>
             );
           })}
@@ -635,11 +631,11 @@ function MoodLogger({
         onChange={(v) => { Haptics.selectionAsync(); setSelected(v); }}
         onScrollEnabled={onScrollEnabled}
         anchors={[
-          { label: "😔", position: 1,  isEmoji: true },
-          { label: "😕", position: 3,  isEmoji: true },
-          { label: "😐", position: 5,  isEmoji: true },
-          { label: "🙂", position: 7,  isEmoji: true },
-          { label: "😊", position: 10, isEmoji: true },
+          { label: "Low",     position: 1  },
+          { label: "Okay",    position: 3  },
+          { label: "Neutral", position: 5  },
+          { label: "Good",    position: 7  },
+          { label: "Great",   position: 10 },
         ]}
       />
       <TextInput
@@ -2928,15 +2924,6 @@ const styles = StyleSheet.create({
   quickCardDot: {
     position: "absolute", top: 10, right: 10, width: 7, height: 7, borderRadius: 3.5,
   },
-
-  // Mood emoji
-  emojiRow: { flexDirection: "row", justifyContent: "space-between" },
-  emojiBtn: {
-    flex: 1, alignItems: "center", paddingVertical: 10, borderRadius: 14,
-    borderWidth: 1.5, borderColor: "transparent", marginHorizontal: 3,
-  },
-  emojiText: { fontSize: 28 },
-  emojiLabel: { fontSize: 11, marginTop: 4 },
 
   // Modal shared
   modalInput: {

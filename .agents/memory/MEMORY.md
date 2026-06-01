@@ -1,1 +1,2 @@
-- [Plan tab consolidation](plan-tab-consolidation.md) — goals.tsx + calendar.tsx fully merged into plan.tsx; old files kept hidden in nav (href: null).
+- [Tab structure](tab-structure.md) — 5 active tabs: checkin, plan, health, insights, profile. Old screens deleted. All routes point to checkin, not today.
+- [Auth routes](auth-routes.md) — custom session auth (not Clerk). change-password and delete-account added to auth.ts.

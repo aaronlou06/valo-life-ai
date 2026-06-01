@@ -84,5 +84,5 @@ export default function Index() {
     return <Redirect href="/onboarding" />;
   }
 
-  return <Redirect href="/(tabs)/today" />;
+  return <Redirect href="/(tabs)/checkin" />;
 }

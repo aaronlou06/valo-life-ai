@@ -108,13 +108,6 @@ function ClassicTabLayout() {
             isIOS ? <SymbolView name="person" tintColor={color} size={24} /> : <Feather name="user" size={22} color={color} />,
         }}
       />
-      {/* Hidden — existing screens preserved, not shown in nav */}
-      <Tabs.Screen name="today" options={{ href: null }} />
-      <Tabs.Screen name="voice" options={{ href: null }} />
-      <Tabs.Screen name="log" options={{ href: null }} />
-      <Tabs.Screen name="goals" options={{ href: null }} />
-      <Tabs.Screen name="goals_insights" options={{ href: null }} />
-      <Tabs.Screen name="calendar" options={{ href: null }} />
       <Tabs.Screen name="index" options={{ href: null }} />
     </Tabs>
   );
