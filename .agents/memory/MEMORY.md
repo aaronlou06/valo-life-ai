@@ -1,0 +1,1 @@
+- [Plan tab consolidation](plan-tab-consolidation.md) — goals.tsx + calendar.tsx fully merged into plan.tsx; old files kept hidden in nav (href: null).
