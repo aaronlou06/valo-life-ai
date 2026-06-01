@@ -46,26 +46,6 @@ type PatternInput = {
 
 export type InsightRow = { label: string; content: string; followUpQuestion?: string | null };
 
-const SEED_INSIGHTS: InsightRow[] = [
-  {
-    label: "Sleep & Mood",
-    content:
-      "Your sleep quality has a strong connection to how you feel the next day. On nights where you logged 7+ hours, mood scores averaged 1.5 points higher. Try keeping your bedtime consistent this week.",
-    followUpQuestion: "What helps you wind down before bed on your best nights?",
-  },
-  {
-    label: "Movement Patterns",
-    content:
-      "You tend to log workouts earlier in the week and taper off by Thursday. Mood scores are noticeably higher on days you move. Schedule one short session for Thursday to break the pattern.",
-    followUpQuestion: "What makes it harder to stay active toward the end of the week?",
-  },
-  {
-    label: "Habit Momentum",
-    content:
-      "Your longest habit streaks correlate with weeks where you also hit your sleep targets. Consistency in one area reinforces the others. Pick one keystone habit to protect first this week.",
-    followUpQuestion: "Which habit feels most like a keystone for everything else?",
-  },
-];
 
 export async function computeCorrelations(userId: string): Promise<PatternInput[]> {
   const thirtyDaysAgo = nDaysAgo(30);
@@ -261,7 +241,7 @@ export async function generateDailyInsights(userId: string, today: string): Prom
   const ctx = await buildContext(userId);
 
   if (!ctx.hasData) {
-    return SEED_INSIGHTS;
+    return [];
   }
 
   const contextBlock = [
@@ -307,6 +287,6 @@ Return only valid JSON array, no markdown.`;
     return parsed;
   } catch (err) {
     logger.error({ err }, "Claude insight generation failed — returning seed insights");
-    return SEED_INSIGHTS;
+    return [];
   }
 }
