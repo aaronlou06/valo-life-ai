@@ -504,8 +504,8 @@ export default function InsightsScreen() {
   const last7Dates = getLast7Dates();
   const moodChartData = last7Dates.map((d) => moodScores.get(d) ?? null);
 
-  // Empty state: no logs and no moods logged yet
-  const hasAnyData = logHistory.length > 0 || moods.length > 0;
+  // Show content only when there are 3+ days of logged data
+  const hasSufficientData = logHistory.length >= 3;
 
   return (
     <SafeAreaView
@@ -558,9 +558,15 @@ export default function InsightsScreen() {
               Analysing your data
             </Text>
           </View>
-        ) : !hasAnyData ? (
-          <View style={{ paddingHorizontal: 20, paddingTop: 24 }}>
-            <EmptyState colors={colors} />
+        ) : !hasSufficientData ? (
+          <View style={[styles.emptyStateWrap, { paddingHorizontal: 20, paddingTop: 48 }]}>
+            <Feather name="bar-chart-2" size={36} color={colors.mutedForeground} style={{ alignSelf: "center", marginBottom: 16 }} />
+            <Text style={[styles.emptyStateHeading, { color: colors.foreground, fontFamily: "Inter_600SemiBold" }]}>
+              Not enough data yet
+            </Text>
+            <Text style={[styles.emptyStateBody, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
+              Keep tracking and your insights will appear here.
+            </Text>
           </View>
         ) : (
           <>
@@ -1001,6 +1007,9 @@ const styles = StyleSheet.create({
   },
 
   // Full empty state
+  emptyStateWrap: { alignItems: "center" },
+  emptyStateHeading: { fontSize: 18, textAlign: "center", marginBottom: 10 },
+  emptyStateBody: { fontSize: 14, textAlign: "center", lineHeight: 22 },
   emptyState: {
     borderRadius: 16,
     borderWidth: StyleSheet.hairlineWidth,
