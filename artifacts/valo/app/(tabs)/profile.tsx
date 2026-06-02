@@ -8,6 +8,7 @@ import {
   ScrollView,
   StyleSheet,
   Alert,
+  ActivityIndicator,
   Modal,
   Platform,
   Switch,
@@ -22,7 +23,8 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useColors } from "@/hooks/useColors";
 import { useValoAuth } from "@/contexts/AuthContext";
 import {
-  connectGoogleCalendar,
+  buildGoogleOAuthUrl,
+  exchangeGoogleAuthCode,
   syncGoogleCalendarEvents,
   isGoogleCalendarConnected,
   disconnectGoogleCalendar,
@@ -30,6 +32,8 @@ import {
   saveGoogleCalendarSelections,
   type GoogleCalendarInfo,
 } from "@/lib/googleCalendar";
+import { WebView } from "react-native-webview";
+import { requestHealthKitPermissions } from "@/lib/healthKit";
 import {
   requestNotificationPermissions,
   scheduleMorningBriefing,
@@ -342,6 +346,117 @@ function TimePickerModal({
     </Modal>
   );
 }
+
+// ─── Google Calendar OAuth modal ─────────────────────────────────────────────
+
+function GoogleCalendarOAuthModal({
+  visible,
+  getToken,
+  onSuccess,
+  onClose,
+}: {
+  visible: boolean;
+  getToken: () => Promise<string | null>;
+  onSuccess: () => void;
+  onClose: () => void;
+}) {
+  const colors = useColors();
+  const [authUrl, setAuthUrl] = useState<string | null>(null);
+  const [codeVerifier, setCodeVerifier] = useState("");
+  const [exchanging, setExchanging] = useState(false);
+
+  useEffect(() => {
+    if (visible) {
+      setAuthUrl(null);
+      setExchanging(false);
+      buildGoogleOAuthUrl()
+        .then(({ url, codeVerifier: cv }) => {
+          setAuthUrl(url);
+          setCodeVerifier(cv);
+        })
+        .catch(() => onClose());
+    }
+  }, [visible]);
+
+  return (
+    <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
+      <View style={{ flex: 1, backgroundColor: colors.background }}>
+        <View style={[gcOAuthStyles.header, { borderBottomColor: colors.border }]}>
+          <TouchableOpacity onPress={onClose} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+            <Feather name="x" size={20} color={colors.foreground} />
+          </TouchableOpacity>
+          <Text style={[gcOAuthStyles.title, { color: colors.foreground, fontFamily: "Inter_600SemiBold" }]}>
+            Connect Google Calendar
+          </Text>
+          <View style={{ width: 20 }} />
+        </View>
+
+        {exchanging ? (
+          <View style={gcOAuthStyles.center}>
+            <ActivityIndicator color={colors.primary} size="large" />
+            <Text style={[gcOAuthStyles.connectingText, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
+              Connecting…
+            </Text>
+          </View>
+        ) : authUrl ? (
+          <WebView
+            source={{ uri: authUrl }}
+            onShouldStartLoadWithRequest={(req: { url: string }) => {
+              const url = req.url;
+              if (url.startsWith("com.aaronlou06.valo:")) {
+                const match = url.match(/[?&]code=([^&]+)/);
+                if (match) {
+                  const code = decodeURIComponent(match[1]!);
+                  setExchanging(true);
+                  void exchangeGoogleAuthCode(code, codeVerifier, getToken).then((ok) => {
+                    if (ok) {
+                      onSuccess();
+                    } else {
+                      Alert.alert("Error", "Could not complete authorization. Please try again.");
+                      onClose();
+                    }
+                  });
+                } else {
+                  onClose();
+                }
+                return false;
+              }
+              return true;
+            }}
+          />
+        ) : (
+          <View style={gcOAuthStyles.center}>
+            <ActivityIndicator color={colors.primary} size="large" />
+          </View>
+        )}
+      </View>
+    </Modal>
+  );
+}
+
+const gcOAuthStyles = StyleSheet.create({
+  header: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+  },
+  title: {
+    flex: 1,
+    textAlign: "center",
+    fontSize: 15,
+  },
+  center: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 12,
+  },
+  connectingText: {
+    fontSize: 14,
+  },
+});
 
 // ─── Notifications modal ──────────────────────────────────────────────────────
 
@@ -696,6 +811,8 @@ export default function ProfileScreen() {
   const [gCalCount, setGCalCount] = useState<number | null>(null);
   const [googleCalendars, setGoogleCalendars] = useState<GoogleCalendarInfo[]>([]);
   const [loadingCalendars, setLoadingCalendars] = useState(false);
+  const [isHealthKitConnected, setIsHealthKitConnected] = useState(false);
+  const [showGCalOAuth, setShowGCalOAuth] = useState(false);
 
   // ── UI state ───────────────────────────────────────────────────────────────
   const [editingName, setEditingName] = useState(false);
@@ -747,6 +864,11 @@ export default function ProfileScreen() {
     const connected = await isGoogleCalendarConnected(getToken);
     setIsGCalConnected(connected);
     if (connected) void loadGoogleCalendars();
+
+    if (Platform.OS === "ios") {
+      const hkSynced = await AsyncStorage.getItem("@valo/healthkit-last-synced");
+      if (hkSynced) setIsHealthKitConnected(true);
+    }
 
     const raw = await AsyncStorage.getItem(RETAILER_STORAGE_KEY);
     if (raw) setRetailerConnected(JSON.parse(raw) as Record<string, boolean>);
@@ -842,11 +964,42 @@ export default function ProfileScreen() {
     setTimeout(() => setSavedField((cur) => (cur === field ? null : cur)), 2000);
   }
 
+  // ── Apple Health ───────────────────────────────────────────────────────────
+  async function handleHealthKitConnect() {
+    if (Platform.OS !== "ios") return;
+    const granted = await requestHealthKitPermissions();
+    if (granted) {
+      setIsHealthKitConnected(true);
+      await AsyncStorage.setItem("@valo/healthkit-permissions-requested", "true");
+    } else {
+      Alert.alert(
+        "Health Access Required",
+        "Please enable Apple Health access for Valo in Settings > Privacy & Security > Health.",
+        [{ text: "OK" }],
+      );
+    }
+  }
+
   // ── Google Calendar ────────────────────────────────────────────────────────
   async function handleGCalConnect() {
-    setConnectingGCal(true);
-    await connectGoogleCalendar(getToken);
+    setShowGCalOAuth(true);
+  }
+
+  async function handleGCalOAuthSuccess() {
+    setShowGCalOAuth(false);
     setConnectingGCal(false);
+    const connected = await isGoogleCalendarConnected(getToken);
+    setIsGCalConnected(connected);
+    if (connected) {
+      setGCalSyncing(true);
+      const token = await getToken();
+      if (token) {
+        const count = await syncGoogleCalendarEvents(token);
+        setGCalCount(count);
+      }
+      setGCalSyncing(false);
+      void loadGoogleCalendars();
+    }
   }
 
   async function handleGCalDisconnect() {
@@ -1213,6 +1366,44 @@ export default function ProfileScreen() {
             )}
           </View>
 
+          {/* Apple Health */}
+          {Platform.OS === "ios" && (
+            <View style={[styles.connectionCard, { backgroundColor: colors.card, borderColor: colors.border, marginTop: 12 }]}>
+              <View style={styles.connectionCardTop}>
+                <View style={styles.connectionLeft}>
+                  <View style={[styles.connectionIconWrap, { backgroundColor: colors.muted }]}>
+                    <Feather
+                      name="heart"
+                      size={16}
+                      color={isHealthKitConnected ? "#059669" : colors.mutedForeground}
+                    />
+                  </View>
+                  <Text style={[styles.connectionName, { color: colors.foreground, fontFamily: "Inter_500Medium" }]}>
+                    Apple Health
+                  </Text>
+                </View>
+                {isHealthKitConnected ? (
+                  <View style={[styles.connectedBadge, { backgroundColor: "#DCFCE7" }]}>
+                    <Feather name="check" size={12} color="#059669" />
+                    <Text style={[styles.badgeText, { color: "#059669", fontFamily: "Inter_500Medium" }]}>
+                      Connected
+                    </Text>
+                  </View>
+                ) : (
+                  <TouchableOpacity
+                    style={[styles.connectBtn, { backgroundColor: colors.primary }]}
+                    onPress={() => { void handleHealthKitConnect(); }}
+                    activeOpacity={0.8}
+                  >
+                    <Text style={[styles.connectBtnText, { color: colors.primaryForeground, fontFamily: "Inter_600SemiBold" }]}>
+                      Connect
+                    </Text>
+                  </TouchableOpacity>
+                )}
+              </View>
+            </View>
+          )}
+
           {/* Grocery retailer connections */}
           <View style={{ marginTop: 16 }}>
             <SectionLabel label="GROCERY ORDERING" />
@@ -1279,7 +1470,6 @@ export default function ProfileScreen() {
           {/* Coming-soon connections */}
           <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border, padding: 0, overflow: "hidden", marginTop: 16 }]}>
             {[
-              { key: "apple-health", icon: "heart", label: "Apple Health" },
               { key: "google-fit", icon: "activity", label: "Google Fit" },
               { key: "garmin", icon: "watch", label: "Garmin Connect" },
               { key: "whoop", icon: "zap", label: "Whoop" },
@@ -1530,6 +1720,13 @@ export default function ProfileScreen() {
           setShowTimePicker(false);
           await patchSettings({ preferredCallTime: hhmm }, "callTime");
         }}
+      />
+
+      <GoogleCalendarOAuthModal
+        visible={showGCalOAuth}
+        getToken={getToken}
+        onSuccess={() => { void handleGCalOAuthSuccess(); }}
+        onClose={() => setShowGCalOAuth(false)}
       />
 
       <NotificationsModal

@@ -6,7 +6,6 @@ import { useColors } from "@/hooks/useColors";
 import { requestHealthKitPermissions } from "@/lib/healthKit";
 import { useHealthKitSync } from "@/hooks/useHealthKitSync";
 import {
-  connectGoogleCalendar,
   syncGoogleCalendarEvents,
   isGoogleCalendarConnected,
 } from "@/lib/googleCalendar";
@@ -43,8 +42,11 @@ export default function StepConnect({ name, onComplete }: Props) {
   };
 
   const handleGCal = async () => {
-    await connectGoogleCalendar(getToken);
-    // Connection confirmed when the user returns from the browser; no immediate state change needed
+    Alert.alert(
+      "Connect in Profile",
+      "You can connect Google Calendar in the Connections section of your Profile.",
+      [{ text: "OK" }],
+    );
   };
 
   const connections = [

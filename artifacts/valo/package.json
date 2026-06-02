@@ -65,7 +65,8 @@
     "react-native-worklets": "0.5.1",
     "typescript": "~5.9.2",
     "zod": "catalog:",
-    "zod-validation-error": "^3.4.0"
+    "zod-validation-error": "^3.4.0",
+    "react-native-webview": "^13.0.0"
   },
   "dependencies": {
     "@react-native-community/slider": "^5.2.0",
