@@ -1,22 +1,19 @@
-import { Alert, Linking } from "react-native";
+import { Alert } from "react-native";
 
 function getApiBase(): string {
   const domain = process.env.EXPO_PUBLIC_DOMAIN;
   return domain ? `https://${domain}` : "";
 }
 
+const SECURE_STORE_KEY = "valo.google.calendar.token";
+
 export async function isGoogleCalendarConnected(
-  getToken: () => Promise<string | null>,
+  _getToken?: () => Promise<string | null>,
 ): Promise<boolean> {
   try {
-    const token = await getToken();
-    if (!token) return false;
-    const res = await fetch(`${getApiBase()}/api/google-calendar/status`, {
-      headers: { Authorization: `Bearer ${token}` },
-    });
-    if (!res.ok) return false;
-    const data = (await res.json()) as { connected: boolean };
-    return data.connected;
+    const SecureStore = (await import("expo-secure-store")) as typeof import("expo-secure-store");
+    const raw = await SecureStore.getItemAsync(SECURE_STORE_KEY);
+    return !!raw;
   } catch {
     return false;
   }
@@ -26,32 +23,64 @@ export async function connectGoogleCalendar(
   getToken: () => Promise<string | null>,
 ): Promise<void> {
   try {
-    const token = await getToken();
-    if (!token) {
-      Alert.alert("Not signed in", "Please sign in to connect Google Calendar.");
-      return;
-    }
+    const SecureStore = (await import("expo-secure-store")) as typeof import("expo-secure-store");
+    const AuthSession = (await import("expo-auth-session")) as typeof import("expo-auth-session");
 
-    const res = await fetch(`${getApiBase()}/api/auth/google/init`, {
-      headers: { Authorization: `Bearer ${token}` },
+    const CLIENT_ID = "421092683856-11b3biji2mcf9a1v8pjqbo0broed0m3u.apps.googleusercontent.com";
+    const REDIRECT_URI = "com.aaronlou06.valo:/oauth2redirect/google";
+    const SCOPES = [
+      "https://www.googleapis.com/auth/calendar.readonly",
+      "https://www.googleapis.com/auth/calendar.events.readonly",
+    ];
+    const discovery = {
+      authorizationEndpoint: "https://accounts.google.com/o/oauth2/v2/auth",
+      tokenEndpoint: "https://oauth2.googleapis.com/token",
+    };
+
+    const request = new AuthSession.AuthRequest({
+      clientId: CLIENT_ID,
+      scopes: SCOPES,
+      redirectUri: REDIRECT_URI,
+      usePKCE: true,
+      responseType: AuthSession.ResponseType.Code,
     });
 
-    if (!res.ok) {
-      if (res.status === 503) {
-        Alert.alert(
-          "Not available yet",
-          "Google Calendar sync is not yet configured. Check back soon.",
-        );
-      } else {
-        Alert.alert("Error", "Could not start Google Calendar connection. Please try again.");
-      }
-      return;
-    }
+    const result = await request.promptAsync(discovery);
+    if (result.type !== "success") return;
 
-    const data = (await res.json()) as { authUrl: string };
-    await Linking.openURL(data.authUrl);
+    const tokenResponse = await AuthSession.exchangeCodeAsync(
+      {
+        clientId: CLIENT_ID,
+        code: result.params.code ?? "",
+        redirectUri: REDIRECT_URI,
+        extraParams: request.codeVerifier ? { code_verifier: request.codeVerifier } : {},
+      },
+      discovery,
+    );
+
+    const tokenData = {
+      accessToken: tokenResponse.accessToken,
+      refreshToken: tokenResponse.refreshToken ?? null,
+      expiresIn: tokenResponse.expiresIn ?? null,
+      issuedAt: tokenResponse.issuedAt,
+    };
+
+    await SecureStore.setItemAsync(SECURE_STORE_KEY, JSON.stringify(tokenData));
+
+    // Notify server so it can sync events on behalf of the user
+    const authToken = await getToken();
+    if (authToken) {
+      await fetch(`${getApiBase()}/api/google-calendar/token`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${authToken}`,
+        },
+        body: JSON.stringify(tokenData),
+      }).catch(() => {});
+    }
   } catch {
-    Alert.alert("Error", "Could not open Google authorization. Please try again.");
+    Alert.alert("Error", "Could not complete Google Calendar authorization. Please try again.");
   }
 }
 
@@ -76,13 +105,18 @@ export async function disconnectGoogleCalendar(
   getToken: () => Promise<string | null>,
 ): Promise<boolean> {
   try {
+    const SecureStore = (await import("expo-secure-store")) as typeof import("expo-secure-store");
+    await SecureStore.deleteItemAsync(SECURE_STORE_KEY);
+
+    // Best-effort server-side cleanup
     const token = await getToken();
-    if (!token) return false;
-    const res = await fetch(`${getApiBase()}/api/google-calendar/disconnect`, {
-      method: "DELETE",
-      headers: { Authorization: `Bearer ${token}` },
-    });
-    return res.ok;
+    if (token) {
+      await fetch(`${getApiBase()}/api/google-calendar/disconnect`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${token}` },
+      }).catch(() => {});
+    }
+    return true;
   } catch {
     return false;
   }

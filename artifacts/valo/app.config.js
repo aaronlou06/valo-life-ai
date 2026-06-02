@@ -19,6 +19,7 @@ export default {
       bundleIdentifier: "com.aaronlou06.valo",
       entitlements: {
         "com.apple.developer.healthkit": true,
+        "com.apple.developer.push-notifications": true,
       },
       infoPlist: {
         NSMicrophoneUsageDescription:
@@ -27,7 +28,7 @@ export default {
           "Valo reads your health data to personalize your daily check-in and insights.",
         NSHealthUpdateUsageDescription:
           "Valo writes workout and mindfulness data to Apple Health.",
-        UIBackgroundModes: ["voip"],
+        UIBackgroundModes: ["voip", "remote-notification"],
         ITSAppUsesNonExemptEncryption: false,
       },
     },
@@ -58,6 +59,14 @@ export default {
         },
       ],
       "expo-font",
+      [
+        "expo-notifications",
+        {
+          icon: "./assets/images/icon.png",
+          color: "#C17B3F",
+          sounds: [],
+        },
+      ],
       [
         "react-native-health",
         {

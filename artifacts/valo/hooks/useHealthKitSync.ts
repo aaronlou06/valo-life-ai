@@ -44,18 +44,14 @@ export function useHealthKitSync(): HealthKitSyncState {
     if (Platform.OS !== "ios") return;
     if (isSyncingRef.current) return;
 
-    console.log("[HealthKit] syncNow called");
-
     isSyncingRef.current = true;
     setIsSyncing(true);
     try {
       const granted = await requestHealthKitPermissions();
-      console.log("[HealthKit] permissions:", granted);
       if (!granted) return;
       setIsPermissionsGranted(true);
 
       const data = await fetchTodayHealthData();
-      console.log("[HealthKit] data:", JSON.stringify(data));
 
       const hasData =
         data.sleepHours !== null ||
@@ -63,20 +59,15 @@ export function useHealthKitSync(): HealthKitSyncState {
         data.restingHeartRate !== null ||
         data.steps !== null;
 
-      if (!hasData) {
-        console.log("[HealthKit] no data to sync");
-        return;
-      }
+      if (!hasData) return;
 
       // Token with one retry in case AuthContext hasn't finished loading from
       // AsyncStorage yet (very short window at mount time).
       let token = await getToken();
       if (!token) {
-        console.log("[HealthKit] token null — waiting 2s for auth to load");
         await sleep(2000);
         token = await getToken();
       }
-      console.log("[HealthKit] token:", token ? "present" : "still null");
       if (!token) return;
 
       const body: Record<string, number> = {};
@@ -88,8 +79,8 @@ export function useHealthKitSync(): HealthKitSyncState {
       // Retry only on network/server errors. A 401 means the token is stale
       // — retrying with the same token won't help. AuthContext now validates
       // the token at startup and clears stale sessions, so a 401 here is an
-      // edge case (token rotated mid-session). Log it and bail; the isSignedIn
-      // watcher below will re-trigger once auth is re-established.
+      // edge case (token rotated mid-session). Clear session and bail; the
+      // isSignedIn watcher below will re-trigger once auth is re-established.
       let lastStatus = 0;
       for (let attempt = 1; attempt <= SERVER_RETRY_COUNT; attempt++) {
         try {
@@ -102,40 +93,31 @@ export function useHealthKitSync(): HealthKitSyncState {
             body: JSON.stringify(body),
           });
           lastStatus = res.status;
-          console.log(`[HealthKit] POST /api/daily-logs attempt ${attempt}: ${res.status}`);
 
           if (res.ok) {
             const now = new Date();
             setLastSynced(now);
             await AsyncStorage.setItem(LAST_SYNCED_KEY, now.toISOString());
-            return; // success
+            return;
           }
 
-          // Auth failure — token is stale. Retrying won't help. Clear the
-          // local session so the app routes to sign-in. Once the user signs
-          // in fresh the isSignedIn watcher below will re-trigger the sync.
+          // Auth failure — token is stale. Retrying won't help.
           if (res.status === 401 || res.status === 403) {
-            console.log("[HealthKit] auth failure — clearing stale session");
             await handleUnauthorized();
             return;
           }
-        } catch (fetchErr: unknown) {
+        } catch {
           // Network error — worth retrying
-          console.log(
-            `[HealthKit] fetch error attempt ${attempt}:`,
-            fetchErr instanceof Error ? fetchErr.message : String(fetchErr)
-          );
         }
 
         if (attempt < SERVER_RETRY_COUNT) {
-          console.log(`[HealthKit] retrying in ${SERVER_RETRY_DELAY_MS}ms (status ${lastStatus})`);
           await sleep(SERVER_RETRY_DELAY_MS);
         }
       }
 
-      console.log(`[HealthKit] all ${SERVER_RETRY_COUNT} attempts failed, last status: ${lastStatus}`);
-    } catch (err: unknown) {
-      console.log("[HealthKit] sync error:", err instanceof Error ? err.message : String(err));
+      void lastStatus; // suppress unused-variable warning
+    } catch {
+      // ignore
     } finally {
       isSyncingRef.current = false;
       setIsSyncing(false);
@@ -161,7 +143,6 @@ export function useHealthKitSync(): HealthKitSyncState {
         if (granted) {
           // Delay to give AuthContext time to finish the /api/auth/me validation
           // and settle into a known-good auth state before the first sync attempt.
-          console.log(`[HealthKit] delaying initial sync ${MOUNT_DELAY_MS}ms`);
           await sleep(MOUNT_DELAY_MS);
           await syncNow();
         }

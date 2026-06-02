@@ -51,31 +51,19 @@ export type DailyHealthData = {
 };
 
 export async function requestHealthKitPermissions(): Promise<boolean> {
-  console.log('[HealthKit] requestPermissions called, AppleHealthKit:', !!AppleHealthKit);
   if (!AppleHealthKit) return false;
 
   const available: boolean = await new Promise((resolve) => {
     AppleHealthKit.isAvailable((err: any, result: boolean) => {
-      console.log('[HealthKit] isAvailable err:', err, 'result:', result);
       resolve(!err && result);
     });
   });
 
-  if (!available) {
-    console.log('[HealthKit] HealthKit not available on this device');
-    return false;
-  }
+  if (!available) return false;
 
   return new Promise((resolve) => {
-    console.log('[HealthKit] initHealthKit called');
     AppleHealthKit.initHealthKit(HealthKitPermissions, (err: any) => {
-      if (err) {
-        console.log('[HealthKit] initHealthKit error:', JSON.stringify(err));
-        resolve(false);
-      } else {
-        console.log('[HealthKit] initHealthKit success');
-        resolve(true);
-      }
+      resolve(!err);
     });
   });
 }
@@ -88,12 +76,7 @@ export async function fetchSteps(): Promise<number | null> {
       includeManuallyAdded: true,
     };
     AppleHealthKit.getStepCount(options, (err: any, result: any) => {
-      if (err) {
-        console.log('[HealthKit] getStepCount error:', JSON.stringify(err));
-        resolve(null);
-        return;
-      }
-      console.log('[HealthKit] getStepCount raw:', JSON.stringify(result));
+      if (err) { resolve(null); return; }
       resolve(result?.value ?? null);
     });
   });
@@ -115,17 +98,7 @@ export async function fetchRestingHeartRate(): Promise<number | null> {
       limit: 1,
     };
     AppleHealthKit.getRestingHeartRateSamples(options, (err: any, results: any) => {
-      if (err) {
-        console.log('[HealthKit] getRestingHeartRateSamples error:', JSON.stringify(err));
-        resolve(null);
-        return;
-      }
-      console.log('[HealthKit] getRestingHeartRateSamples raw count:', results?.length ?? 0, 'first:', JSON.stringify(results?.[0]));
-      if (!results?.length) {
-        console.log('[HealthKit] RHR: Watch has not recorded resting heart rate in last 48h');
-        resolve(null);
-        return;
-      }
+      if (err || !results?.length) { resolve(null); return; }
       resolve(Math.round(results[0].value));
     });
   });
@@ -147,17 +120,7 @@ export async function fetchHRV(): Promise<number | null> {
       limit: 1,
     };
     AppleHealthKit.getHeartRateVariabilitySamples(options, (err: any, results: any) => {
-      if (err) {
-        console.log('[HealthKit] getHeartRateVariabilitySamples error:', JSON.stringify(err));
-        resolve(null);
-        return;
-      }
-      console.log('[HealthKit] getHeartRateVariabilitySamples raw count:', results?.length ?? 0, 'first:', JSON.stringify(results?.[0]));
-      if (!results?.length) {
-        console.log('[HealthKit] HRV: Watch has not recorded HRV in last 48h');
-        resolve(null);
-        return;
-      }
+      if (err || !results?.length) { resolve(null); return; }
       // HealthKit stores HRV (SDNN) in seconds; multiply by 1000 for milliseconds.
       // DB column is integer so round to nearest ms.
       const ms = Math.round((results[0].value ?? 0) * 1000);
@@ -182,13 +145,7 @@ export async function fetchSleepHours(): Promise<number | null> {
       endDate: now.toISOString(),
     };
     AppleHealthKit.getSleepSamples(options, (err: any, results: any) => {
-      if (err) {
-        console.log('[HealthKit] getSleepSamples error:', JSON.stringify(err));
-        resolve(null);
-        return;
-      }
-      console.log('[HealthKit] getSleepSamples raw count:', results?.length ?? 0, 'first:', JSON.stringify(results?.[0]));
-      if (!results?.length) { resolve(null); return; }
+      if (err || !results?.length) { resolve(null); return; }
 
       // Sum only confirmed-asleep stages (exclude INBED / AWAKE).
       // The native library maps watchOS 9+ stages as "CORE", "DEEP", "REM"
@@ -200,7 +157,6 @@ export async function fetchSleepHours(): Promise<number | null> {
           s.value === "DEEP" ||
           s.value === "REM"
       );
-      console.log('[HealthKit] getSleepSamples asleep count:', asleepSamples.length);
 
       const totalMs = asleepSamples.reduce((sum: number, s: any) => {
         const start = new Date(s.startDate).getTime();
@@ -226,13 +182,7 @@ export async function fetchActiveCalories(): Promise<number | null> {
       endDate: now.toISOString(),
     };
     AppleHealthKit.getActiveEnergyBurned(options, (err: any, results: any) => {
-      if (err) {
-        console.log('[HealthKit] getActiveEnergyBurned error:', JSON.stringify(err));
-        resolve(null);
-        return;
-      }
-      console.log('[HealthKit] getActiveEnergyBurned raw count:', results?.length ?? 0);
-      if (!results?.length) { resolve(null); return; }
+      if (err || !results?.length) { resolve(null); return; }
       const total = results.reduce((sum: number, s: any) => sum + (s.value ?? 0), 0);
       resolve(total > 0 ? Math.round(total) : null);
     });

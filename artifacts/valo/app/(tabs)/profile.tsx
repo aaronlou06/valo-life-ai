@@ -31,6 +31,12 @@ import {
   type GoogleCalendarInfo,
 } from "@/lib/googleCalendar";
 import {
+  requestNotificationPermissions,
+  scheduleMorningBriefing,
+  scheduleCheckinReminder,
+  cancelAllNotifications,
+} from "@/lib/notifications";
+import {
   useListGoals,
   useListHabits,
   useGetDashboard,
@@ -342,10 +348,12 @@ function TimePickerModal({
 function NotificationsModal({
   visible,
   callTime,
+  getToken,
   onClose,
 }: {
   visible: boolean;
   callTime: string;
+  getToken: () => Promise<string | null>;
   onClose: () => void;
 }) {
   const colors = useColors();
@@ -371,6 +379,49 @@ function NotificationsModal({
       await AsyncStorage.setItem(NOTIF_PREFS_KEY, JSON.stringify(next));
       setSavedKey(key);
       setTimeout(() => setSavedKey((cur) => (cur === key ? null : cur)), 1800);
+
+      // Request permissions on first enable
+      const anyEnabled = Object.values(next).some(Boolean);
+      if (anyEnabled) {
+        await requestNotificationPermissions();
+      }
+
+      // Schedule or cancel based on the new prefs
+      if (next.morningBriefing) {
+        await scheduleMorningBriefing("07:00");
+      } else if (key === "morningBriefing") {
+        const { cancelScheduledNotificationAsync } = (await import("expo-notifications")) as typeof import("expo-notifications");
+        await cancelScheduledNotificationAsync("valo.morning-briefing").catch(() => {});
+      }
+
+      if (next.dailyReminder) {
+        await scheduleCheckinReminder(callTime);
+      } else if (key === "dailyReminder") {
+        const { cancelScheduledNotificationAsync } = (await import("expo-notifications")) as typeof import("expo-notifications");
+        await cancelScheduledNotificationAsync("valo.checkin-reminder").catch(() => {});
+      }
+
+      if (!anyEnabled) {
+        await cancelAllNotifications();
+      }
+
+      // Persist to server
+      const token = await getToken();
+      if (token) {
+        await fetch(`${getApiBase()}/api/settings`, {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            notificationsEnabled: anyEnabled,
+            morningBriefingEnabled: next.morningBriefing,
+            checkinReminderEnabled: next.dailyReminder,
+            habitRemindersEnabled: next.habitReminders,
+          }),
+        }).catch(() => {});
+      }
     } catch {}
   }
 
@@ -1484,6 +1535,7 @@ export default function ProfileScreen() {
       <NotificationsModal
         visible={showNotifications}
         callTime={callTime}
+        getToken={getToken}
         onClose={() => setShowNotifications(false)}
       />
 
