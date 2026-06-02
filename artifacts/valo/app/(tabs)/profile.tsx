@@ -8,7 +8,7 @@ import {
   ScrollView,
   StyleSheet,
   Alert,
-  ActivityIndicator,
+  Linking,
   Modal,
   Platform,
   Switch,
@@ -32,7 +32,6 @@ import {
   saveGoogleCalendarSelections,
   type GoogleCalendarInfo,
 } from "@/lib/googleCalendar";
-import { WebView } from "react-native-webview";
 import { requestHealthKitPermissions } from "@/lib/healthKit";
 import {
   requestNotificationPermissions,
@@ -346,117 +345,6 @@ function TimePickerModal({
     </Modal>
   );
 }
-
-// ─── Google Calendar OAuth modal ─────────────────────────────────────────────
-
-function GoogleCalendarOAuthModal({
-  visible,
-  getToken,
-  onSuccess,
-  onClose,
-}: {
-  visible: boolean;
-  getToken: () => Promise<string | null>;
-  onSuccess: () => void;
-  onClose: () => void;
-}) {
-  const colors = useColors();
-  const [authUrl, setAuthUrl] = useState<string | null>(null);
-  const [codeVerifier, setCodeVerifier] = useState("");
-  const [exchanging, setExchanging] = useState(false);
-
-  useEffect(() => {
-    if (visible) {
-      setAuthUrl(null);
-      setExchanging(false);
-      buildGoogleOAuthUrl()
-        .then(({ url, codeVerifier: cv }) => {
-          setAuthUrl(url);
-          setCodeVerifier(cv);
-        })
-        .catch(() => onClose());
-    }
-  }, [visible]);
-
-  return (
-    <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
-      <View style={{ flex: 1, backgroundColor: colors.background }}>
-        <View style={[gcOAuthStyles.header, { borderBottomColor: colors.border }]}>
-          <TouchableOpacity onPress={onClose} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
-            <Feather name="x" size={20} color={colors.foreground} />
-          </TouchableOpacity>
-          <Text style={[gcOAuthStyles.title, { color: colors.foreground, fontFamily: "Inter_600SemiBold" }]}>
-            Connect Google Calendar
-          </Text>
-          <View style={{ width: 20 }} />
-        </View>
-
-        {exchanging ? (
-          <View style={gcOAuthStyles.center}>
-            <ActivityIndicator color={colors.primary} size="large" />
-            <Text style={[gcOAuthStyles.connectingText, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
-              Connecting…
-            </Text>
-          </View>
-        ) : authUrl ? (
-          <WebView
-            source={{ uri: authUrl }}
-            onShouldStartLoadWithRequest={(req: { url: string }) => {
-              const url = req.url;
-              if (url.startsWith("com.aaronlou06.valo:")) {
-                const match = url.match(/[?&]code=([^&]+)/);
-                if (match) {
-                  const code = decodeURIComponent(match[1]!);
-                  setExchanging(true);
-                  void exchangeGoogleAuthCode(code, codeVerifier, getToken).then((ok) => {
-                    if (ok) {
-                      onSuccess();
-                    } else {
-                      Alert.alert("Error", "Could not complete authorization. Please try again.");
-                      onClose();
-                    }
-                  });
-                } else {
-                  onClose();
-                }
-                return false;
-              }
-              return true;
-            }}
-          />
-        ) : (
-          <View style={gcOAuthStyles.center}>
-            <ActivityIndicator color={colors.primary} size="large" />
-          </View>
-        )}
-      </View>
-    </Modal>
-  );
-}
-
-const gcOAuthStyles = StyleSheet.create({
-  header: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-  },
-  title: {
-    flex: 1,
-    textAlign: "center",
-    fontSize: 15,
-  },
-  center: {
-    flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 12,
-  },
-  connectingText: {
-    fontSize: 14,
-  },
-});
 
 // ─── Notifications modal ──────────────────────────────────────────────────────
 
@@ -812,7 +700,6 @@ export default function ProfileScreen() {
   const [googleCalendars, setGoogleCalendars] = useState<GoogleCalendarInfo[]>([]);
   const [loadingCalendars, setLoadingCalendars] = useState(false);
   const [isHealthKitConnected, setIsHealthKitConnected] = useState(false);
-  const [showGCalOAuth, setShowGCalOAuth] = useState(false);
 
   // ── UI state ───────────────────────────────────────────────────────────────
   const [editingName, setEditingName] = useState(false);
@@ -982,12 +869,38 @@ export default function ProfileScreen() {
 
   // ── Google Calendar ────────────────────────────────────────────────────────
   async function handleGCalConnect() {
-    setShowGCalOAuth(true);
+    setConnectingGCal(true);
+    try {
+      const { url, codeVerifier } = await buildGoogleOAuthUrl();
+
+      const subscription = Linking.addEventListener("url", async ({ url: redirectUrl }) => {
+        if (!redirectUrl.startsWith("com.aaronlou06.valo:/oauth2redirect/google")) return;
+        subscription.remove();
+
+        const match = redirectUrl.match(/[?&]code=([^&]+)/);
+        if (!match) {
+          setConnectingGCal(false);
+          return;
+        }
+
+        const code = decodeURIComponent(match[1]!);
+        const ok = await exchangeGoogleAuthCode(code, codeVerifier, getToken);
+        setConnectingGCal(false);
+        if (ok) {
+          void handleGCalOAuthSuccess();
+        } else {
+          Alert.alert("Error", "Could not complete authorization. Please try again.");
+        }
+      });
+
+      await Linking.openURL(url);
+    } catch {
+      setConnectingGCal(false);
+      Alert.alert("Error", "Could not open authorization page. Please try again.");
+    }
   }
 
   async function handleGCalOAuthSuccess() {
-    setShowGCalOAuth(false);
-    setConnectingGCal(false);
     const connected = await isGoogleCalendarConnected(getToken);
     setIsGCalConnected(connected);
     if (connected) {
@@ -1720,13 +1633,6 @@ export default function ProfileScreen() {
           setShowTimePicker(false);
           await patchSettings({ preferredCallTime: hhmm }, "callTime");
         }}
-      />
-
-      <GoogleCalendarOAuthModal
-        visible={showGCalOAuth}
-        getToken={getToken}
-        onSuccess={() => { void handleGCalOAuthSuccess(); }}
-        onClose={() => setShowGCalOAuth(false)}
       />
 
       <NotificationsModal
