@@ -34,6 +34,10 @@ router.get("/insights", requireAuth, async (req, res): Promise<void> => {
   }
 
   const rows = await generateDailyInsights(userId, today);
+  if (rows.length === 0) {
+    res.json([]);
+    return;
+  }
   const saved = await db
     .insert(insightsTable)
     .values(
@@ -59,6 +63,10 @@ router.post("/insights/refresh", requireAuth, async (req, res): Promise<void> =>
     .where(and(eq(insightsTable.userId, userId), eq(insightsTable.date, today)));
 
   const rows = await generateDailyInsights(userId, today);
+  if (rows.length === 0) {
+    res.json([]);
+    return;
+  }
   const saved = await db
     .insert(insightsTable)
     .values(

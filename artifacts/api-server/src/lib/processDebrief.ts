@@ -61,7 +61,15 @@ export async function processDebriefTranscript(
     });
     const block = message.content[0];
     if (block && block.type === "text") {
-      extraction = JSON.parse(block.text.trim()) as Record<string, unknown>;
+      let raw = block.text.trim();
+      // Claude sometimes wraps JSON in ```json ... ``` despite instructions
+      const fenceMatch = raw.match(/^```(?:json)?\s*\n?([\s\S]*?)\n?```\s*$/);
+      if (fenceMatch?.[1]) raw = fenceMatch[1].trim();
+      if (!raw.startsWith("{")) {
+        const objStart = raw.indexOf("{");
+        if (objStart >= 0) raw = raw.slice(objStart);
+      }
+      extraction = JSON.parse(raw) as Record<string, unknown>;
     }
   } catch (err) {
     logger.error({ err }, "Claude extraction failed in processDebriefTranscript");

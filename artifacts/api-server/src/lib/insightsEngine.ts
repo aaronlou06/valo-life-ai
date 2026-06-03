@@ -280,9 +280,13 @@ Return only valid JSON array, no markdown.`;
     const block = message.content[0];
     if (!block || block.type !== "text") throw new Error("No text block");
 
-    const text = block.text.trim();
-    const jsonText = text.startsWith("[") ? text : text.slice(text.indexOf("["));
-    const parsed = JSON.parse(jsonText) as InsightRow[];
+    let text = block.text.trim();
+    // Claude sometimes wraps JSON in ```json ... ``` despite instructions
+    const fenceMatch = text.match(/^```(?:json)?\s*\n?([\s\S]*?)\n?```\s*$/);
+    if (fenceMatch?.[1]) text = fenceMatch[1].trim();
+    const arrayStart = text.indexOf("[");
+    if (arrayStart > 0) text = text.slice(arrayStart);
+    const parsed = JSON.parse(text) as InsightRow[];
     if (!Array.isArray(parsed) || parsed.length === 0) throw new Error("Invalid JSON array");
     return parsed;
   } catch (err) {
