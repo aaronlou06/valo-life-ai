@@ -19,6 +19,7 @@ export default {
       bundleIdentifier: "com.aaronlou06.valo",
       entitlements: {
         "com.apple.developer.healthkit": true,
+        "aps-environment": "development",
       },
       infoPlist: {
         NSMicrophoneUsageDescription:
@@ -58,6 +59,13 @@ export default {
         },
       ],
       "expo-font",
+      [
+        "expo-notifications",
+        {
+          icon: "./assets/images/icon.png",
+          color: "#C17B3F",
+        },
+      ],
       [
         "react-native-health",
         {

@@ -39,4 +39,6 @@ export * from "./routineUpdate";
 export * from "./saveOnboarding200";
 export * from "./streakData";
 export * from "./toggleHabitCompletionInput";
+export * from "./updateSettings";
+export * from "./updateSettings200";
 export * from "./userSettings";

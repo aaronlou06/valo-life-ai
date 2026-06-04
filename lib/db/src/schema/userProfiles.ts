@@ -29,6 +29,7 @@ export const userProfilesTable = pgTable("user_profiles", {
   birthday: text("birthday"),
   preferredLanguage: text("preferred_language"),
   microphonePermission: boolean("microphone_permission"),
+  expoPushToken: text("expo_push_token"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 });

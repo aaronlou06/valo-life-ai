@@ -483,6 +483,27 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/UserSettings"
+    patch:
+      operationId: updateSettings
+      tags: [settings]
+      summary: Update authenticated user settings
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateSettings"
+      responses:
+        "200":
+          description: Updated successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [ok]
+                properties:
+                  ok:
+                    type: boolean
 
   /analyze-image:
     post:
@@ -643,6 +664,26 @@ components:
           type: boolean
         firstCallCompleted:
           type: boolean
+        expoPushToken:
+          type: ["string", "null"]
+
+    UpdateSettings:
+      type: object
+      properties:
+        phoneNumber:
+          type: ["string", "null"]
+        preferredCallTime:
+          type: ["string", "null"]
+        callTimezone:
+          type: ["string", "null"]
+        callsEnabled:
+          type: boolean
+        name:
+          type: ["string", "null"]
+        lifePriorities:
+          type: ["string", "null"]
+        expoPushToken:
+          type: ["string", "null"]
 
     HealthStatus:
       type: object

@@ -10,6 +10,7 @@ import { setAuthTokenGetter } from "@workspace/api-client-react";
 import { useColors } from "@/hooks/useColors";
 import { useValoAuth } from "@/contexts/AuthContext";
 import { isOnboardingComplete, loadOnboardingState } from "@/hooks/onboardingState";
+import { registerForPushNotifications } from "@/lib/notifications";
 
 function NativeTabLayout() {
   return (
@@ -122,6 +123,11 @@ export default function TabLayout() {
   useEffect(() => {
     setAuthTokenGetter(() => getToken());
   }, [getToken]);
+
+  useEffect(() => {
+    if (!isSignedIn) return;
+    void registerForPushNotifications("04049eee-fcc9-49b2-808f-1485e9edcb08", getToken);
+  }, [isSignedIn, getToken]);
 
   useEffect(() => {
     if (!isSignedIn || isOnboardingComplete()) {

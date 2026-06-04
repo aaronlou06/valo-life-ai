@@ -25,6 +25,7 @@ router.get("/settings", requireAuth, async (req, res): Promise<void> => {
     lifePriorities: profile?.lifePriorities ?? null,
     onboardingCompleted: profile?.onboardingCompleted ?? false,
     firstCallCompleted: profile?.firstCallCompleted ?? false,
+    expoPushToken: profile?.expoPushToken ?? null,
   });
 });
 
@@ -37,6 +38,7 @@ router.patch("/settings", requireAuth, async (req, res): Promise<void> => {
     callsEnabled,
     name,
     lifePriorities,
+    expoPushToken,
   } = req.body as {
     phoneNumber?: string | null;
     preferredCallTime?: string | null;
@@ -44,6 +46,7 @@ router.patch("/settings", requireAuth, async (req, res): Promise<void> => {
     callsEnabled?: boolean;
     name?: string | null;
     lifePriorities?: string | null;
+    expoPushToken?: string | null;
   };
 
   const updateValues: Partial<{
@@ -53,6 +56,7 @@ router.patch("/settings", requireAuth, async (req, res): Promise<void> => {
     callsEnabled: boolean;
     name: string | null;
     lifePriorities: string | null;
+    expoPushToken: string | null;
   }> = {};
 
   if (phoneNumber !== undefined) updateValues.phoneNumber = phoneNumber;
@@ -61,6 +65,7 @@ router.patch("/settings", requireAuth, async (req, res): Promise<void> => {
   if (callsEnabled !== undefined) updateValues.callsEnabled = callsEnabled;
   if (name !== undefined) updateValues.name = name;
   if (lifePriorities !== undefined) updateValues.lifePriorities = lifePriorities;
+  if (expoPushToken !== undefined) updateValues.expoPushToken = expoPushToken;
 
   const existing = await db
     .select({ id: userProfilesTable.id })

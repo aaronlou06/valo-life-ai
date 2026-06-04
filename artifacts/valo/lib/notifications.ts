@@ -11,6 +11,53 @@ export async function requestNotificationPermissions(): Promise<boolean> {
   }
 }
 
+/**
+ * Requests notification permission (if not already granted), retrieves the
+ * Expo push token, and persists it to the server via PATCH /api/settings.
+ *
+ * Safe to call on every authenticated app launch — it is a no-op on
+ * simulators (Expo push tokens only work on physical devices) and exits
+ * silently on any error so it never blocks the UI.
+ */
+export async function registerForPushNotifications(
+  projectId: string,
+  getToken: () => Promise<string | null>
+): Promise<void> {
+  try {
+    const Device = (await import("expo-device")) as typeof import("expo-device");
+    if (!Device.isDevice) return;
+
+    const Notifications = (await import("expo-notifications")) as typeof import("expo-notifications");
+    const { status: existing } = await Notifications.getPermissionsAsync();
+    let finalStatus = existing;
+    if (existing !== "granted") {
+      const { status } = await Notifications.requestPermissionsAsync();
+      finalStatus = status;
+    }
+    if (finalStatus !== "granted") return;
+
+    const tokenData = await Notifications.getExpoPushTokenAsync({ projectId });
+    const pushToken = tokenData.data;
+
+    const authToken = await getToken();
+    if (!authToken) return;
+
+    const apiBase = process.env.EXPO_PUBLIC_DOMAIN
+      ? `https://${process.env.EXPO_PUBLIC_DOMAIN}`
+      : "";
+    await fetch(`${apiBase}/api/settings`, {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${authToken}`,
+      },
+      body: JSON.stringify({ expoPushToken: pushToken }),
+    });
+  } catch {
+    // Registration errors must never surface to the user
+  }
+}
+
 export async function scheduleMorningBriefing(time: string): Promise<void> {
   try {
     const Notifications = (await import("expo-notifications")) as typeof import("expo-notifications");

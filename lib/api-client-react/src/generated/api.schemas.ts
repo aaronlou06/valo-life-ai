@@ -19,6 +19,24 @@ export interface UserSettings {
   lifePriorities?: string | null;
   onboardingCompleted: boolean;
   firstCallCompleted: boolean;
+  /** @nullable */
+  expoPushToken?: string | null;
+}
+
+export interface UpdateSettings {
+  /** @nullable */
+  phoneNumber?: string | null;
+  /** @nullable */
+  preferredCallTime?: string | null;
+  /** @nullable */
+  callTimezone?: string | null;
+  callsEnabled?: boolean;
+  /** @nullable */
+  name?: string | null;
+  /** @nullable */
+  lifePriorities?: string | null;
+  /** @nullable */
+  expoPushToken?: string | null;
 }
 
 export interface HealthStatus {
@@ -403,5 +421,9 @@ export interface InsightPattern {
 }
 
 export type SaveOnboarding200 = {
+  ok: boolean;
+};
+
+export type UpdateSettings200 = {
   ok: boolean;
 };

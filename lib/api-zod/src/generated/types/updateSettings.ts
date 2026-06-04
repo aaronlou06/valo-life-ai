@@ -6,20 +6,18 @@
  * OpenAPI spec version: 0.1.0
  */
 
-export interface UserSettings {
+export interface UpdateSettings {
   /** @nullable */
   phoneNumber?: string | null;
   /** @nullable */
   preferredCallTime?: string | null;
   /** @nullable */
   callTimezone?: string | null;
-  callsEnabled: boolean;
+  callsEnabled?: boolean;
   /** @nullable */
   name?: string | null;
   /** @nullable */
   lifePriorities?: string | null;
-  onboardingCompleted: boolean;
-  firstCallCompleted: boolean;
   /** @nullable */
   expoPushToken?: string | null;
 }

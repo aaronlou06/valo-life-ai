@@ -447,6 +447,24 @@ export const GetSettingsResponse = zod.object({
   lifePriorities: zod.string().nullish(),
   onboardingCompleted: zod.boolean(),
   firstCallCompleted: zod.boolean(),
+  expoPushToken: zod.string().nullish(),
+});
+
+/**
+ * @summary Update authenticated user settings
+ */
+export const UpdateSettingsBody = zod.object({
+  phoneNumber: zod.string().nullish(),
+  preferredCallTime: zod.string().nullish(),
+  callTimezone: zod.string().nullish(),
+  callsEnabled: zod.boolean().optional(),
+  name: zod.string().nullish(),
+  lifePriorities: zod.string().nullish(),
+  expoPushToken: zod.string().nullish(),
+});
+
+export const UpdateSettingsResponse = zod.object({
+  ok: zod.boolean(),
 });
 
 /**
