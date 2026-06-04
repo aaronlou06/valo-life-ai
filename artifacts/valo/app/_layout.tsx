@@ -61,6 +61,7 @@ function RootLayoutNav() {
       <Stack.Screen name="settings" />
       <Stack.Screen name="goal/[id]" />
       <Stack.Screen name="meal-planner" options={{ presentation: "modal" }} />
+      <Stack.Screen name="oauth2redirect/google" />
     </Stack>
   );
 }

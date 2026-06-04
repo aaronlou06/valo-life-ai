@@ -830,6 +830,7 @@ export default function ProfileScreen() {
           setIsGCalConnected(connected);
           if (connected && !wasConnected) {
             if (linkTimeoutId) { clearTimeout(linkTimeoutId); linkTimeoutId = null; }
+            setConnectingGCal(false);
             setGCalSyncing(true);
             const token = await getToken();
             if (token) {
@@ -1082,20 +1083,13 @@ export default function ProfileScreen() {
     try {
       const { url, codeVerifier } = await buildGoogleOAuthUrl();
 
-      // Persist verifier before opening Safari so cold-start recovery works
+      // Persist verifier to AsyncStorage — the OAuth callback screen
+      // (app/oauth2redirect/google.tsx) will read it when expo-router routes
+      // the redirect deep link there.
       codeVerifierRef.current = codeVerifier;
       await savePkceVerifier(codeVerifier);
-      console.log("[GCal] PKCE verifier saved, registering Linking listener");
+      console.log("[GCal] PKCE verifier saved, opening Safari");
 
-      // Register listener BEFORE openURL so no redirect can slip through
-      const subscription = Linking.addEventListener("url", async ({ url: redirectUrl }) => {
-        console.log("[GCal] Linking event fired:", redirectUrl);
-        if (!redirectUrl.startsWith(GOOGLE_OAUTH_PREFIX)) return;
-        subscription.remove();
-        await handleOAuthUrl(redirectUrl);
-      });
-
-      console.log("[GCal] Opening Safari for OAuth:", url);
       await Linking.openURL(url);
     } catch (err) {
       console.log("[GCal] Failed to launch OAuth:", err);
