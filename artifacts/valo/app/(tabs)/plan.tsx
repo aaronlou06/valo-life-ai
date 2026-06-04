@@ -18,7 +18,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { cancelGoalReminders } from "@/lib/notifications";
+import { cancelGoalReminders, hasGoalReminders } from "@/lib/notifications";
 import { useColors } from "@/hooks/useColors";
 import { useValoAuth } from "@/contexts/AuthContext";
 import {
@@ -1953,6 +1953,17 @@ export default function PlanScreen() {
   const [showGoalInput, setShowGoalInput] = useState(false);
   const [editingGoalId, setEditingGoalId] = useState<number | null>(null);
   const [editingGoalPct, setEditingGoalPct] = useState(0);
+  const [goalRemindersMap, setGoalRemindersMap] = useState<Record<number, boolean>>({});
+
+  useEffect(() => {
+    if (!goals?.length) return;
+    goals.forEach((g) => {
+      if (!g.targetDate) return;
+      hasGoalReminders(g.id)
+        .then((active) => setGoalRemindersMap((prev) => ({ ...prev, [g.id]: active })))
+        .catch(() => {});
+    });
+  }, [goals]);
 
   // ── Calendar state ──
   const [viewMode, setViewMode] = useState<"month" | "week" | "year">("month");
@@ -2327,6 +2338,7 @@ export default function PlanScreen() {
                   <Text style={[planStyles.goalTitle, { color: colors.foreground, fontFamily: "Inter_600SemiBold" }]} numberOfLines={2}>{goal.title}</Text>
                   <TouchableOpacity onPress={() => {
                     cancelGoalReminders(goal.id).catch(() => {});
+                    setGoalRemindersMap((prev) => { const next = { ...prev }; delete next[goal.id]; return next; });
                     deleteGoal.mutate({ id: goal.id });
                     queryClient.invalidateQueries({ queryKey: getListGoalsQueryKey() });
                   }}>
@@ -2334,7 +2346,12 @@ export default function PlanScreen() {
                   </TouchableOpacity>
                 </View>
                 {goal.targetDate && (
-                  <Text style={[planStyles.goalDate, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>Target: {goal.targetDate}</Text>
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: 5 }}>
+                    <Text style={[planStyles.goalDate, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>Target: {goal.targetDate}</Text>
+                    {goalRemindersMap[goal.id] && (
+                      <Feather name="bell" size={11} color={colors.primary} />
+                    )}
+                  </View>
                 )}
                 <TouchableOpacity
                   style={planStyles.progressRow}
