@@ -24,6 +24,7 @@ import * as MailComposer from "expo-mail-composer";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useColors } from "@/hooks/useColors";
 import { useValoAuth } from "@/contexts/AuthContext";
+import { useHealthKitSync } from "@/hooks/useHealthKitSync";
 import {
   buildGoogleOAuthUrl,
   exchangeGoogleAuthCode,
@@ -704,7 +705,12 @@ export default function ProfileScreen() {
   const [gCalCount, setGCalCount] = useState<number | null>(null);
   const [googleCalendars, setGoogleCalendars] = useState<GoogleCalendarInfo[]>([]);
   const [loadingCalendars, setLoadingCalendars] = useState(false);
-  const [isHealthKitConnected, setIsHealthKitConnected] = useState(false);
+  const {
+    isPermissionsGranted: isHealthKitConnected,
+    isSyncing: isHealthKitSyncing,
+    lastSynced: healthKitLastSynced,
+    syncNow: syncHealthKitNow,
+  } = useHealthKitSync();
 
   // ── UI state ───────────────────────────────────────────────────────────────
   const [editingName, setEditingName] = useState(false);
@@ -756,11 +762,6 @@ export default function ProfileScreen() {
     const connected = await isGoogleCalendarConnected(getToken);
     setIsGCalConnected(connected);
     if (connected) void loadGoogleCalendars();
-
-    if (Platform.OS === "ios") {
-      const hkSynced = await AsyncStorage.getItem("@valo/healthkit-last-synced");
-      if (hkSynced) setIsHealthKitConnected(true);
-    }
 
     const raw = await AsyncStorage.getItem(RETAILER_STORAGE_KEY);
     if (raw) setRetailerConnected(JSON.parse(raw) as Record<string, boolean>);
@@ -937,8 +938,8 @@ export default function ProfileScreen() {
     if (Platform.OS !== "ios") return;
     const granted = await requestHealthKitPermissions();
     if (granted) {
-      setIsHealthKitConnected(true);
       await AsyncStorage.setItem("@valo/healthkit-permissions-requested", "true");
+      void syncHealthKitNow();
     } else {
       Alert.alert(
         "Health Access Required",
@@ -946,6 +947,18 @@ export default function ProfileScreen() {
         [{ text: "OK" }],
       );
     }
+  }
+
+  function formatLastSynced(date: Date | null): string {
+    if (!date) return "Never synced";
+    const diffMs = Date.now() - date.getTime();
+    const diffMins = Math.floor(diffMs / 60_000);
+    if (diffMins < 1) return "Just now";
+    if (diffMins < 60) return `${diffMins}m ago`;
+    const diffHours = Math.floor(diffMins / 60);
+    if (diffHours < 24) return diffHours === 1 ? "1 hour ago" : `${diffHours} hours ago`;
+    const diffDays = Math.floor(diffHours / 24);
+    return diffDays === 1 ? "1 day ago" : `${diffDays} days ago`;
   }
 
   // ── Google Calendar ────────────────────────────────────────────────────────
@@ -1441,6 +1454,25 @@ export default function ProfileScreen() {
                   </TouchableOpacity>
                 )}
               </View>
+              {isHealthKitConnected && (
+                <View style={styles.hkSyncRow}>
+                  <Text style={[styles.hkSyncText, { color: colors.mutedForeground }]}>
+                    {isHealthKitSyncing ? "Syncing..." : `Last synced: ${formatLastSynced(healthKitLastSynced)}`}
+                  </Text>
+                  <TouchableOpacity
+                    onPress={() => { void syncHealthKitNow(); }}
+                    disabled={isHealthKitSyncing}
+                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                  >
+                    <Text style={[
+                      styles.hkSyncBtn,
+                      { color: isHealthKitSyncing ? colors.mutedForeground : colors.primary },
+                    ]}>
+                      Sync now
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              )}
             </View>
           )}
 
@@ -1894,6 +1926,15 @@ const styles = StyleSheet.create({
     borderRadius: 20,
   },
   connectBtnText: { fontSize: 13 },
+  hkSyncRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingTop: 8,
+    paddingHorizontal: 2,
+  },
+  hkSyncText: { fontSize: 12 },
+  hkSyncBtn: { fontSize: 12, fontFamily: "Inter_500Medium" },
   disconnectLink: {
     paddingHorizontal: 16,
     paddingBottom: 12,
