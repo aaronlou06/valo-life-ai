@@ -18,6 +18,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { cancelGoalReminders } from "@/lib/notifications";
 import { useColors } from "@/hooks/useColors";
 import { useValoAuth } from "@/contexts/AuthContext";
 import {
@@ -2324,7 +2325,11 @@ export default function PlanScreen() {
               <View key={goal.id} style={[planStyles.goalCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
                 <View style={planStyles.goalHeader}>
                   <Text style={[planStyles.goalTitle, { color: colors.foreground, fontFamily: "Inter_600SemiBold" }]} numberOfLines={2}>{goal.title}</Text>
-                  <TouchableOpacity onPress={() => { deleteGoal.mutate({ id: goal.id }); queryClient.invalidateQueries({ queryKey: getListGoalsQueryKey() }); }}>
+                  <TouchableOpacity onPress={() => {
+                    cancelGoalReminders(goal.id).catch(() => {});
+                    deleteGoal.mutate({ id: goal.id });
+                    queryClient.invalidateQueries({ queryKey: getListGoalsQueryKey() });
+                  }}>
                     <Feather name="trash-2" size={15} color={colors.mutedForeground} />
                   </TouchableOpacity>
                 </View>

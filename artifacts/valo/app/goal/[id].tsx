@@ -528,17 +528,19 @@ export default function GoalDetailScreen() {
   }, [goal?.id, initialized]);
 
   // ── Patch helper ─────────────────────────────────────────────────────────────
-  const patch = useCallback(async (data: Record<string, any>) => {
-    if (!goal) return;
+  const patch = useCallback(async (data: Record<string, any>): Promise<boolean> => {
+    if (!goal) return false;
     setSaveStatus("saving");
     try {
       await updateGoal.mutateAsync({ id: goal.id, data: data as any });
       queryClient.invalidateQueries({ queryKey: getListGoalsQueryKey() });
       setSaveStatus("saved");
       setTimeout(() => setSaveStatus("idle"), 2000);
+      return true;
     } catch {
       setSaveStatus("error");
       setTimeout(() => setSaveStatus("idle"), 3000);
+      return false;
     }
   }, [goal, updateGoal, queryClient]);
 
@@ -1026,16 +1028,18 @@ export default function GoalDetailScreen() {
               value={targetDate}
               onSave={(v) => {
                 setTargetDate(v);
-                patch({ targetDate: v || null });
-                if (v && goal) {
-                  scheduleGoalReminders({ id: goal.id, title, targetDate: v })
-                    .then(setReminderActive)
-                    .catch(() => {});
-                } else if (goal) {
-                  cancelGoalReminders(goal.id)
-                    .then(() => setReminderActive(false))
-                    .catch(() => {});
-                }
+                patch({ targetDate: v || null }).then((ok) => {
+                  if (!ok || !goal) return;
+                  if (v) {
+                    scheduleGoalReminders({ id: goal.id, title, targetDate: v })
+                      .then(setReminderActive)
+                      .catch(() => {});
+                  } else {
+                    cancelGoalReminders(goal.id)
+                      .then(() => setReminderActive(false))
+                      .catch(() => {});
+                  }
+                });
               }}
             />
             {reminderActive && (
