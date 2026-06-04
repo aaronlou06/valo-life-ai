@@ -21,6 +21,7 @@ import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import * as ImagePicker from "expo-image-picker";
 import * as MailComposer from "expo-mail-composer";
+import Constants from "expo-constants";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useColors } from "@/hooks/useColors";
 import { useValoAuth } from "@/contexts/AuthContext";
@@ -875,10 +876,25 @@ export default function ProfileScreen() {
   // ── Report a bug ───────────────────────────────────────────────────────────
   const BUG_EMAIL = "support@govalo.app";
   const BUG_SUBJECT = "Bug report";
-  const BUG_BODY = "Please describe the bug you encountered:\n\n";
+
+  function buildBugBody(): string {
+    const appVersion = Constants.expoConfig?.version ?? "unknown";
+    const osVersion = Platform.Version;
+    const lines = [
+      "Please describe the bug you encountered:",
+      "",
+      "",
+      "",
+      "---",
+      `App version: ${appVersion}`,
+      `Platform: ${Platform.OS} ${osVersion}`,
+      `User ID: ${userId ?? "not signed in"}`,
+    ];
+    return lines.join("\n");
+  }
 
   async function openPlainMailto() {
-    const mailto = `mailto:${BUG_EMAIL}?subject=${encodeURIComponent(BUG_SUBJECT)}&body=${encodeURIComponent(BUG_BODY)}`;
+    const mailto = `mailto:${BUG_EMAIL}?subject=${encodeURIComponent(BUG_SUBJECT)}&body=${encodeURIComponent(buildBugBody())}`;
     try {
       await Linking.openURL(mailto);
     } catch {
@@ -917,7 +933,7 @@ export default function ProfileScreen() {
               await MailComposer.composeAsync({
                 recipients: [BUG_EMAIL],
                 subject: BUG_SUBJECT,
-                body: BUG_BODY,
+                body: buildBugBody(),
                 attachments: [imageUri],
               });
             } else {
