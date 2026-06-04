@@ -87,6 +87,16 @@ const METRIC_CONFIGS = [
     ok: (v: number) => v >= 5000,
     higherIsBetter: true,
   },
+  {
+    key: "activeCalories" as const,
+    label: "Active Cal",
+    unit: "kcal",
+    format: (v: number) =>
+      v >= 1000 ? `${(v / 1000).toFixed(1)}k` : String(Math.round(v)),
+    good: (v: number) => v >= 500,
+    ok: (v: number) => v >= 300,
+    higherIsBetter: true,
+  },
 ] as const;
 
 type MetricConfig = (typeof METRIC_CONFIGS)[number];
