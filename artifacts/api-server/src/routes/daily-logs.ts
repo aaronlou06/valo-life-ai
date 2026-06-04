@@ -31,7 +31,11 @@ router.get("/daily-logs/today", requireAuth, async (req, res): Promise<void> => 
 
 router.post("/daily-logs", requireAuth, async (req, res): Promise<void> => {
   const userId = (req as AuthenticatedRequest).userId;
-  const date = today();
+  const rawDate = req.body.date;
+  const date =
+    typeof rawDate === "string" && /^\d{4}-\d{2}-\d{2}$/.test(rawDate)
+      ? rawDate
+      : today();
   const { sleepHours, hrv, restingHeartRate, steps, workoutType, workoutDuration, workoutEffort } = req.body;
   const updates = { sleepHours: sleepHours ?? null, hrv: hrv ?? null, restingHeartRate: restingHeartRate ?? null, steps: steps ?? null, workoutType: workoutType ?? null, workoutDuration: workoutDuration ?? null, workoutEffort: workoutEffort ?? null };
 

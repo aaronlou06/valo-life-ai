@@ -685,6 +685,9 @@ components:
     DailyLogInput:
       type: object
       properties:
+        date:
+          type: string
+          description: "Target date in YYYY-MM-DD format. Defaults to today when omitted."
         sleepHours:
           type: ["number", "null"]
         hrv:

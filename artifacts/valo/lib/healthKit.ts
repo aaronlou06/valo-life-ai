@@ -189,6 +189,77 @@ export async function fetchActiveCalories(): Promise<number | null> {
   });
 }
 
+export async function fetchHRVForDate(date: Date): Promise<number | null> {
+  if (!AppleHealthKit) return null;
+  return new Promise((resolve) => {
+    // Apple Watch writes HRV overnight. Use a ±12h window around midnight of
+    // the target date to reliably capture the reading regardless of write time.
+    const midnight = new Date(date);
+    midnight.setHours(0, 0, 0, 0);
+    const options = {
+      startDate: new Date(midnight.getTime() - 12 * 60 * 60 * 1000).toISOString(),
+      endDate: new Date(midnight.getTime() + 12 * 60 * 60 * 1000).toISOString(),
+      ascending: false,
+      limit: 1,
+    };
+    AppleHealthKit.getHeartRateVariabilitySamples(options, (err: any, results: any) => {
+      if (err || !results?.length) { resolve(null); return; }
+      const ms = Math.round((results[0].value ?? 0) * 1000);
+      resolve(ms > 0 ? ms : null);
+    });
+  });
+}
+
+export async function fetchRestingHeartRateForDate(date: Date): Promise<number | null> {
+  if (!AppleHealthKit) return null;
+  return new Promise((resolve) => {
+    // Use a ±12h window around midnight of the target date.
+    const midnight = new Date(date);
+    midnight.setHours(0, 0, 0, 0);
+    const options = {
+      startDate: new Date(midnight.getTime() - 12 * 60 * 60 * 1000).toISOString(),
+      endDate: new Date(midnight.getTime() + 12 * 60 * 60 * 1000).toISOString(),
+      ascending: false,
+      limit: 1,
+    };
+    AppleHealthKit.getRestingHeartRateSamples(options, (err: any, results: any) => {
+      if (err || !results?.length) { resolve(null); return; }
+      resolve(Math.round(results[0].value));
+    });
+  });
+}
+
+export async function fetchSleepHoursForDate(date: Date): Promise<number | null> {
+  if (!AppleHealthKit) return null;
+  return new Promise((resolve) => {
+    // Sleep window: the evening before (18:00) → noon of the target date (12:00).
+    // This captures a full overnight session anchored to the wake-up day.
+    const targetMidnight = new Date(date);
+    targetMidnight.setHours(0, 0, 0, 0);
+    const options = {
+      startDate: new Date(targetMidnight.getTime() - 6 * 60 * 60 * 1000).toISOString(),  // prior 18:00
+      endDate: new Date(targetMidnight.getTime() + 12 * 60 * 60 * 1000).toISOString(),   // noon
+    };
+    AppleHealthKit.getSleepSamples(options, (err: any, results: any) => {
+      if (err || !results?.length) { resolve(null); return; }
+      const asleepSamples = results.filter(
+        (s: any) =>
+          s.value === "ASLEEP" ||
+          s.value === "CORE" ||
+          s.value === "DEEP" ||
+          s.value === "REM"
+      );
+      const totalMs = asleepSamples.reduce((sum: number, s: any) => {
+        const start = new Date(s.startDate).getTime();
+        const end = new Date(s.endDate).getTime();
+        return sum + (end - start);
+      }, 0);
+      const hours = totalMs / (1000 * 60 * 60);
+      resolve(hours > 0 ? Math.round(hours * 10) / 10 : null);
+    });
+  });
+}
+
 export async function fetchTodayHealthData(): Promise<DailyHealthData> {
   const [sleepHours, hrv, restingHeartRate, steps, activeCalories] =
     await Promise.all([

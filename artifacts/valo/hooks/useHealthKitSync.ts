@@ -6,6 +6,7 @@ import {
   requestHealthKitPermissions,
   fetchTodayHealthData,
 } from "@/lib/healthKit";
+import { runHealthKitBackfill } from "@/lib/healthKitBackfill";
 
 const LAST_SYNCED_KEY = "@valo/healthkit-last-synced";
 const PERMISSIONS_KEY = "@valo/healthkit-permissions-requested";
@@ -145,6 +146,9 @@ export function useHealthKitSync(): HealthKitSyncState {
           // and settle into a known-good auth state before the first sync attempt.
           await sleep(MOUNT_DELAY_MS);
           await syncNow();
+          // Silently backfill historical data in the background. runHealthKitBackfill
+          // guards itself with an AsyncStorage flag and no-ops after the first run.
+          void runHealthKitBackfill(getToken, handleUnauthorized);
         }
       } catch {
         // ignore

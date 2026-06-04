@@ -48,6 +48,8 @@ export interface DailyLog {
 export type DailyLogOrNull = DailyLog | null;
 
 export interface DailyLogInput {
+  /** Target date in YYYY-MM-DD format. Defaults to today when omitted. */
+  date?: string;
   /** @nullable */
   sleepHours?: number | null;
   /** @nullable */

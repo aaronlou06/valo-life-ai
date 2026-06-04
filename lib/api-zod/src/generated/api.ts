@@ -56,6 +56,12 @@ export const ListDailyLogHistoryResponse = zod.array(
  * @summary Create or update today's daily log
  */
 export const UpsertDailyLogBody = zod.object({
+  date: zod
+    .string()
+    .optional()
+    .describe(
+      "Target date in YYYY-MM-DD format. Defaults to today when omitted.",
+    ),
   sleepHours: zod.number().nullish(),
   hrv: zod.number().nullish(),
   restingHeartRate: zod.number().nullish(),
