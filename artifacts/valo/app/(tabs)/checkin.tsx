@@ -1,4 +1,4 @@
-import React, { useRef, useEffect, useCallback, useState } from "react";
+import React, { useRef, useEffect, useCallback, useState, useMemo } from "react";
 import { useFocusEffect } from "expo-router";
 import { consumeVoiceTrigger } from "@/lib/voiceTrigger";
 import { trackEvent } from "@/services/telemetry";
@@ -39,6 +39,7 @@ import {
   useUpdateHabit,
   useGetTodayLog,
   getListMoodsQueryKey,
+  useListDailyLogHistory,
 } from "@workspace/api-client-react";
 import { useColors } from "@/hooks/useColors";
 import { useVapiDebrief, type DebriefExtraction } from "@/hooks/useVapiDebrief";
@@ -1645,6 +1646,64 @@ const pillarCard = StyleSheet.create({
   status: { fontSize: 13, lineHeight: 18 },
 });
 
+// ─── ActiveCalSparkline ────────────────────────────────────────────────────────
+
+function activeCalBarColor(val: number | null, border: string): string {
+  if (val == null) return border;
+  if (val >= 500) return GOOD_GREEN;
+  if (val >= 300) return OK_AMBER;
+  return LOW_RED;
+}
+
+function ActiveCalSparkline({ history, colors }: { history: (number | null)[]; colors: Colors }) {
+  const CHART_H = 28;
+  const BAR_W = 14;
+  const BAR_GAP = 3;
+
+  const nums = history.filter((v): v is number => v != null);
+  if (nums.length === 0) return null;
+
+  const max = Math.max(...nums);
+  const min = Math.min(...nums);
+  const range = max === min ? 1 : max - min;
+
+  return (
+    <View style={{ gap: 6 }}>
+      <Text
+        style={{
+          fontSize: 10,
+          letterSpacing: 0.8,
+          color: colors.mutedForeground,
+          fontFamily: "Inter_500Medium",
+        }}
+      >
+        ACTIVE CAL · 7 DAYS
+      </Text>
+      <View style={{ flexDirection: "row", alignItems: "flex-end", height: CHART_H, gap: BAR_GAP }}>
+        {history.map((val, i) => {
+          const isLast = i === history.length - 1;
+          const height =
+            val != null
+              ? Math.max(3, Math.round(((val - min) / range) * CHART_H))
+              : 3;
+          return (
+            <View
+              key={i}
+              style={{
+                width: BAR_W,
+                height,
+                backgroundColor: activeCalBarColor(val, colors.border),
+                borderRadius: 3,
+                opacity: isLast ? 1 : 0.55,
+              }}
+            />
+          );
+        })}
+      </View>
+    </View>
+  );
+}
+
 // ─── MetricTilesGrid ──────────────────────────────────────────────────────────
 
 function MetricTilesGrid({ sleepHours, hrv, steps, rhr, activeCalories, colors, onLogSleep, onLogHrv, onLogSteps, onLogRhr, onLogActiveCal }: {
@@ -1763,6 +1822,15 @@ export default function CheckInScreen() {
   const { data: habits } = useListHabits();
   const { data: moods } = useListMoods();
   const { data: todayLog } = useGetTodayLog();
+  const { data: logHistory } = useListDailyLogHistory();
+
+  const activeCalHistory = useMemo((): (number | null)[] => {
+    if (!logHistory || logHistory.length === 0) return Array(7).fill(null) as null[];
+    const sorted = [...logHistory].sort((a, b) => a.date.localeCompare(b.date));
+    const last7 = sorted.slice(-7);
+    const pad: null[] = Array(Math.max(0, 7 - last7.length)).fill(null);
+    return [...pad, ...last7.map((l) => l.activeCalories ?? null)];
+  }, [logHistory]);
 
   const queryClient = useQueryClient();
   const upsertLog = useUpsertDailyLog();
@@ -2258,6 +2326,7 @@ export default function CheckInScreen() {
           onLogRhr={() => { void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setActiveModal("sleep"); }}
           onLogActiveCal={() => { void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setActiveModal("workout"); }}
         />
+        <ActiveCalSparkline history={activeCalHistory} colors={colors} />
       </View>
 
       {/* ── Pillar scores ─────────────────────────────────────────────────── */}
