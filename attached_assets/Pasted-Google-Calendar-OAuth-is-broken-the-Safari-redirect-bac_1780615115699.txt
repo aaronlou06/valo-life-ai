@@ -1,0 +1,41 @@
+Google Calendar OAuth is broken — the Safari redirect back to the app isn't completing. When the user taps Connect Google Calendar, Safari opens correctly, the user signs in, but the app never receives the redirect and the connection never completes.
+Please diagnose and fix the full OAuth flow:
+
+Read the current state of lib/googleCalendar.ts, app/(tabs)/profile.tsx (the handleGCalConnect function and Linking listener), and app/_layout.tsx (the startup URL handler)
+The flow should be:
+
+User taps Connect → buildGoogleOAuthUrl() generates URL + PKCE verifier
+Verifier saved to AsyncStorage via savePkceVerifier()
+Linking.addEventListener registered to catch the redirect
+Safari opens with OAuth URL
+User signs in to Google
+Google redirects to com.aaronlou06.valo:/oauth2redirect/google?code=XXX
+iOS routes the deep link back to Valo
+Linking listener fires, extracts code
+exchangeGoogleAuthCode(code, verifier) exchanges for tokens
+Token saved to SecureStore
+Calendar events synced via POST /api/google-calendar/sync
+UI updates to show 'Connected ✓'
+
+
+The most likely failure points to investigate:
+
+The Linking listener may not be firing — add detailed console.log at every step to trace exactly where it stops
+The deep link scheme may not be registered correctly — verify com.aaronlou06.valo is in app.config.js schemes
+The PKCE verifier may not be available when the redirect fires — verify AsyncStorage save/load is working
+The Google OAuth client ID may not have the correct redirect URI registered — the redirect URI com.aaronlou06.valo:/oauth2redirect/google must be added to the Google Cloud Console OAuth client
+
+
+Check the Google Cloud Console:
+
+Go to console.cloud.google.com → APIs & Services → Credentials
+Open the OAuth 2.0 Client ID for iOS
+Verify the Bundle ID is com.aaronlou06.valo
+For iOS OAuth clients, Google uses the bundle ID as the redirect URI automatically — no manual redirect URI needed
+If the client type is 'Web' instead of 'iOS', that's the bug — web clients don't support custom scheme redirects
+
+
+If the OAuth client type in Google Cloud Console is 'Web application', create a NEW OAuth client of type 'iOS' with Bundle ID com.aaronlou06.valo and update the CLIENT_ID in lib/googleCalendar.ts
+After fixing, verify the full flow works end to end and Google Calendar events appear in the Calendar tab
+
+Run typecheck after any code changes.

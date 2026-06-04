@@ -801,14 +801,37 @@ export default function ProfileScreen() {
   // Persists the PKCE verifier across renders — survives foreground backgrounding
   const codeVerifierRef = useRef<string | null>(null);
 
+  // Tracks whether OAuth is in-flight so AppState can detect a missed deep link
+  const connectingGCalRef = useRef(connectingGCal);
+  useEffect(() => { connectingGCalRef.current = connectingGCal; }, [connectingGCal]);
+
   useEffect(() => {
+    // How long to wait after the app becomes active before concluding that
+    // the Linking event is not going to fire (e.g. Google showed an error page
+    // instead of redirecting, so iOS never routed a deep link to the app).
+    const OAUTH_LINK_TIMEOUT_MS = 3500;
+    let linkTimeoutId: ReturnType<typeof setTimeout> | null = null;
+
     const handleAppStateChange = (nextState: AppStateStatus) => {
       if (nextState === "active") {
+        // If OAuth was in-flight and the app just came to foreground, give the
+        // Linking event a moment to arrive. If it doesn't, reset the spinner so
+        // the user isn't stuck and can try again.
+        if (connectingGCalRef.current) {
+          linkTimeoutId = setTimeout(() => {
+            if (connectingGCalRef.current) {
+              console.log("[GCal] No Linking event after returning from Safari — OAuth redirect did not complete. Check Google Console redirect URI registration.");
+              setConnectingGCal(false);
+            }
+          }, OAUTH_LINK_TIMEOUT_MS);
+        }
+
         void (async () => {
           const connected = await isGoogleCalendarConnected(getToken);
           const wasConnected = isGCalConnectedRef.current;
           setIsGCalConnected(connected);
           if (connected && !wasConnected) {
+            if (linkTimeoutId) { clearTimeout(linkTimeoutId); linkTimeoutId = null; }
             setGCalSyncing(true);
             const token = await getToken();
             if (token) {
@@ -822,7 +845,10 @@ export default function ProfileScreen() {
       }
     };
     const sub = AppState.addEventListener("change", handleAppStateChange);
-    return () => sub.remove();
+    return () => {
+      sub.remove();
+      if (linkTimeoutId) clearTimeout(linkTimeoutId);
+    };
   }, []);
 
   // ── Cold-start OAuth: app was killed then reopened from the deep link ───────
@@ -999,6 +1025,26 @@ export default function ProfileScreen() {
    */
   async function handleOAuthUrl(redirectUrl: string) {
     console.log("[GCal] handleOAuthUrl called with:", redirectUrl);
+
+    // Google may redirect back with ?error=redirect_uri_mismatch or similar
+    // when the redirect URI is not registered in the OAuth client configuration.
+    const errorMatch = redirectUrl.match(/[?&]error=([^&]+)/);
+    if (errorMatch) {
+      const errorCode = decodeURIComponent(errorMatch[1]!.replace(/\+/g, " "));
+      const errorDesc = redirectUrl.match(/[?&]error_description=([^&]+)/);
+      const description = errorDesc
+        ? decodeURIComponent(errorDesc[1]!.replace(/\+/g, " "))
+        : null;
+      console.log("[GCal] OAuth error in redirect — error:", errorCode, "description:", description);
+      setConnectingGCal(false);
+      Alert.alert(
+        "Authorization Failed",
+        description
+          ? `${description} (${errorCode})`
+          : `Google returned an error: ${errorCode}.\n\nVerify that the redirect URI is registered in your Google Cloud Console OAuth client.`,
+      );
+      return;
+    }
 
     const match = redirectUrl.match(/[?&]code=([^&]+)/);
     if (!match) {

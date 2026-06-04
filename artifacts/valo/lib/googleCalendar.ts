@@ -92,7 +92,12 @@ export async function exchangeGoogleAuthCode(
       }).toString(),
     });
 
-    if (!res.ok) return false;
+    if (!res.ok) {
+      let errorBody: unknown = {};
+      try { errorBody = await res.json(); } catch { /* non-JSON body */ }
+      console.error("[GCal] Token exchange failed — status:", res.status, "body:", JSON.stringify(errorBody));
+      return false;
+    }
 
     const data = (await res.json()) as {
       access_token: string;
