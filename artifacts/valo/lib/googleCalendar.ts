@@ -1,11 +1,34 @@
+import AsyncStorage from "@react-native-async-storage/async-storage";
+
 function getApiBase(): string {
   const domain = process.env.EXPO_PUBLIC_DOMAIN;
   return domain ? `https://${domain}` : "";
 }
 
 const SECURE_STORE_KEY = "valo.google.calendar.token";
+const PKCE_VERIFIER_KEY = "@valo/google_pkce_verifier";
 const CLIENT_ID = "421092683856-11b3biji2mcf9a1v8pjqbo0broed0m3u.apps.googleusercontent.com";
 const REDIRECT_URI = "com.aaronlou06.valo:/oauth2redirect/google";
+
+/** URL prefix used to identify OAuth redirect deep links. */
+export const GOOGLE_OAUTH_PREFIX = REDIRECT_URI;
+
+/**
+ * Persists the PKCE code verifier to AsyncStorage so it can be recovered
+ * if iOS kills the app before the OAuth redirect returns.
+ */
+export async function savePkceVerifier(verifier: string): Promise<void> {
+  await AsyncStorage.setItem(PKCE_VERIFIER_KEY, verifier);
+}
+
+/**
+ * Reads and clears the persisted PKCE verifier. Returns null if none stored.
+ */
+export async function consumePkceVerifier(): Promise<string | null> {
+  const v = await AsyncStorage.getItem(PKCE_VERIFIER_KEY);
+  if (v) await AsyncStorage.removeItem(PKCE_VERIFIER_KEY);
+  return v;
+}
 const SCOPES = [
   "https://www.googleapis.com/auth/calendar.readonly",
   "https://www.googleapis.com/auth/calendar.events.readonly",

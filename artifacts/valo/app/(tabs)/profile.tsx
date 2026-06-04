@@ -30,6 +30,9 @@ import {
   disconnectGoogleCalendar,
   fetchGoogleCalendars,
   saveGoogleCalendarSelections,
+  savePkceVerifier,
+  consumePkceVerifier,
+  GOOGLE_OAUTH_PREFIX,
   type GoogleCalendarInfo,
 } from "@/lib/googleCalendar";
 import { requestHealthKitPermissions } from "@/lib/healthKit";
@@ -783,6 +786,9 @@ export default function ProfileScreen() {
   const isGCalConnectedRef = useRef(isGCalConnected);
   useEffect(() => { isGCalConnectedRef.current = isGCalConnected; }, [isGCalConnected]);
 
+  // Persists the PKCE verifier across renders — survives foreground backgrounding
+  const codeVerifierRef = useRef<string | null>(null);
+
   useEffect(() => {
     const handleAppStateChange = (nextState: AppStateStatus) => {
       if (nextState === "active") {
@@ -805,6 +811,18 @@ export default function ProfileScreen() {
     };
     const sub = AppState.addEventListener("change", handleAppStateChange);
     return () => sub.remove();
+  }, []);
+
+  // ── Cold-start OAuth: app was killed then reopened from the deep link ───────
+  // Linking.addEventListener does NOT fire in this case; only getInitialURL does.
+  useEffect(() => {
+    void Linking.getInitialURL().then((url) => {
+      if (!url?.startsWith(GOOGLE_OAUTH_PREFIX)) return;
+      console.log("[GCal] Cold-start OAuth URL detected:", url);
+      setConnectingGCal(true);
+      void handleOAuthUrl(url);
+    });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   async function handleRetailerConnect(id: string, name: string) {
@@ -868,33 +886,79 @@ export default function ProfileScreen() {
   }
 
   // ── Google Calendar ────────────────────────────────────────────────────────
+
+  /**
+   * Shared handler for both foreground redirects (Linking.addEventListener)
+   * and cold-start redirects (Linking.getInitialURL).
+   */
+  async function handleOAuthUrl(redirectUrl: string) {
+    console.log("[GCal] handleOAuthUrl called with:", redirectUrl);
+
+    const match = redirectUrl.match(/[?&]code=([^&]+)/);
+    if (!match) {
+      console.log("[GCal] No auth code found in redirect URL");
+      setConnectingGCal(false);
+      return;
+    }
+
+    const code = decodeURIComponent(match[1]!);
+    console.log("[GCal] Auth code extracted, beginning token exchange");
+
+    // Use the in-memory ref first (foreground case), fall back to AsyncStorage
+    // for cold-start where the closure is gone and the ref is fresh/null.
+    let verifier = codeVerifierRef.current;
+    if (!verifier) {
+      verifier = await consumePkceVerifier();
+      console.log("[GCal] Verifier recovered from AsyncStorage:", verifier != null);
+    } else {
+      // Clear the AsyncStorage copy since we have it in the ref
+      void consumePkceVerifier();
+      console.log("[GCal] Verifier found in ref (foreground path)");
+    }
+
+    if (!verifier) {
+      console.log("[GCal] No PKCE verifier available — cannot complete OAuth");
+      setConnectingGCal(false);
+      Alert.alert("Error", "Session expired. Please try connecting again.");
+      return;
+    }
+
+    const ok = await exchangeGoogleAuthCode(code, verifier, getToken);
+    codeVerifierRef.current = null;
+    setConnectingGCal(false);
+    console.log("[GCal] Token exchange:", ok ? "success" : "failed");
+
+    if (ok) {
+      void handleGCalOAuthSuccess();
+    } else {
+      Alert.alert("Error", "Could not complete authorization. Please try again.");
+    }
+  }
+
   async function handleGCalConnect() {
     setConnectingGCal(true);
+    console.log("[GCal] Starting OAuth flow");
+
     try {
       const { url, codeVerifier } = await buildGoogleOAuthUrl();
 
+      // Persist verifier before opening Safari so cold-start recovery works
+      codeVerifierRef.current = codeVerifier;
+      await savePkceVerifier(codeVerifier);
+      console.log("[GCal] PKCE verifier saved, registering Linking listener");
+
+      // Register listener BEFORE openURL so no redirect can slip through
       const subscription = Linking.addEventListener("url", async ({ url: redirectUrl }) => {
-        if (!redirectUrl.startsWith("com.aaronlou06.valo:/oauth2redirect/google")) return;
+        console.log("[GCal] Linking event fired:", redirectUrl);
+        if (!redirectUrl.startsWith(GOOGLE_OAUTH_PREFIX)) return;
         subscription.remove();
-
-        const match = redirectUrl.match(/[?&]code=([^&]+)/);
-        if (!match) {
-          setConnectingGCal(false);
-          return;
-        }
-
-        const code = decodeURIComponent(match[1]!);
-        const ok = await exchangeGoogleAuthCode(code, codeVerifier, getToken);
-        setConnectingGCal(false);
-        if (ok) {
-          void handleGCalOAuthSuccess();
-        } else {
-          Alert.alert("Error", "Could not complete authorization. Please try again.");
-        }
+        await handleOAuthUrl(redirectUrl);
       });
 
+      console.log("[GCal] Opening Safari for OAuth:", url);
       await Linking.openURL(url);
-    } catch {
+    } catch (err) {
+      console.log("[GCal] Failed to launch OAuth:", err);
       setConnectingGCal(false);
       Alert.alert("Error", "Could not open authorization page. Please try again.");
     }

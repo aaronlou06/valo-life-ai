@@ -9,7 +9,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Stack } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import React, { useEffect, useRef, useState } from "react";
-import { ActivityIndicator, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, Linking, StyleSheet, Text, View } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { KeyboardProvider } from "react-native-keyboard-controller";
 import { SafeAreaProvider } from "react-native-safe-area-context";
@@ -17,6 +17,7 @@ import { setBaseUrl } from "@workspace/api-client-react";
 
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { AuthProvider } from "@/contexts/AuthContext";
+import { GOOGLE_OAUTH_PREFIX } from "@/lib/googleCalendar";
 
 console.log("[Valo] _layout module loaded");
 
@@ -78,6 +79,24 @@ export default function RootLayout() {
 
   const [serverStatus, setServerStatus] = useState<ServerStatus>("checking");
   const recheckRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Detect OAuth redirects that open the app from a fully-closed state.
+  // In that case Linking.addEventListener never fires — only getInitialURL returns the URL.
+  // The actual token exchange is handled by profile.tsx once it mounts.
+  useEffect(() => {
+    void Linking.getInitialURL().then((url) => {
+      if (!url) return;
+      console.log("[Valo] Initial URL on startup:", url);
+      if (url.startsWith(GOOGLE_OAUTH_PREFIX)) {
+        console.log("[Valo] OAuth redirect detected — profile screen will handle token exchange");
+      }
+    });
+
+    const sub = Linking.addEventListener("url", ({ url }) => {
+      console.log("[Valo] Linking URL event (root):", url);
+    });
+    return () => sub.remove();
+  }, []);
 
   useEffect(() => {
     if (!apiBase) {
