@@ -58,7 +58,9 @@ export function useHealthKitSync(): HealthKitSyncState {
         data.sleepHours !== null ||
         data.hrv !== null ||
         data.restingHeartRate !== null ||
-        data.steps !== null;
+        data.steps !== null ||
+        data.activeCalories !== null ||
+        data.respiratoryRate !== null;
 
       if (!hasData) return;
 
@@ -76,6 +78,8 @@ export function useHealthKitSync(): HealthKitSyncState {
       if (data.hrv !== null) body.hrv = data.hrv;
       if (data.restingHeartRate !== null) body.restingHeartRate = data.restingHeartRate;
       if (data.steps !== null) body.steps = Math.round(data.steps);
+      if (data.activeCalories !== null) body.activeCalories = Math.round(data.activeCalories);
+      if (data.respiratoryRate !== null) body.respiratoryRate = data.respiratoryRate;
 
       // Retry only on network/server errors. A 401 means the token is stale
       // — retrying with the same token won't help. AuthContext now validates
