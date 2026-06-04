@@ -19,6 +19,8 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
+import * as ImagePicker from "expo-image-picker";
+import * as MailComposer from "expo-mail-composer";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useColors } from "@/hooks/useColors";
 import { useValoAuth } from "@/contexts/AuthContext";
@@ -869,6 +871,67 @@ export default function ProfileScreen() {
     setTimeout(() => setSavedField((cur) => (cur === field ? null : cur)), 2000);
   }
 
+  // ── Report a bug ───────────────────────────────────────────────────────────
+  const BUG_EMAIL = "support@govalo.app";
+  const BUG_SUBJECT = "Bug report";
+  const BUG_BODY = "Please describe the bug you encountered:\n\n";
+
+  async function openPlainMailto() {
+    const mailto = `mailto:${BUG_EMAIL}?subject=${encodeURIComponent(BUG_SUBJECT)}&body=${encodeURIComponent(BUG_BODY)}`;
+    try {
+      await Linking.openURL(mailto);
+    } catch {
+      Alert.alert("Cannot open mail app", `Please email us directly at ${BUG_EMAIL}`);
+    }
+  }
+
+  async function handleReportBug() {
+    Alert.alert(
+      "Report a bug",
+      "Would you like to attach a screenshot from your photo library?",
+      [
+        {
+          text: "Skip",
+          onPress: () => { void openPlainMailto(); },
+        },
+        {
+          text: "Add screenshot",
+          onPress: async () => {
+            const result = await ImagePicker.launchImageLibraryAsync({
+              mediaTypes: "images",
+              quality: 0.8,
+              allowsEditing: false,
+            });
+
+            if (result.canceled || result.assets.length === 0) {
+              // User dismissed the picker — fall back to plain email
+              void openPlainMailto();
+              return;
+            }
+
+            const imageUri = result.assets[0]!.uri;
+
+            const available = await MailComposer.isAvailableAsync();
+            if (available) {
+              await MailComposer.composeAsync({
+                recipients: [BUG_EMAIL],
+                subject: BUG_SUBJECT,
+                body: BUG_BODY,
+                attachments: [imageUri],
+              });
+            } else {
+              // Device has no configured mail account — inform the user
+              Alert.alert(
+                "Mail not configured",
+                `No mail account is set up on this device. Please email ${BUG_EMAIL} and attach your screenshot manually.`,
+              );
+            }
+          },
+        },
+      ],
+    );
+  }
+
   // ── Apple Health ───────────────────────────────────────────────────────────
   async function handleHealthKitConnect() {
     if (Platform.OS !== "ios") return;
@@ -1654,18 +1717,7 @@ export default function ProfileScreen() {
             <ChevronRow
               icon="alert-circle"
               label="Report a bug"
-              onPress={async () => {
-                const mailto =
-                  "mailto:support@govalo.app?subject=Bug%20report&body=Please%20describe%20the%20bug%20you%20encountered%3A%0A%0A";
-                try {
-                  await Linking.openURL(mailto);
-                } catch {
-                  Alert.alert(
-                    "Cannot open mail app",
-                    "Please email us directly at support@govalo.app",
-                  );
-                }
-              }}
+              onPress={() => { void handleReportBug(); }}
               last
             />
           </View>
