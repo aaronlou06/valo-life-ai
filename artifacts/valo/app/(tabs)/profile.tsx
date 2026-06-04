@@ -714,6 +714,13 @@ export default function ProfileScreen() {
     syncNow: syncHealthKitNow,
   } = useHealthKitSync();
 
+  // Tick every 60 s so formatLastSynced re-evaluates without a nav round-trip
+  const [, setTimeTick] = useState(0);
+  useEffect(() => {
+    const id = setInterval(() => setTimeTick((n) => n + 1), 60_000);
+    return () => clearInterval(id);
+  }, []);
+
   // ── UI state ───────────────────────────────────────────────────────────────
   const [editingName, setEditingName] = useState(false);
   const [nameInput, setNameInput] = useState(name ?? "");
