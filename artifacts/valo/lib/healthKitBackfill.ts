@@ -7,7 +7,11 @@ import {
 } from "./healthKit";
 
 export const BACKFILL_DONE_KEY = "@valo/healthkit-backfill-done";
-const BACKFILL_START_DATE = "2026-06-01";
+// Local-date start (month is 0-indexed): June 1, 2026 at local midnight.
+// Do NOT use new Date("2026-06-01") — that parses as UTC midnight and causes
+// per-day HealthKit windows to be anchored to the wrong local calendar day in
+// timezones with a non-zero UTC offset.
+const BACKFILL_START = new Date(2026, 5, 1);
 const INTER_REQUEST_DELAY_MS = 200;
 
 function sleep(ms: number): Promise<void> {
@@ -17,6 +21,14 @@ function sleep(ms: number): Promise<void> {
 function getApiBase(): string {
   const domain = process.env.EXPO_PUBLIC_DOMAIN;
   return domain ? `https://${domain}` : "";
+}
+
+/** Formats a Date as YYYY-MM-DD using local calendar fields (timezone-safe). */
+function toLocalDateStr(date: Date): string {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, "0");
+  const d = String(date.getDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
 }
 
 /**
@@ -38,14 +50,16 @@ export async function runHealthKitBackfill(
   const token = await getToken();
   if (!token) return;
 
-  const start = new Date(BACKFILL_START_DATE);
+  // yesterday at local 23:59:59 — upper bound for the iteration.
   const yesterday = new Date();
   yesterday.setDate(yesterday.getDate() - 1);
   yesterday.setHours(23, 59, 59, 999);
 
-  const current = new Date(start);
+  // current starts at local midnight June 1. setDate increments in local time,
+  // so the local calendar day always matches the dateStr we post to the server.
+  const current = new Date(BACKFILL_START);
   while (current <= yesterday) {
-    const dateStr = current.toISOString().split("T")[0]!;
+    const dateStr = toLocalDateStr(current);
     try {
       const [hrv, sleepHours, restingHeartRate] = await Promise.all([
         fetchHRVForDate(new Date(current)),
