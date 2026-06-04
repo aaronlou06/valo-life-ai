@@ -67,20 +67,13 @@ router.patch("/onboarding/save", requireAuth, async (req, res): Promise<void> =>
     return;
   }
 
-  const existing = await db
-    .select({ id: userProfilesTable.id })
-    .from(userProfilesTable)
-    .where(eq(userProfilesTable.userId, userId))
-    .limit(1);
-
-  if (existing.length > 0) {
-    await db
-      .update(userProfilesTable)
-      .set(updateValues as Parameters<typeof db.update>[0] extends infer T ? any : never)
-      .where(eq(userProfilesTable.userId, userId));
-  } else {
-    await db.insert(userProfilesTable).values({ userId, ...(updateValues as any) });
-  }
+  await db
+    .insert(userProfilesTable)
+    .values({ userId, ...(updateValues as any) })
+    .onConflictDoUpdate({
+      target: userProfilesTable.userId,
+      set: updateValues as any,
+    });
 
   res.status(200).json({ ok: true });
 });

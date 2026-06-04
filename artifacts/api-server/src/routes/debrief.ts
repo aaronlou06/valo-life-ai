@@ -13,8 +13,13 @@ router.post("/debrief/process", requireAuth, async (req, res): Promise<void> => 
     return;
   }
 
-  const extraction = await processDebriefTranscript(userId, transcript);
-  res.status(200).json({ ok: true, extraction });
+  try {
+    const extraction = await processDebriefTranscript(userId, transcript);
+    res.status(200).json({ ok: true, extraction });
+  } catch (err) {
+    req.log.error({ err }, "processDebriefTranscript failed");
+    res.status(500).json({ error: "Debrief processing failed" });
+  }
 });
 
 export default router;

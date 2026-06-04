@@ -31,8 +31,6 @@ router.post("/habit-completions/toggle", requireAuth, async (req, res): Promise<
       ),
     );
 
-  const isToday = date === new Date().toISOString().split("T")[0]!;
-
   if (existing.length > 0) {
     const current = existing[0]!;
     const newCompleted = !current.completed;
@@ -41,17 +39,15 @@ router.post("/habit-completions/toggle", requireAuth, async (req, res): Promise<
       .set({ completed: newCompleted })
       .where(eq(habitCompletionsTable.id, current.id))
       .returning();
-    if (isToday) {
-      const habit = await db.select().from(habitsTable)
-        .where(and(eq(habitsTable.id, habitId), eq(habitsTable.userId, userId)));
-      if (habit[0]) {
-        const newStreak = newCompleted ? habit[0].streak + 1 : Math.max(0, habit[0].streak - 1);
-        await db.update(habitsTable).set({
-          completedToday: newCompleted,
-          streak: newStreak,
-          lastCompletedDate: newCompleted ? date : habit[0].lastCompletedDate,
-        }).where(and(eq(habitsTable.id, habitId), eq(habitsTable.userId, userId)));
-      }
+    const habit = await db.select().from(habitsTable)
+      .where(and(eq(habitsTable.id, habitId), eq(habitsTable.userId, userId)));
+    if (habit[0]) {
+      const newStreak = newCompleted ? habit[0].streak + 1 : Math.max(0, habit[0].streak - 1);
+      await db.update(habitsTable).set({
+        completedToday: newCompleted,
+        streak: newStreak,
+        lastCompletedDate: newCompleted ? date : habit[0].lastCompletedDate,
+      }).where(and(eq(habitsTable.id, habitId), eq(habitsTable.userId, userId)));
     }
     res.json(updated);
   } else {
@@ -59,17 +55,15 @@ router.post("/habit-completions/toggle", requireAuth, async (req, res): Promise<
       .insert(habitCompletionsTable)
       .values({ habitId, userId, completionDate: date, completed: true })
       .returning();
-    if (isToday) {
-      const habit = await db.select().from(habitsTable)
-        .where(and(eq(habitsTable.id, habitId), eq(habitsTable.userId, userId)));
-      if (habit[0]) {
-        const newStreak = habit[0].streak + 1;
-        await db.update(habitsTable).set({
-          completedToday: true,
-          streak: newStreak,
-          lastCompletedDate: date,
-        }).where(and(eq(habitsTable.id, habitId), eq(habitsTable.userId, userId)));
-      }
+    const habit = await db.select().from(habitsTable)
+      .where(and(eq(habitsTable.id, habitId), eq(habitsTable.userId, userId)));
+    if (habit[0]) {
+      const newStreak = habit[0].streak + 1;
+      await db.update(habitsTable).set({
+        completedToday: true,
+        streak: newStreak,
+        lastCompletedDate: date,
+      }).where(and(eq(habitsTable.id, habitId), eq(habitsTable.userId, userId)));
     }
     res.status(201).json(created);
   }

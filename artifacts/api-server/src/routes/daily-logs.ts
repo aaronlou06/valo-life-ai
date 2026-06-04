@@ -39,22 +39,14 @@ router.post("/daily-logs", requireAuth, async (req, res): Promise<void> => {
   const { sleepHours, hrv, restingHeartRate, steps, activeCalories, workoutType, workoutDuration, workoutEffort } = req.body;
   const updates = { sleepHours: sleepHours ?? null, hrv: hrv ?? null, restingHeartRate: restingHeartRate ?? null, steps: steps ?? null, activeCalories: activeCalories ?? null, workoutType: workoutType ?? null, workoutDuration: workoutDuration ?? null, workoutEffort: workoutEffort ?? null };
 
-  const [existing] = await db.select().from(dailyLogsTable).where(
-    and(eq(dailyLogsTable.userId, userId), eq(dailyLogsTable.date, date))
-  );
-
-  if (existing) {
-    const [updated] = await db.update(dailyLogsTable)
-      .set(updates)
-      .where(and(eq(dailyLogsTable.userId, userId), eq(dailyLogsTable.date, date)))
-      .returning();
-    res.json(updated);
-  } else {
-    const [created] = await db.insert(dailyLogsTable)
-      .values({ userId, date, ...updates })
-      .returning();
-    res.json(created);
-  }
+  const [result] = await db.insert(dailyLogsTable)
+    .values({ userId, date, ...updates })
+    .onConflictDoUpdate({
+      target: [dailyLogsTable.userId, dailyLogsTable.date],
+      set: updates,
+    })
+    .returning();
+  res.json(result);
 });
 
 export default router;
