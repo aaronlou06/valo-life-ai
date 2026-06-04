@@ -18,7 +18,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { cancelGoalReminders, hasGoalReminders } from "@/lib/notifications";
+import { cancelGoalReminders, hasGoalReminders, scheduleGoalReminders } from "@/lib/notifications";
 import { useColors } from "@/hooks/useColors";
 import { useValoAuth } from "@/contexts/AuthContext";
 import {
@@ -2348,8 +2348,27 @@ export default function PlanScreen() {
                 {goal.targetDate && (
                   <View style={{ flexDirection: "row", alignItems: "center", gap: 5 }}>
                     <Text style={[planStyles.goalDate, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>Target: {goal.targetDate}</Text>
-                    {goalRemindersMap[goal.id] && (
-                      <Feather name="bell" size={11} color={colors.primary} />
+                    {goalRemindersMap[goal.id] !== undefined && (
+                      <TouchableOpacity
+                        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                        onPress={() => {
+                          if (goalRemindersMap[goal.id]) {
+                            cancelGoalReminders(goal.id)
+                              .then(() => setGoalRemindersMap((prev) => ({ ...prev, [goal.id]: false })))
+                              .catch(() => {});
+                          } else {
+                            scheduleGoalReminders({ id: goal.id, title: goal.title, targetDate: goal.targetDate! })
+                              .then((active) => setGoalRemindersMap((prev) => ({ ...prev, [goal.id]: active })))
+                              .catch(() => {});
+                          }
+                        }}
+                      >
+                        <Feather
+                          name={goalRemindersMap[goal.id] ? "bell" : "bell-off"}
+                          size={11}
+                          color={goalRemindersMap[goal.id] ? colors.primary : colors.mutedForeground}
+                        />
+                      </TouchableOpacity>
                     )}
                   </View>
                 )}
