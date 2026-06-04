@@ -711,6 +711,8 @@ components:
           type: ["integer", "null"]
         steps:
           type: ["integer", "null"]
+        activeCalories:
+          type: ["integer", "null"]
         workoutType:
           type: ["string", "null"]
         workoutDuration:
@@ -736,6 +738,8 @@ components:
         restingHeartRate:
           type: ["integer", "null"]
         steps:
+          type: ["integer", "null"]
+        activeCalories:
           type: ["integer", "null"]
         workoutType:
           type: ["string", "null"]

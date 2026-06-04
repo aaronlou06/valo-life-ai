@@ -56,6 +56,8 @@ export interface DailyLog {
   /** @nullable */
   steps?: number | null;
   /** @nullable */
+  activeCalories?: number | null;
+  /** @nullable */
   workoutType?: string | null;
   /** @nullable */
   workoutDuration?: number | null;
@@ -76,6 +78,8 @@ export interface DailyLogInput {
   restingHeartRate?: number | null;
   /** @nullable */
   steps?: number | null;
+  /** @nullable */
+  activeCalories?: number | null;
   /** @nullable */
   workoutType?: string | null;
   /** @nullable */

@@ -260,6 +260,46 @@ export async function fetchSleepHoursForDate(date: Date): Promise<number | null>
   });
 }
 
+export async function fetchStepsForDate(date: Date): Promise<number | null> {
+  if (!AppleHealthKit) return null;
+  return new Promise((resolve) => {
+    // getStepCount with a specific date returns the step total for that
+    // calendar day. Use local midnight of the target date so the date
+    // aligns with the same local calendar day as the dateStr we post.
+    const midnight = new Date(date);
+    midnight.setHours(0, 0, 0, 0);
+    const options = {
+      date: midnight.toISOString(),
+      includeManuallyAdded: true,
+    };
+    AppleHealthKit.getStepCount(options, (err: any, result: any) => {
+      if (err) { resolve(null); return; }
+      const steps = result?.value ?? null;
+      resolve(steps !== null ? Math.round(steps) : null);
+    });
+  });
+}
+
+export async function fetchActiveCaloriesForDate(date: Date): Promise<number | null> {
+  if (!AppleHealthKit) return null;
+  return new Promise((resolve) => {
+    // Sum all active-energy samples in the full calendar day window:
+    // local midnight → midnight of the following day.
+    const midnight = new Date(date);
+    midnight.setHours(0, 0, 0, 0);
+    const nextMidnight = new Date(midnight.getTime() + 24 * 60 * 60 * 1000);
+    const options = {
+      startDate: midnight.toISOString(),
+      endDate: nextMidnight.toISOString(),
+    };
+    AppleHealthKit.getActiveEnergyBurned(options, (err: any, results: any) => {
+      if (err || !results?.length) { resolve(null); return; }
+      const total = results.reduce((sum: number, s: any) => sum + (s.value ?? 0), 0);
+      resolve(total > 0 ? Math.round(total) : null);
+    });
+  });
+}
+
 export async function fetchTodayHealthData(): Promise<DailyHealthData> {
   const [sleepHours, hrv, restingHeartRate, steps, activeCalories] =
     await Promise.all([

@@ -4,9 +4,15 @@ import {
   fetchHRVForDate,
   fetchSleepHoursForDate,
   fetchRestingHeartRateForDate,
+  fetchStepsForDate,
+  fetchActiveCaloriesForDate,
 } from "./healthKit";
 
-export const BACKFILL_DONE_KEY = "@valo/healthkit-backfill-done";
+// v2: extended to include steps and active calories. Users who completed v1
+// (HRV/sleep/resting HR only) will re-run automatically so the new fields are
+// backfilled. The upsert on the server is safe to call again — existing rows
+// are updated rather than duplicated.
+export const BACKFILL_DONE_KEY = "@valo/healthkit-backfill-v2-done";
 // Local-date start (month is 0-indexed): June 1, 2026 at local midnight.
 // Do NOT use new Date("2026-06-01") — that parses as UTC midnight and causes
 // per-day HealthKit windows to be anchored to the wrong local calendar day in
@@ -32,11 +38,11 @@ function toLocalDateStr(date: Date): string {
 }
 
 /**
- * Backfills Apple Health data (HRV, sleep, resting HR) for every calendar day
- * from BACKFILL_START_DATE through yesterday. Runs only once per device — guarded
- * by the BACKFILL_DONE_KEY AsyncStorage flag. Intended to run silently in the
- * background after the first successful HealthKit sync so charts are populated
- * on first use.
+ * Backfills Apple Health data (HRV, sleep, resting HR, steps, active calories)
+ * for every calendar day from BACKFILL_START through yesterday. Runs only once
+ * per device per version — guarded by BACKFILL_DONE_KEY in AsyncStorage.
+ * Intended to run silently in the background after the first successful
+ * HealthKit sync so charts are populated on first use.
  */
 export async function runHealthKitBackfill(
   getToken: () => Promise<string | null>,
@@ -66,18 +72,27 @@ export async function runHealthKitBackfill(
   while (current <= yesterday) {
     const dateStr = toLocalDateStr(current);
     try {
-      const [hrv, sleepHours, restingHeartRate] = await Promise.all([
+      const [hrv, sleepHours, restingHeartRate, steps, activeCalories] = await Promise.all([
         fetchHRVForDate(new Date(current)),
         fetchSleepHoursForDate(new Date(current)),
         fetchRestingHeartRateForDate(new Date(current)),
+        fetchStepsForDate(new Date(current)),
+        fetchActiveCaloriesForDate(new Date(current)),
       ]);
 
-      const hasData = hrv !== null || sleepHours !== null || restingHeartRate !== null;
+      const hasData =
+        hrv !== null ||
+        sleepHours !== null ||
+        restingHeartRate !== null ||
+        steps !== null ||
+        activeCalories !== null;
       if (hasData) {
         const body: Record<string, unknown> = { date: dateStr };
         if (hrv !== null) body.hrv = hrv;
         if (sleepHours !== null) body.sleepHours = sleepHours;
         if (restingHeartRate !== null) body.restingHeartRate = restingHeartRate;
+        if (steps !== null) body.steps = steps;
+        if (activeCalories !== null) body.activeCalories = activeCalories;
 
         let posted = false;
         for (let attempt = 1; attempt <= 3; attempt++) {

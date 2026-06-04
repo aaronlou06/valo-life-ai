@@ -36,8 +36,8 @@ router.post("/daily-logs", requireAuth, async (req, res): Promise<void> => {
     typeof rawDate === "string" && /^\d{4}-\d{2}-\d{2}$/.test(rawDate)
       ? rawDate
       : today();
-  const { sleepHours, hrv, restingHeartRate, steps, workoutType, workoutDuration, workoutEffort } = req.body;
-  const updates = { sleepHours: sleepHours ?? null, hrv: hrv ?? null, restingHeartRate: restingHeartRate ?? null, steps: steps ?? null, workoutType: workoutType ?? null, workoutDuration: workoutDuration ?? null, workoutEffort: workoutEffort ?? null };
+  const { sleepHours, hrv, restingHeartRate, steps, activeCalories, workoutType, workoutDuration, workoutEffort } = req.body;
+  const updates = { sleepHours: sleepHours ?? null, hrv: hrv ?? null, restingHeartRate: restingHeartRate ?? null, steps: steps ?? null, activeCalories: activeCalories ?? null, workoutType: workoutType ?? null, workoutDuration: workoutDuration ?? null, workoutEffort: workoutEffort ?? null };
 
   const [existing] = await db.select().from(dailyLogsTable).where(
     and(eq(dailyLogsTable.userId, userId), eq(dailyLogsTable.date, date))
