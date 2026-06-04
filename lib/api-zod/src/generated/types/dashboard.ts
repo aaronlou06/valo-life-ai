@@ -15,6 +15,8 @@ export interface Dashboard {
   restingHeartRate?: number | null;
   /** @nullable */
   steps?: number | null;
+  /** @nullable */
+  activeCalories?: number | null;
   healthScore: number;
   workScore: number;
   relationshipScore: number;

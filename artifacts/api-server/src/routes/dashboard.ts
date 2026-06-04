@@ -139,12 +139,11 @@ router.get("/dashboard", requireAuth, async (req, res): Promise<void> => {
   let healthScore = 5;
   if (todayLog?.sleepHours) {
     const sleepScore = Math.min(10, Math.max(0, ((todayLog.sleepHours - 4) / 4) * 10));
-    healthScore = Math.round(
-      (sleepScore +
-        (hasWorkout ? 8 : 5) +
-        (todayLog.steps ? Math.min(10, (todayLog.steps / 10000) * 10) : 5)) /
-        3,
-    );
+    const stepsScore = todayLog.steps ? Math.min(10, (todayLog.steps / 10000) * 10) : 5;
+    const exerciseScore = todayLog.activeCalories != null
+      ? Math.min(10, (todayLog.activeCalories / 500) * 10)
+      : hasWorkout ? 8 : 5;
+    healthScore = Math.round((sleepScore + exerciseScore + stepsScore) / 3);
   }
 
   const workScore = Math.round(habitRate * 10);
@@ -177,6 +176,7 @@ router.get("/dashboard", requireAuth, async (req, res): Promise<void> => {
     hrv: todayLog?.hrv ?? null,
     restingHeartRate: todayLog?.restingHeartRate ?? null,
     steps: todayLog?.steps ?? null,
+    activeCalories: todayLog?.activeCalories ?? null,
     healthScore: Math.min(10, Math.max(0, healthScore)),
     workScore: Math.min(10, Math.max(0, workScore)),
     relationshipScore: Math.min(10, Math.max(0, relationshipScore)),

@@ -1010,6 +1010,8 @@ components:
           type: ["integer", "null"]
         steps:
           type: ["integer", "null"]
+        activeCalories:
+          type: ["integer", "null"]
         healthScore:
           type: integer
         workScore:

@@ -1647,16 +1647,17 @@ const pillarCard = StyleSheet.create({
 
 // ─── MetricTilesGrid ──────────────────────────────────────────────────────────
 
-function MetricTilesGrid({ sleepHours, hrv, steps, rhr, colors, onLogSleep, onLogHrv, onLogSteps, onLogRhr }: {
-  sleepHours: number | null; hrv: number | null; steps: number | null; rhr: number | null;
+function MetricTilesGrid({ sleepHours, hrv, steps, rhr, activeCalories, colors, onLogSleep, onLogHrv, onLogSteps, onLogRhr, onLogActiveCal }: {
+  sleepHours: number | null; hrv: number | null; steps: number | null; rhr: number | null; activeCalories: number | null;
   colors: Colors;
-  onLogSleep: () => void; onLogHrv: () => void; onLogSteps: () => void; onLogRhr: () => void;
+  onLogSleep: () => void; onLogHrv: () => void; onLogSteps: () => void; onLogRhr: () => void; onLogActiveCal: () => void;
 }) {
   const tiles = [
     { label: "SLEEP", value: sleepHours != null ? `${sleepHours}h` : null, icon: "moon" as const, onPress: onLogSleep },
     { label: "HRV", value: hrv != null ? `${hrv} ms` : null, icon: "activity" as const, onPress: onLogHrv },
     { label: "STEPS", value: steps != null ? steps.toLocaleString() : null, icon: "trending-up" as const, onPress: onLogSteps },
     { label: "RHR", value: rhr != null ? `${rhr} bpm` : null, icon: "heart" as const, onPress: onLogRhr },
+    { label: "ACTIVE CAL", value: activeCalories != null ? `${activeCalories.toLocaleString()} kcal` : null, icon: "zap" as const, onPress: onLogActiveCal },
   ];
   return (
     <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 10 }}>
@@ -2249,11 +2250,13 @@ export default function CheckInScreen() {
           hrv={(dashboard as any)?.hrv ?? null}
           steps={(dashboard as any)?.steps ?? null}
           rhr={(dashboard as any)?.restingHeartRate ?? null}
+          activeCalories={(dashboard as any)?.activeCalories ?? null}
           colors={colors}
           onLogSleep={() => { void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setActiveModal("sleep"); }}
           onLogHrv={() => { void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setActiveModal("sleep"); }}
           onLogSteps={() => { void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setActiveModal("workout"); }}
           onLogRhr={() => { void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setActiveModal("sleep"); }}
+          onLogActiveCal={() => { void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setActiveModal("workout"); }}
         />
       </View>
 

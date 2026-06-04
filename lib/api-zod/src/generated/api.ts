@@ -376,6 +376,7 @@ export const GetDashboardResponse = zod.object({
   hrv: zod.number().nullish(),
   restingHeartRate: zod.number().nullish(),
   steps: zod.number().nullish(),
+  activeCalories: zod.number().nullish(),
   healthScore: zod.number(),
   workScore: zod.number(),
   relationshipScore: zod.number(),
