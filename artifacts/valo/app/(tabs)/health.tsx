@@ -97,6 +97,15 @@ const METRIC_CONFIGS = [
     ok: (v: number) => v >= 300,
     higherIsBetter: true,
   },
+  {
+    key: "respiratoryRate" as const,
+    label: "Resp. Rate",
+    unit: "brpm",
+    format: (v: number) => String(Math.round(v)),
+    good: (v: number) => v <= 16,
+    ok: (v: number) => v <= 20,
+    higherIsBetter: false,
+  },
 ] as const;
 
 type MetricConfig = (typeof METRIC_CONFIGS)[number];

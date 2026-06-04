@@ -14,6 +14,7 @@ export const dailyLogsTable = pgTable("daily_logs", {
   restingHeartRate: integer("resting_heart_rate"),
   steps: integer("steps"),
   activeCalories: integer("active_calories"),
+  respiratoryRate: integer("respiratory_rate"),
   workoutType: text("workout_type"),
   workoutDuration: integer("workout_duration"),
   workoutEffort: integer("workout_effort"),

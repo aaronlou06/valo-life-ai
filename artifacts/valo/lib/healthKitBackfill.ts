@@ -6,13 +6,13 @@ import {
   fetchRestingHeartRateForDate,
   fetchStepsForDate,
   fetchActiveCaloriesForDate,
+  fetchRespiratoryRateForDate,
 } from "./healthKit";
 
-// v2: extended to include steps and active calories. Users who completed v1
-// (HRV/sleep/resting HR only) will re-run automatically so the new fields are
-// backfilled. The upsert on the server is safe to call again — existing rows
-// are updated rather than duplicated.
-export const BACKFILL_DONE_KEY = "@valo/healthkit-backfill-v2-done";
+// v3: extended to include respiratory rate. Users who completed v2 will
+// re-run automatically so the new field is backfilled. The upsert on the
+// server is safe to call again — existing rows are updated, not duplicated.
+export const BACKFILL_DONE_KEY = "@valo/healthkit-backfill-v3-done";
 // Local-date start (month is 0-indexed): June 1, 2026 at local midnight.
 // Do NOT use new Date("2026-06-01") — that parses as UTC midnight and causes
 // per-day HealthKit windows to be anchored to the wrong local calendar day in
@@ -72,12 +72,13 @@ export async function runHealthKitBackfill(
   while (current <= yesterday) {
     const dateStr = toLocalDateStr(current);
     try {
-      const [hrv, sleepHours, restingHeartRate, steps, activeCalories] = await Promise.all([
+      const [hrv, sleepHours, restingHeartRate, steps, activeCalories, respiratoryRate] = await Promise.all([
         fetchHRVForDate(new Date(current)),
         fetchSleepHoursForDate(new Date(current)),
         fetchRestingHeartRateForDate(new Date(current)),
         fetchStepsForDate(new Date(current)),
         fetchActiveCaloriesForDate(new Date(current)),
+        fetchRespiratoryRateForDate(new Date(current)),
       ]);
 
       const hasData =
@@ -85,7 +86,8 @@ export async function runHealthKitBackfill(
         sleepHours !== null ||
         restingHeartRate !== null ||
         steps !== null ||
-        activeCalories !== null;
+        activeCalories !== null ||
+        respiratoryRate !== null;
       if (hasData) {
         const body: Record<string, unknown> = { date: dateStr };
         if (hrv !== null) body.hrv = hrv;
@@ -93,6 +95,7 @@ export async function runHealthKitBackfill(
         if (restingHeartRate !== null) body.restingHeartRate = restingHeartRate;
         if (steps !== null) body.steps = steps;
         if (activeCalories !== null) body.activeCalories = activeCalories;
+        if (respiratoryRate !== null) body.respiratoryRate = respiratoryRate;
 
         let posted = false;
         for (let attempt = 1; attempt <= 3; attempt++) {

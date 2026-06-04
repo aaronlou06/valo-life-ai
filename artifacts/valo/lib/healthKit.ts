@@ -300,14 +300,57 @@ export async function fetchActiveCaloriesForDate(date: Date): Promise<number | n
   });
 }
 
+export async function fetchRespiratoryRate(): Promise<number | null> {
+  if (!AppleHealthKit) return null;
+  return new Promise((resolve) => {
+    // Apple Watch records respiratory rate during sleep. Query the last 24 hours
+    // and take the most recent sample as today's resting respiratory rate.
+    const now = new Date();
+    const yesterday = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+    const options = {
+      startDate: yesterday.toISOString(),
+      endDate: now.toISOString(),
+      ascending: false,
+      limit: 1,
+    };
+    AppleHealthKit.getRespiratoryRateSamples(options, (err: any, results: any) => {
+      if (err || !results?.length) { resolve(null); return; }
+      const brpm = Math.round(results[0].value ?? 0);
+      resolve(brpm > 0 ? brpm : null);
+    });
+  });
+}
+
+export async function fetchRespiratoryRateForDate(date: Date): Promise<number | null> {
+  if (!AppleHealthKit) return null;
+  return new Promise((resolve) => {
+    // Use a ±12h window around midnight of the target date to capture
+    // overnight sleep readings regardless of exact write time.
+    const midnight = new Date(date);
+    midnight.setHours(0, 0, 0, 0);
+    const options = {
+      startDate: new Date(midnight.getTime() - 12 * 60 * 60 * 1000).toISOString(),
+      endDate: new Date(midnight.getTime() + 12 * 60 * 60 * 1000).toISOString(),
+      ascending: false,
+      limit: 1,
+    };
+    AppleHealthKit.getRespiratoryRateSamples(options, (err: any, results: any) => {
+      if (err || !results?.length) { resolve(null); return; }
+      const brpm = Math.round(results[0].value ?? 0);
+      resolve(brpm > 0 ? brpm : null);
+    });
+  });
+}
+
 export async function fetchTodayHealthData(): Promise<DailyHealthData> {
-  const [sleepHours, hrv, restingHeartRate, steps, activeCalories] =
+  const [sleepHours, hrv, restingHeartRate, steps, activeCalories, respiratoryRate] =
     await Promise.all([
       fetchSleepHours(),
       fetchHRV(),
       fetchRestingHeartRate(),
       fetchSteps(),
       fetchActiveCalories(),
+      fetchRespiratoryRate(),
     ]);
-  return { sleepHours, hrv, restingHeartRate, steps, activeCalories, respiratoryRate: null };
+  return { sleepHours, hrv, restingHeartRate, steps, activeCalories, respiratoryRate };
 }

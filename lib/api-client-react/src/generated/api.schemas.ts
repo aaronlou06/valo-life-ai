@@ -58,6 +58,8 @@ export interface DailyLog {
   /** @nullable */
   activeCalories?: number | null;
   /** @nullable */
+  respiratoryRate?: number | null;
+  /** @nullable */
   workoutType?: string | null;
   /** @nullable */
   workoutDuration?: number | null;
@@ -80,6 +82,8 @@ export interface DailyLogInput {
   steps?: number | null;
   /** @nullable */
   activeCalories?: number | null;
+  /** @nullable */
+  respiratoryRate?: number | null;
   /** @nullable */
   workoutType?: string | null;
   /** @nullable */
