@@ -21,7 +21,6 @@ import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import * as ImagePicker from "expo-image-picker";
 import Constants from "expo-constants";
-import * as Device from "expo-device";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useColors } from "@/hooks/useColors";
 import { useValoAuth } from "@/contexts/AuthContext";
@@ -913,7 +912,7 @@ export default function ProfileScreen() {
   function buildBugBody(): string {
     const appVersion = Constants.expoConfig?.version ?? "unknown";
     const nativeBuildVersion = Constants.platform?.ios?.buildNumber ?? null;
-    const deviceModel = Device.modelName ?? "unknown device";
+    const deviceModel = "unknown device";
     const osVersion = Platform.Version;
     const versionLabel = nativeBuildVersion
       ? `${appVersion} (build ${nativeBuildVersion})`
