@@ -1650,7 +1650,24 @@ export default function ProfileScreen() {
             <ChevronRow icon="download" label="Export my data" onPress={() => Alert.alert("Coming soon")} />
             <ChevronRow icon="refresh-cw" label="Reset my data" onPress={promptResetData} accentColor="#C17B3F" />
             <ChevronRow icon="shield" label="Privacy settings" onPress={() => Alert.alert("Coming soon")} />
-            <ChevronRow icon="eye" label="What Valo knows about me" onPress={() => Alert.alert("Coming soon")} last />
+            <ChevronRow icon="eye" label="What Valo knows about me" onPress={() => Alert.alert("Coming soon")} />
+            <ChevronRow
+              icon="alert-circle"
+              label="Report a bug"
+              onPress={async () => {
+                const mailto =
+                  "mailto:support@govalo.app?subject=Bug%20report&body=Please%20describe%20the%20bug%20you%20encountered%3A%0A%0A";
+                try {
+                  await Linking.openURL(mailto);
+                } catch {
+                  Alert.alert(
+                    "Cannot open mail app",
+                    "Please email us directly at support@govalo.app",
+                  );
+                }
+              }}
+              last
+            />
           </View>
         </View>
 
