@@ -140,3 +140,115 @@ export async function cancelAllNotifications(): Promise<void> {
     // ignore
   }
 }
+
+// ─── Goal deadline reminders ──────────────────────────────────────────────────
+
+const GOAL_REMINDER_OFFSETS = [7, 3, 1, 0] as const;
+
+function goalNotifId(goalId: number, daysOffset: number): string {
+  return `valo.goal-reminder.${goalId}.${daysOffset}d`;
+}
+
+/**
+ * Cancels all pending deadline reminders for a goal. Safe to call even if no
+ * reminders are scheduled.
+ */
+export async function cancelGoalReminders(goalId: number): Promise<void> {
+  try {
+    const Notifications = (await import("expo-notifications")) as typeof import("expo-notifications");
+    await Promise.all(
+      GOAL_REMINDER_OFFSETS.map((offset) =>
+        Notifications.cancelScheduledNotificationAsync(goalNotifId(goalId, offset)).catch(() => {})
+      )
+    );
+  } catch {
+    // ignore
+  }
+}
+
+/**
+ * Schedules up to four local notifications for a goal deadline (7 days, 3 days,
+ * 1 day, and the day itself) at 9:00 AM local time, skipping any dates that are
+ * already in the past.
+ *
+ * - Requests notification permission lazily if not yet granted.
+ * - Cancels any previously scheduled reminders for this goal before scheduling.
+ * - Returns `true` if at least one reminder was successfully scheduled.
+ */
+export async function scheduleGoalReminders(goal: {
+  id: number;
+  title: string;
+  targetDate?: string | null;
+}): Promise<boolean> {
+  if (!goal.targetDate) {
+    await cancelGoalReminders(goal.id);
+    return false;
+  }
+
+  try {
+    const Notifications = (await import("expo-notifications")) as typeof import("expo-notifications");
+
+    // Request permission if not already granted
+    const { status } = await Notifications.getPermissionsAsync();
+    if (status !== "granted") {
+      const { status: newStatus } = await Notifications.requestPermissionsAsync();
+      if (newStatus !== "granted") return false;
+    }
+
+    // Cancel existing reminders before scheduling fresh ones
+    await cancelGoalReminders(goal.id);
+
+    const datePart = goal.targetDate.split("T")[0]!;
+    const [yStr, mStr, dStr] = datePart.split("-");
+    const y = Number(yStr);
+    const m = Number(mStr);
+    const d = Number(dStr);
+    if (!y || !m || !d) return false;
+
+    const messages: Record<number, string> = {
+      7: `One week left to reach "${goal.title}"`,
+      3: `3 days left — keep pushing on "${goal.title}"`,
+      1: `Tomorrow is the deadline for "${goal.title}"`,
+      0: `Today is the deadline for "${goal.title}"`,
+    };
+
+    let scheduled = 0;
+    const now = new Date();
+
+    for (const offset of GOAL_REMINDER_OFFSETS) {
+      const triggerDate = new Date(y, m - 1, d - offset, 9, 0, 0);
+      if (triggerDate <= now) continue;
+
+      await Notifications.scheduleNotificationAsync({
+        identifier: goalNotifId(goal.id, offset),
+        content: {
+          title: "Goal reminder",
+          body: messages[offset] ?? `Deadline approaching: "${goal.title}"`,
+          sound: true,
+        },
+        trigger: {
+          type: Notifications.SchedulableTriggerInputTypes.DATE,
+          date: triggerDate,
+        },
+      });
+      scheduled++;
+    }
+
+    return scheduled > 0;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Returns true if there are any pending local notifications for this goal.
+ */
+export async function hasGoalReminders(goalId: number): Promise<boolean> {
+  try {
+    const Notifications = (await import("expo-notifications")) as typeof import("expo-notifications");
+    const all = await Notifications.getAllScheduledNotificationsAsync();
+    return all.some((n) => n.identifier.startsWith(`valo.goal-reminder.${goalId}.`));
+  } catch {
+    return false;
+  }
+}
