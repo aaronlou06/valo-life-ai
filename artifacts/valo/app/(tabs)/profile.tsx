@@ -20,7 +20,6 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import * as ImagePicker from "expo-image-picker";
-import * as MailComposer from "expo-mail-composer";
 import Constants from "expo-constants";
 import * as Device from "expo-device";
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -966,23 +965,13 @@ export default function ProfileScreen() {
               return;
             }
 
-            const imageUri = result.assets[0]!.uri;
-
-            const available = await MailComposer.isAvailableAsync();
-            if (available) {
-              await MailComposer.composeAsync({
-                recipients: [BUG_EMAIL],
-                subject: BUG_SUBJECT,
-                body: buildBugBody(),
-                attachments: [imageUri],
-              });
-            } else {
-              // Device has no configured mail account — inform the user
-              Alert.alert(
-                "Mail not configured",
-                `No mail account is set up on this device. Please email ${BUG_EMAIL} and attach your screenshot manually.`,
-              );
-            }
+            // Screenshot selected — open mailto and prompt user to attach it manually,
+            // since native mail composer is not available without expo-mail-composer.
+            void openPlainMailto();
+            Alert.alert(
+              "Attach your screenshot",
+              `Your mail app will open. Please attach the screenshot manually before sending to ${BUG_EMAIL}.`,
+            );
           },
         },
       ],
