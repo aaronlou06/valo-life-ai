@@ -58,6 +58,11 @@ export async function runHealthKitBackfill(
   // current starts at local midnight June 1. setDate increments in local time,
   // so the local calendar day always matches the dateStr we post to the server.
   const current = new Date(BACKFILL_START);
+  // Track whether any POST ultimately failed after retries. The BACKFILL_DONE_KEY
+  // is only written when every day with data was successfully uploaded, so a future
+  // app launch will resume and retry any days that were missed.
+  let hadPostFailure = false;
+
   while (current <= yesterday) {
     const dateStr = toLocalDateStr(current);
     try {
@@ -74,29 +79,50 @@ export async function runHealthKitBackfill(
         if (sleepHours !== null) body.sleepHours = sleepHours;
         if (restingHeartRate !== null) body.restingHeartRate = restingHeartRate;
 
-        const res = await fetch(`${getApiBase()}/api/daily-logs`, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify(body),
-        });
+        let posted = false;
+        for (let attempt = 1; attempt <= 3; attempt++) {
+          try {
+            const res = await fetch(`${getApiBase()}/api/daily-logs`, {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                Authorization: `Bearer ${token}`,
+              },
+              body: JSON.stringify(body),
+            });
 
-        if (res.status === 401 || res.status === 403) {
-          await handleUnauthorized();
-          return;
+            if (res.ok) {
+              posted = true;
+              break;
+            }
+            if (res.status === 401 || res.status === 403) {
+              await handleUnauthorized();
+              return;
+            }
+            // Server error — worth retrying
+          } catch {
+            // Network error — retry
+          }
+          if (attempt < 3) await sleep(INTER_REQUEST_DELAY_MS);
         }
-        // Non-auth server errors: skip this day and continue
 
-        await sleep(INTER_REQUEST_DELAY_MS);
+        if (!posted) {
+          hadPostFailure = true;
+        } else {
+          // Throttle successful uploads to avoid hammering the server
+          await sleep(INTER_REQUEST_DELAY_MS);
+        }
       }
     } catch {
-      // Network error for this day — skip and continue
+      // HealthKit error for this day — skip without counting as a POST failure
     }
 
     current.setDate(current.getDate() + 1);
   }
 
-  await AsyncStorage.setItem(BACKFILL_DONE_KEY, "true");
+  // Only mark done when all days with data were successfully uploaded.
+  // If any POST failed, leave the flag unset so the next launch retries.
+  if (!hadPostFailure) {
+    await AsyncStorage.setItem(BACKFILL_DONE_KEY, "true");
+  }
 }
