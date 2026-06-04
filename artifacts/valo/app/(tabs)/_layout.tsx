@@ -126,7 +126,9 @@ export default function TabLayout() {
 
   useEffect(() => {
     if (!isSignedIn) return;
-    void registerForPushNotifications("04049eee-fcc9-49b2-808f-1485e9edcb08", getToken);
+    // Only refreshes token if permission is already granted — no cold prompt on startup.
+    // The first-time registration path runs inside requestNotificationPermissions (profile.tsx).
+    void registerForPushNotifications(getToken);
   }, [isSignedIn, getToken]);
 
   useEffect(() => {

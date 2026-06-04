@@ -391,10 +391,10 @@ function NotificationsModal({
       setSavedKey(key);
       setTimeout(() => setSavedKey((cur) => (cur === key ? null : cur)), 1800);
 
-      // Request permissions on first enable
+      // Request permissions on first enable and immediately register push token
       const anyEnabled = Object.values(next).some(Boolean);
       if (anyEnabled) {
-        await requestNotificationPermissions();
+        await requestNotificationPermissions({ getToken });
       }
 
       // Schedule or cancel based on the new prefs

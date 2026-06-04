@@ -1,26 +1,14 @@
 // All expo-notifications imports are inside function bodies to avoid native
 // module crashes on builds where the module is not yet linked.
 
-export async function requestNotificationPermissions(): Promise<boolean> {
-  try {
-    const Notifications = (await import("expo-notifications")) as typeof import("expo-notifications");
-    const { status } = await Notifications.requestPermissionsAsync();
-    return status === "granted";
-  } catch {
-    return false;
-  }
-}
+const EAS_PROJECT_ID = "04049eee-fcc9-49b2-808f-1485e9edcb08";
 
 /**
- * Requests notification permission (if not already granted), retrieves the
- * Expo push token, and persists it to the server via PATCH /api/settings.
- *
- * Safe to call on every authenticated app launch — it is a no-op on
- * simulators (Expo push tokens only work on physical devices) and exits
- * silently on any error so it never blocks the UI.
+ * Shared internal helper — called after permission is confirmed granted.
+ * Fetches the Expo push token and persists it to the server.
+ * All errors are swallowed; caller must already hold granted permission.
  */
-export async function registerForPushNotifications(
-  projectId: string,
+async function _persistPushToken(
   getToken: () => Promise<string | null>
 ): Promise<void> {
   try {
@@ -28,15 +16,7 @@ export async function registerForPushNotifications(
     if (!Device.isDevice) return;
 
     const Notifications = (await import("expo-notifications")) as typeof import("expo-notifications");
-    const { status: existing } = await Notifications.getPermissionsAsync();
-    let finalStatus = existing;
-    if (existing !== "granted") {
-      const { status } = await Notifications.requestPermissionsAsync();
-      finalStatus = status;
-    }
-    if (finalStatus !== "granted") return;
-
-    const tokenData = await Notifications.getExpoPushTokenAsync({ projectId });
+    const tokenData = await Notifications.getExpoPushTokenAsync({ projectId: EAS_PROJECT_ID });
     const pushToken = tokenData.data;
 
     const authToken = await getToken();
@@ -54,7 +34,48 @@ export async function registerForPushNotifications(
       body: JSON.stringify({ expoPushToken: pushToken }),
     });
   } catch {
-    // Registration errors must never surface to the user
+    // Token registration errors must never surface to the user
+  }
+}
+
+/**
+ * Requests notification permission. When `opts` is provided and permission
+ * is granted, immediately registers the Expo push token with the server so
+ * that remote push delivery works from the first permission grant.
+ */
+export async function requestNotificationPermissions(opts?: {
+  getToken: () => Promise<string | null>;
+}): Promise<boolean> {
+  try {
+    const Notifications = (await import("expo-notifications")) as typeof import("expo-notifications");
+    const { status } = await Notifications.requestPermissionsAsync();
+    const granted = status === "granted";
+    if (granted && opts) {
+      await _persistPushToken(opts.getToken);
+    }
+    return granted;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Called on each authenticated app startup (only when permission is already
+ * granted). Ensures the server always has an up-to-date push token for the
+ * current device without prompting the user for permission again.
+ *
+ * No-op on simulators and exits silently on any error.
+ */
+export async function registerForPushNotifications(
+  getToken: () => Promise<string | null>
+): Promise<void> {
+  try {
+    const Notifications = (await import("expo-notifications")) as typeof import("expo-notifications");
+    const { status } = await Notifications.getPermissionsAsync();
+    if (status !== "granted") return;
+    await _persistPushToken(getToken);
+  } catch {
+    // Errors must never surface to the user
   }
 }
 
