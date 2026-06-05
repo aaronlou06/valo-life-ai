@@ -1,7 +1,16 @@
 // All expo-notifications imports are inside function bodies to avoid native
 // module crashes on builds where the module is not yet linked.
+// Platform guard: expo-notifications transitively requires expo-application
+// (a native-only module). Never import it on web.
+
+import { Platform } from "react-native";
 
 const EAS_PROJECT_ID = "04049eee-fcc9-49b2-808f-1485e9edcb08";
+
+/** True only on iOS/Android where native notification modules are available. */
+function isNativePlatform(): boolean {
+  return Platform.OS === "ios" || Platform.OS === "android";
+}
 
 /**
  * Shared internal helper — called after permission is confirmed granted.
@@ -11,6 +20,7 @@ const EAS_PROJECT_ID = "04049eee-fcc9-49b2-808f-1485e9edcb08";
 async function _persistPushToken(
   getToken: () => Promise<string | null>
 ): Promise<void> {
+  if (!isNativePlatform()) return;
   try {
     const Device = (await import("expo-device")) as typeof import("expo-device");
     if (!Device.isDevice) return;
@@ -46,6 +56,7 @@ async function _persistPushToken(
 export async function requestNotificationPermissions(opts?: {
   getToken: () => Promise<string | null>;
 }): Promise<boolean> {
+  if (!isNativePlatform()) return false;
   try {
     const Notifications = (await import("expo-notifications")) as typeof import("expo-notifications");
     const { status } = await Notifications.requestPermissionsAsync();
@@ -69,6 +80,7 @@ export async function requestNotificationPermissions(opts?: {
 export async function registerForPushNotifications(
   getToken: () => Promise<string | null>
 ): Promise<void> {
+  if (!isNativePlatform()) return;
   try {
     const Notifications = (await import("expo-notifications")) as typeof import("expo-notifications");
     const { status } = await Notifications.getPermissionsAsync();
@@ -80,6 +92,7 @@ export async function registerForPushNotifications(
 }
 
 export async function scheduleMorningBriefing(time: string): Promise<void> {
+  if (!isNativePlatform()) return;
   try {
     const Notifications = (await import("expo-notifications")) as typeof import("expo-notifications");
     // Cancel any existing instance before re-scheduling
@@ -107,6 +120,7 @@ export async function scheduleMorningBriefing(time: string): Promise<void> {
 }
 
 export async function scheduleCheckinReminder(time: string): Promise<void> {
+  if (!isNativePlatform()) return;
   try {
     const Notifications = (await import("expo-notifications")) as typeof import("expo-notifications");
     await Notifications.cancelScheduledNotificationAsync("valo.checkin-reminder").catch(() => {});
@@ -133,6 +147,7 @@ export async function scheduleCheckinReminder(time: string): Promise<void> {
 }
 
 export async function cancelAllNotifications(): Promise<void> {
+  if (!isNativePlatform()) return;
   try {
     const Notifications = (await import("expo-notifications")) as typeof import("expo-notifications");
     await Notifications.cancelAllScheduledNotificationsAsync();
@@ -154,6 +169,7 @@ function goalNotifId(goalId: number, daysOffset: number): string {
  * reminders are scheduled.
  */
 export async function cancelGoalReminders(goalId: number): Promise<void> {
+  if (!isNativePlatform()) return;
   try {
     const Notifications = (await import("expo-notifications")) as typeof import("expo-notifications");
     await Promise.all(
@@ -180,6 +196,7 @@ export async function scheduleGoalReminders(goal: {
   title: string;
   targetDate?: string | null;
 }): Promise<boolean> {
+  if (!isNativePlatform()) return false;
   if (!goal.targetDate) {
     await cancelGoalReminders(goal.id);
     return false;
@@ -244,6 +261,7 @@ export async function scheduleGoalReminders(goal: {
  * Returns true if there are any pending local notifications for this goal.
  */
 export async function hasGoalReminders(goalId: number): Promise<boolean> {
+  if (!isNativePlatform()) return false;
   try {
     const Notifications = (await import("expo-notifications")) as typeof import("expo-notifications");
     const all = await Notifications.getAllScheduledNotificationsAsync();

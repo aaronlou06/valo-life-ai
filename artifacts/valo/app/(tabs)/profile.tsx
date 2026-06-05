@@ -398,14 +398,14 @@ function NotificationsModal({
       // Schedule or cancel based on the new prefs
       if (next.morningBriefing) {
         await scheduleMorningBriefing("07:00");
-      } else if (key === "morningBriefing") {
+      } else if (key === "morningBriefing" && Platform.OS !== "web") {
         const { cancelScheduledNotificationAsync } = (await import("expo-notifications")) as typeof import("expo-notifications");
         await cancelScheduledNotificationAsync("valo.morning-briefing").catch(() => {});
       }
 
       if (next.dailyReminder) {
         await scheduleCheckinReminder(callTime);
-      } else if (key === "dailyReminder") {
+      } else if (key === "dailyReminder" && Platform.OS !== "web") {
         const { cancelScheduledNotificationAsync } = (await import("expo-notifications")) as typeof import("expo-notifications");
         await cancelScheduledNotificationAsync("valo.checkin-reminder").catch(() => {});
       }
