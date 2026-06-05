@@ -10,7 +10,6 @@ import { setAuthTokenGetter } from "@workspace/api-client-react";
 import { useColors } from "@/hooks/useColors";
 import { useValoAuth } from "@/contexts/AuthContext";
 import { isOnboardingComplete, loadOnboardingState } from "@/hooks/onboardingState";
-import { registerForPushNotifications } from "@/lib/notifications";
 
 function NativeTabLayout() {
   return (
@@ -123,27 +122,6 @@ export default function TabLayout() {
   useEffect(() => {
     setAuthTokenGetter(() => getToken());
   }, [getToken]);
-
-  useEffect(() => {
-    if (!isSignedIn) return;
-    // Only refreshes push token when:
-    //   a) permission is already granted (no cold prompt on startup)
-    //   b) the user has at least one notification type enabled in stored prefs
-    // First-time registration runs inside requestNotificationPermissions (profile.tsx).
-    (async () => {
-      try {
-        const AsyncStorage = (await import("@react-native-async-storage/async-storage")).default;
-        const raw = await AsyncStorage.getItem("@valo/notification-prefs");
-        if (!raw) return;
-        const prefs = JSON.parse(raw) as Record<string, boolean>;
-        const anyEnabled = Object.values(prefs).some(Boolean);
-        if (!anyEnabled) return;
-        void registerForPushNotifications(getToken);
-      } catch {
-        // Errors must not block the app
-      }
-    })();
-  }, [isSignedIn, getToken]);
 
   useEffect(() => {
     if (!isSignedIn || isOnboardingComplete()) {

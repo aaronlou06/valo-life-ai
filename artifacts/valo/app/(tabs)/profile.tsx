@@ -40,12 +40,6 @@ import {
 } from "@/lib/googleCalendar";
 import { requestHealthKitPermissions } from "@/lib/healthKit";
 import {
-  requestNotificationPermissions,
-  scheduleMorningBriefing,
-  scheduleCheckinReminder,
-  cancelAllNotifications,
-} from "@/lib/notifications";
-import {
   useListGoals,
   useListHabits,
   useGetDashboard,
@@ -389,30 +383,7 @@ function NotificationsModal({
       setSavedKey(key);
       setTimeout(() => setSavedKey((cur) => (cur === key ? null : cur)), 1800);
 
-      // Request permissions on first enable and immediately register push token
       const anyEnabled = Object.values(next).some(Boolean);
-      if (anyEnabled) {
-        await requestNotificationPermissions({ getToken });
-      }
-
-      // Schedule or cancel based on the new prefs
-      if (next.morningBriefing) {
-        await scheduleMorningBriefing("07:00");
-      } else if (key === "morningBriefing" && Platform.OS !== "web") {
-        const { cancelScheduledNotificationAsync } = (await import("expo-notifications")) as typeof import("expo-notifications");
-        await cancelScheduledNotificationAsync("valo.morning-briefing").catch(() => {});
-      }
-
-      if (next.dailyReminder) {
-        await scheduleCheckinReminder(callTime);
-      } else if (key === "dailyReminder" && Platform.OS !== "web") {
-        const { cancelScheduledNotificationAsync } = (await import("expo-notifications")) as typeof import("expo-notifications");
-        await cancelScheduledNotificationAsync("valo.checkin-reminder").catch(() => {});
-      }
-
-      if (!anyEnabled) {
-        await cancelAllNotifications();
-      }
 
       // Persist to server
       const token = await getToken();

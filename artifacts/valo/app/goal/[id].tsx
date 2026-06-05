@@ -17,11 +17,6 @@ import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { useColors } from "@/hooks/useColors";
 import {
-  scheduleGoalReminders,
-  cancelGoalReminders,
-  hasGoalReminders,
-} from "@/lib/notifications";
-import {
   useListGoals,
   useUpdateGoal,
   useDeleteGoal,
@@ -485,7 +480,6 @@ export default function GoalDetailScreen() {
   const [currentTierIdx, setCurrentTierIdx] = useState(0);
   const [readinessDates, setReadinessDates] = useState({ prepStart: "", prepEnd: "", eventDate: "" });
   const [saveStatus, setSaveStatus] = useState<SaveStatus>("idle");
-  const [reminderActive, setReminderActive] = useState(false);
 
   useEffect(() => {
     if (!goal || initialized) return;
@@ -522,10 +516,6 @@ export default function GoalDetailScreen() {
     setInitialized(true);
   }, [goal?.id]);
 
-  useEffect(() => {
-    if (!goal || !initialized) return;
-    hasGoalReminders(goal.id).then(setReminderActive).catch(() => {});
-  }, [goal?.id, initialized]);
 
   // ── Patch helper ─────────────────────────────────────────────────────────────
   const patch = useCallback(async (data: Record<string, any>): Promise<boolean> => {
@@ -615,7 +605,6 @@ export default function GoalDetailScreen() {
           style: "destructive",
           onPress: async () => {
             try {
-              await cancelGoalReminders(goal!.id);
               await deleteGoal.mutateAsync({ id: goal!.id });
               queryClient.invalidateQueries({ queryKey: getListGoalsQueryKey() });
               Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -1028,26 +1017,9 @@ export default function GoalDetailScreen() {
               value={targetDate}
               onSave={(v) => {
                 setTargetDate(v);
-                patch({ targetDate: v || null }).then((ok) => {
-                  if (!ok || !goal) return;
-                  if (v) {
-                    scheduleGoalReminders({ id: goal.id, title, targetDate: v })
-                      .then(setReminderActive)
-                      .catch(() => {});
-                  } else {
-                    cancelGoalReminders(goal.id)
-                      .then(() => setReminderActive(false))
-                      .catch(() => {});
-                  }
-                });
+                patch({ targetDate: v || null });
               }}
             />
-            {reminderActive && (
-              <View style={{ flexDirection: "row", alignItems: "center", gap: 4, marginTop: 6, paddingLeft: 2 }}>
-                <Feather name="bell" size={11} color={colors.primary} />
-                <Text style={{ fontSize: 12, color: colors.primary, fontFamily: "Inter_400Regular" }}>Reminders on</Text>
-              </View>
-            )}
           </View>
         )}
 
