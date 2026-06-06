@@ -1706,10 +1706,10 @@ function ActiveCalSparkline({ history, colors }: { history: (number | null)[]; c
 
 // ─── MetricTilesGrid ──────────────────────────────────────────────────────────
 
-function MetricTilesGrid({ sleepHours, hrv, steps, rhr, activeCalories, colors, onLogSleep, onLogHrv, onLogSteps, onLogRhr, onLogActiveCal }: {
-  sleepHours: number | null; hrv: number | null; steps: number | null; rhr: number | null; activeCalories: number | null;
+function MetricTilesGrid({ sleepHours, hrv, steps, rhr, activeCalories, respiratoryRate, colors, onLogSleep, onLogHrv, onLogSteps, onLogRhr, onLogActiveCal, onLogRespRate }: {
+  sleepHours: number | null; hrv: number | null; steps: number | null; rhr: number | null; activeCalories: number | null; respiratoryRate: number | null;
   colors: Colors;
-  onLogSleep: () => void; onLogHrv: () => void; onLogSteps: () => void; onLogRhr: () => void; onLogActiveCal: () => void;
+  onLogSleep: () => void; onLogHrv: () => void; onLogSteps: () => void; onLogRhr: () => void; onLogActiveCal: () => void; onLogRespRate: () => void;
 }) {
   const tiles = [
     { label: "SLEEP", value: sleepHours != null ? `${sleepHours}h` : null, icon: "moon" as const, onPress: onLogSleep },
@@ -1717,6 +1717,7 @@ function MetricTilesGrid({ sleepHours, hrv, steps, rhr, activeCalories, colors, 
     { label: "STEPS", value: steps != null ? steps.toLocaleString() : null, icon: "trending-up" as const, onPress: onLogSteps },
     { label: "RHR", value: rhr != null ? `${rhr} bpm` : null, icon: "heart" as const, onPress: onLogRhr },
     { label: "ACTIVE CAL", value: activeCalories != null ? `${activeCalories.toLocaleString()} kcal` : null, icon: "zap" as const, onPress: onLogActiveCal },
+    { label: "RESP. RATE", value: respiratoryRate != null ? `${respiratoryRate} brpm` : null, icon: "wind" as const, onPress: onLogRespRate },
   ];
   return (
     <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 10 }}>
@@ -2319,12 +2320,14 @@ export default function CheckInScreen() {
           steps={(dashboard as any)?.steps ?? null}
           rhr={(dashboard as any)?.restingHeartRate ?? null}
           activeCalories={(dashboard as any)?.activeCalories ?? null}
+          respiratoryRate={(dashboard as any)?.respiratoryRate ?? null}
           colors={colors}
           onLogSleep={() => { void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setActiveModal("sleep"); }}
           onLogHrv={() => { void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setActiveModal("sleep"); }}
           onLogSteps={() => { void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setActiveModal("workout"); }}
           onLogRhr={() => { void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setActiveModal("sleep"); }}
           onLogActiveCal={() => { void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setActiveModal("workout"); }}
+          onLogRespRate={() => { void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setActiveModal("sleep"); }}
         />
         <ActiveCalSparkline history={activeCalHistory} colors={colors} />
       </View>

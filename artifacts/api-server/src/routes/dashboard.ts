@@ -177,6 +177,7 @@ router.get("/dashboard", requireAuth, async (req, res): Promise<void> => {
     restingHeartRate: todayLog?.restingHeartRate ?? null,
     steps: todayLog?.steps ?? null,
     activeCalories: todayLog?.activeCalories ?? null,
+    respiratoryRate: todayLog?.respiratoryRate ?? null,
     healthScore: Math.min(10, Math.max(0, healthScore)),
     workScore: Math.min(10, Math.max(0, workScore)),
     relationshipScore: Math.min(10, Math.max(0, relationshipScore)),
