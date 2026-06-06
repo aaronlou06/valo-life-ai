@@ -22,4 +22,5 @@ export interface UserSettings {
   firstCallCompleted: boolean;
   /** @nullable */
   expoPushToken?: string | null;
+  checkinReminderEnabled: boolean;
 }

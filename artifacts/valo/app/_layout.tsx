@@ -16,9 +16,10 @@ import { SafeAreaProvider } from "react-native-safe-area-context";
 import { setBaseUrl } from "@workspace/api-client-react";
 
 import { ErrorBoundary } from "@/components/ErrorBoundary";
-import { AuthProvider } from "@/contexts/AuthContext";
+import { AuthProvider, useValoAuth } from "@/contexts/AuthContext";
 import { GOOGLE_OAUTH_PREFIX } from "@/lib/googleCalendar";
 import { installErrorLogger } from "@/lib/errorLogger";
+import { scheduleCheckinReminder } from "@/lib/notifications";
 
 installErrorLogger();
 
@@ -54,18 +55,54 @@ async function checkServer(): Promise<boolean> {
   }
 }
 
+function NotificationRestoreEffect() {
+  const { isLoaded, isSignedIn, getToken } = useValoAuth();
+  const hasRestoredRef = useRef(false);
+
+  useEffect(() => {
+    // Wait until auth has finished loading and user is signed in.
+    // hasRestoredRef ensures we run the restore exactly once per session.
+    if (!isLoaded || !isSignedIn || hasRestoredRef.current) return;
+    hasRestoredRef.current = true;
+
+    async function restore() {
+      try {
+        const token = await getToken();
+        if (!token) return;
+        const res = await fetch(`${apiBase}/api/settings`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (!res.ok) return;
+        const s = (await res.json()) as {
+          checkinReminderEnabled?: boolean;
+          preferredCallTime?: string | null;
+        };
+        if (s.checkinReminderEnabled && s.preferredCallTime) {
+          void scheduleCheckinReminder(s.preferredCallTime);
+        }
+      } catch {}
+    }
+    void restore();
+  }, [isLoaded, isSignedIn, getToken]);
+
+  return null;
+}
+
 function RootLayoutNav() {
   return (
-    <Stack screenOptions={{ headerShown: false }}>
-      <Stack.Screen name="index" />
-      <Stack.Screen name="(auth)" />
-      <Stack.Screen name="(tabs)" />
-      <Stack.Screen name="onboarding" options={{ gestureEnabled: false }} />
-      <Stack.Screen name="settings" />
-      <Stack.Screen name="goal/[id]" />
-      <Stack.Screen name="meal-planner" options={{ presentation: "modal" }} />
-      <Stack.Screen name="oauth2redirect/google" />
-    </Stack>
+    <>
+      <NotificationRestoreEffect />
+      <Stack screenOptions={{ headerShown: false }}>
+        <Stack.Screen name="index" />
+        <Stack.Screen name="(auth)" />
+        <Stack.Screen name="(tabs)" />
+        <Stack.Screen name="onboarding" options={{ gestureEnabled: false }} />
+        <Stack.Screen name="settings" />
+        <Stack.Screen name="goal/[id]" />
+        <Stack.Screen name="meal-planner" options={{ presentation: "modal" }} />
+        <Stack.Screen name="oauth2redirect/google" />
+      </Stack>
+    </>
   );
 }
 

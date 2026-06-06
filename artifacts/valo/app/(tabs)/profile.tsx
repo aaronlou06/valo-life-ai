@@ -41,6 +41,10 @@ import {
 import { requestHealthKitPermissions } from "@/lib/healthKit";
 import { getRecentErrorLogs } from "@/lib/errorLogger";
 import {
+  scheduleCheckinReminder,
+  cancelCheckinReminder,
+} from "@/lib/notifications";
+import {
   useListGoals,
   useListHabits,
   useGetDashboard,
@@ -354,11 +358,15 @@ function NotificationsModal({
   callTime,
   getToken,
   onClose,
+  dailyReminder,
+  onDailyReminderChange,
 }: {
   visible: boolean;
   callTime: string;
   getToken: () => Promise<string | null>;
   onClose: () => void;
+  dailyReminder: boolean;
+  onDailyReminderChange: (enabled: boolean) => void;
 }) {
   const colors = useColors();
   const [prefs, setPrefs] = useState<NotificationPrefs>(DEFAULT_NOTIF_PREFS);
@@ -368,13 +376,15 @@ function NotificationsModal({
     if (visible) {
       AsyncStorage.getItem(NOTIF_PREFS_KEY)
         .then((raw) => {
-          if (raw) {
-            try { setPrefs({ ...DEFAULT_NOTIF_PREFS, ...JSON.parse(raw) }); } catch {}
-          }
+          const stored: Partial<NotificationPrefs> = raw ? (() => { try { return JSON.parse(raw) as Partial<NotificationPrefs>; } catch { return {}; } })() : {};
+          // dailyReminder is authoritative from the backend (passed as prop)
+          setPrefs({ ...DEFAULT_NOTIF_PREFS, ...stored, dailyReminder });
         })
-        .catch(() => {});
+        .catch(() => {
+          setPrefs((p) => ({ ...p, dailyReminder }));
+        });
     }
-  }, [visible]);
+  }, [visible, dailyReminder]);
 
   async function toggle(key: keyof NotificationPrefs) {
     const next = { ...prefs, [key]: !prefs[key] };
@@ -384,7 +394,15 @@ function NotificationsModal({
       setSavedKey(key);
       setTimeout(() => setSavedKey((cur) => (cur === key ? null : cur)), 1800);
 
-      const anyEnabled = Object.values(next).some(Boolean);
+      // Schedule or cancel the local check-in notification
+      if (key === "dailyReminder") {
+        if (next.dailyReminder) {
+          void scheduleCheckinReminder(callTime);
+        } else {
+          void cancelCheckinReminder();
+        }
+        onDailyReminderChange(next.dailyReminder);
+      }
 
       // Persist to server
       const token = await getToken();
@@ -396,10 +414,7 @@ function NotificationsModal({
             Authorization: `Bearer ${token}`,
           },
           body: JSON.stringify({
-            notificationsEnabled: anyEnabled,
-            morningBriefingEnabled: next.morningBriefing,
             checkinReminderEnabled: next.dailyReminder,
-            habitRemindersEnabled: next.habitReminders,
           }),
         }).catch(() => {});
       }
@@ -695,6 +710,7 @@ export default function ProfileScreen() {
   const [editingName, setEditingName] = useState(false);
   const [nameInput, setNameInput] = useState(name ?? "");
   const [callTime, setCallTime] = useState("20:30");
+  const [dailyReminder, setDailyReminder] = useState(false);
   const [userIdentity, setUserIdentity] = useState("");
   const [userMotivation, setUserMotivation] = useState("");
   const [lifePriorities, setLifePriorities] = useState("");
@@ -730,6 +746,7 @@ export default function ProfileScreen() {
       const s = await settingsRes.json();
       if (s.preferredCallTime) setCallTime(s.preferredCallTime);
       if (s.lifePriorities) setLifePriorities(s.lifePriorities);
+      setDailyReminder(s.checkinReminderEnabled === true);
     }
 
     if (contextRes?.ok) {
@@ -1735,6 +1752,7 @@ export default function ProfileScreen() {
             <ChevronRow
               icon="bell"
               label="Notifications"
+              value={dailyReminder ? `Reminder: ${formatTime(callTime)}` : undefined}
               onPress={() => setShowNotifications(true)}
               last
             />
@@ -1830,6 +1848,9 @@ export default function ProfileScreen() {
           setCallTime(hhmm);
           setShowTimePicker(false);
           await patchSettings({ preferredCallTime: hhmm }, "callTime");
+          if (dailyReminder) {
+            void scheduleCheckinReminder(hhmm);
+          }
         }}
       />
 
@@ -1838,6 +1859,8 @@ export default function ProfileScreen() {
         callTime={callTime}
         getToken={getToken}
         onClose={() => setShowNotifications(false)}
+        dailyReminder={dailyReminder}
+        onDailyReminderChange={setDailyReminder}
       />
 
       <ChangePasswordModal

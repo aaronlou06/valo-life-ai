@@ -693,7 +693,7 @@ components:
   schemas:
     UserSettings:
       type: object
-      required: [callsEnabled, onboardingCompleted, firstCallCompleted]
+      required: [callsEnabled, onboardingCompleted, firstCallCompleted, checkinReminderEnabled]
       properties:
         phoneNumber:
           type: ["string", "null"]
@@ -713,6 +713,8 @@ components:
           type: boolean
         expoPushToken:
           type: ["string", "null"]
+        checkinReminderEnabled:
+          type: boolean
 
     UpdateSettings:
       type: object
@@ -731,6 +733,8 @@ components:
           type: ["string", "null"]
         expoPushToken:
           type: ["string", "null"]
+        checkinReminderEnabled:
+          type: boolean
 
     HealthStatus:
       type: object

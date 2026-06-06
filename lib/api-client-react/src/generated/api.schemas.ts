@@ -21,6 +21,7 @@ export interface UserSettings {
   firstCallCompleted: boolean;
   /** @nullable */
   expoPushToken?: string | null;
+  checkinReminderEnabled: boolean;
 }
 
 export interface UpdateSettings {
@@ -37,6 +38,7 @@ export interface UpdateSettings {
   lifePriorities?: string | null;
   /** @nullable */
   expoPushToken?: string | null;
+  checkinReminderEnabled?: boolean;
 }
 
 export interface HealthStatus {

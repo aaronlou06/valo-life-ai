@@ -20,4 +20,5 @@ export interface UpdateSettings {
   lifePriorities?: string | null;
   /** @nullable */
   expoPushToken?: string | null;
+  checkinReminderEnabled?: boolean;
 }

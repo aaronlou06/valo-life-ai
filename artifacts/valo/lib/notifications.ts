@@ -125,3 +125,46 @@ export async function getScheduledHabitIds(): Promise<number[]> {
     return [];
   }
 }
+
+const CHECKIN_REMINDER_ID = "valo.checkin-reminder";
+
+export async function scheduleCheckinReminder(time: string): Promise<void> {
+  if (!isNativePlatform()) return;
+  try {
+    const parsed = parseHHMM(time);
+    if (!parsed) return;
+
+    await cancelCheckinReminder();
+
+    const granted = await requestNotificationPermissions();
+    if (!granted) return;
+
+    const Notifications = await _ensureHandler();
+    await Notifications.scheduleNotificationAsync({
+      identifier: CHECKIN_REMINDER_ID,
+      content: {
+        title: "Time for your daily check-in",
+        body: "Take a moment to reflect on your day with Valo.",
+        data: { type: "checkin" },
+      },
+      trigger: {
+        type: Notifications.SchedulableTriggerInputTypes.CALENDAR,
+        hour: parsed.hour,
+        minute: parsed.minute,
+        repeats: true,
+      },
+    });
+  } catch {
+    // Scheduling errors must never surface to the user
+  }
+}
+
+export async function cancelCheckinReminder(): Promise<void> {
+  if (!isNativePlatform()) return;
+  try {
+    const Notifications = await _ensureHandler();
+    await Notifications.cancelScheduledNotificationAsync(CHECKIN_REMINDER_ID);
+  } catch {
+    // ignore
+  }
+}

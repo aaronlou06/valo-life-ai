@@ -457,6 +457,7 @@ export const GetSettingsResponse = zod.object({
   onboardingCompleted: zod.boolean(),
   firstCallCompleted: zod.boolean(),
   expoPushToken: zod.string().nullish(),
+  checkinReminderEnabled: zod.boolean(),
 });
 
 /**
@@ -470,6 +471,7 @@ export const UpdateSettingsBody = zod.object({
   name: zod.string().nullish(),
   lifePriorities: zod.string().nullish(),
   expoPushToken: zod.string().nullish(),
+  checkinReminderEnabled: zod.boolean().optional(),
 });
 
 export const UpdateSettingsResponse = zod.object({
