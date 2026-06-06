@@ -1,4 +1,5 @@
 import { Platform, NativeModules } from "react-native";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
 let AppleHealthKit: any = null;
 
@@ -50,6 +51,8 @@ export type DailyHealthData = {
   respiratoryRate: number | null;
 };
 
+export const HEALTHKIT_AUTHORIZED_DATE_KEY = "@valo/healthkit-authorized-date";
+
 export async function requestHealthKitPermissions(): Promise<boolean> {
   if (!AppleHealthKit) return false;
 
@@ -62,7 +65,20 @@ export async function requestHealthKitPermissions(): Promise<boolean> {
   if (!available) return false;
 
   return new Promise((resolve) => {
-    AppleHealthKit.initHealthKit(HealthKitPermissions, (err: any) => {
+    AppleHealthKit.initHealthKit(HealthKitPermissions, async (err: any) => {
+      if (!err) {
+        // Record the date of first successful authorization so the backfill
+        // knows how far back to go. Only write if not already set — this
+        // preserves the original first-auth date across reinstalls that
+        // re-request permissions.
+        const existing = await AsyncStorage.getItem(HEALTHKIT_AUTHORIZED_DATE_KEY);
+        if (!existing) {
+          await AsyncStorage.setItem(
+            HEALTHKIT_AUTHORIZED_DATE_KEY,
+            new Date().toISOString()
+          );
+        }
+      }
       resolve(!err);
     });
   });

@@ -7,17 +7,20 @@ import {
   fetchStepsForDate,
   fetchActiveCaloriesForDate,
   fetchRespiratoryRateForDate,
+  HEALTHKIT_AUTHORIZED_DATE_KEY,
 } from "./healthKit";
 
-// v3: extended to include respiratory rate. Users who completed v2 will
-// re-run automatically so the new field is backfilled. The upsert on the
-// server is safe to call again — existing rows are updated, not duplicated.
-export const BACKFILL_DONE_KEY = "@valo/healthkit-backfill-v3-done";
-// Local-date start (month is 0-indexed): June 1, 2026 at local midnight.
-// Do NOT use new Date("2026-06-01") — that parses as UTC midnight and causes
-// per-day HealthKit windows to be anchored to the wrong local calendar day in
-// timezones with a non-zero UTC offset.
-const BACKFILL_START = new Date(2026, 5, 1);
+// v4: backfill start is now dynamic — anchored to the date HealthKit was first
+// authorized on this device (stored in AsyncStorage) instead of a hardcoded
+// calendar date. Users who completed v3 will re-run so their backfill
+// window is corrected. The upsert on the server is safe to call again —
+// existing rows are updated, not duplicated.
+export const BACKFILL_DONE_KEY = "@valo/healthkit-backfill-v4-done";
+
+// Fallback start when no stored authorization date exists (e.g. existing users
+// who authorized before this key was written). 30 days is a reasonable window
+// that covers recent history without iterating over hundreds of empty days.
+const FALLBACK_DAYS = 30;
 const INTER_REQUEST_DELAY_MS = 200;
 
 function sleep(ms: number): Promise<void> {
@@ -61,9 +64,25 @@ export async function runHealthKitBackfill(
   yesterday.setDate(yesterday.getDate() - 1);
   yesterday.setHours(23, 59, 59, 999);
 
-  // current starts at local midnight June 1. setDate increments in local time,
-  // so the local calendar day always matches the dateStr we post to the server.
-  const current = new Date(BACKFILL_START);
+  // Determine backfill start: use the stored HealthKit authorization date when
+  // available; otherwise fall back to FALLBACK_DAYS ago. Always truncate to
+  // local midnight so per-day HealthKit windows align with the local calendar.
+  // Do NOT parse the ISO string with new Date("YYYY-MM-DD") — that uses UTC
+  // midnight and shifts the local calendar day in non-zero UTC-offset timezones.
+  const storedAuthDate = await AsyncStorage.getItem(HEALTHKIT_AUTHORIZED_DATE_KEY);
+  const backfillStart = new Date();
+  if (storedAuthDate) {
+    const parsed = new Date(storedAuthDate);
+    backfillStart.setTime(isNaN(parsed.getTime()) ? Date.now() - FALLBACK_DAYS * 24 * 60 * 60 * 1000 : parsed.getTime());
+  } else {
+    backfillStart.setTime(Date.now() - FALLBACK_DAYS * 24 * 60 * 60 * 1000);
+  }
+  backfillStart.setHours(0, 0, 0, 0);
+
+  // current starts at local midnight of the computed start date. setDate
+  // increments in local time, so the local calendar day always matches the
+  // dateStr we post to the server.
+  const current = new Date(backfillStart);
   // Track whether any POST ultimately failed after retries. The BACKFILL_DONE_KEY
   // is only written when every day with data was successfully uploaded, so a future
   // app launch will resume and retry any days that were missed.
