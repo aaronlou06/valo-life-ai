@@ -462,6 +462,7 @@ export const GetSettingsResponse = zod.object({
   notifCheckin: zod.boolean().optional(),
   notifHabits: zod.boolean().optional(),
   notifGoals: zod.boolean().optional(),
+  morningBriefingTime: zod.string().nullish(),
 });
 
 /**
@@ -480,6 +481,7 @@ export const UpdateSettingsBody = zod.object({
   notifCheckin: zod.boolean().optional(),
   notifHabits: zod.boolean().optional(),
   notifGoals: zod.boolean().optional(),
+  morningBriefingTime: zod.string().nullish(),
 });
 
 export const UpdateSettingsResponse = zod.object({

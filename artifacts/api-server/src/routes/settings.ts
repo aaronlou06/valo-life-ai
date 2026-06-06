@@ -31,6 +31,7 @@ router.get("/settings", requireAuth, async (req, res): Promise<void> => {
     notifCheckin: profile?.notifCheckin ?? true,
     notifHabits: profile?.notifHabits ?? true,
     notifGoals: profile?.notifGoals ?? true,
+    morningBriefingTime: profile?.morningBriefingTime ?? "07:00",
   });
 });
 
@@ -49,6 +50,7 @@ router.patch("/settings", requireAuth, async (req, res): Promise<void> => {
     notifCheckin,
     notifHabits,
     notifGoals,
+    morningBriefingTime,
   } = req.body as {
     phoneNumber?: string | null;
     preferredCallTime?: string | null;
@@ -62,6 +64,7 @@ router.patch("/settings", requireAuth, async (req, res): Promise<void> => {
     notifCheckin?: boolean;
     notifHabits?: boolean;
     notifGoals?: boolean;
+    morningBriefingTime?: string | null;
   };
 
   const updateValues: Partial<{
@@ -77,6 +80,7 @@ router.patch("/settings", requireAuth, async (req, res): Promise<void> => {
     notifCheckin: boolean;
     notifHabits: boolean;
     notifGoals: boolean;
+    morningBriefingTime: string | null;
   }> = {};
 
   if (phoneNumber !== undefined) updateValues.phoneNumber = phoneNumber;
@@ -91,6 +95,7 @@ router.patch("/settings", requireAuth, async (req, res): Promise<void> => {
   if (notifCheckin !== undefined) updateValues.notifCheckin = notifCheckin;
   if (notifHabits !== undefined) updateValues.notifHabits = notifHabits;
   if (notifGoals !== undefined) updateValues.notifGoals = notifGoals;
+  if (morningBriefingTime !== undefined) updateValues.morningBriefingTime = morningBriefingTime;
 
   const existing = await db
     .select({ id: userProfilesTable.id })

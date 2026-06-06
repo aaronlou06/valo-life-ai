@@ -25,4 +25,6 @@ export interface UpdateSettings {
   notifCheckin?: boolean;
   notifHabits?: boolean;
   notifGoals?: boolean;
+  /** @nullable */
+  morningBriefingTime?: string | null;
 }

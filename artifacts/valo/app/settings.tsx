@@ -24,6 +24,8 @@ import {
   cancelCheckinReminder,
   cancelHabitReminder,
   getScheduledHabitIds,
+  scheduleMorningBriefing,
+  cancelMorningBriefing,
 } from "@/lib/notifications";
 
 const COMMON_TIMEZONES = [
@@ -136,6 +138,7 @@ export default function SettingsScreen() {
   const [notifCheckin, setNotifCheckin] = useState(true);
   const [notifHabits, setNotifHabits] = useState(true);
   const [notifGoals, setNotifGoals] = useState(true);
+  const [morningBriefingTime, setMorningBriefingTime] = useState("07:00");
 
   const topPad = Platform.OS === "web" ? Math.max(insets.top, 67) : insets.top;
   const bottomPad = Platform.OS === "web" ? 34 : insets.bottom;
@@ -159,6 +162,7 @@ export default function SettingsScreen() {
           notifCheckin?: boolean;
           notifHabits?: boolean;
           notifGoals?: boolean;
+          morningBriefingTime?: string | null;
         };
         if (data.phoneNumber) setPhoneNumber(data.phoneNumber);
         if (data.preferredCallTime) setPreferredCallTime(data.preferredCallTime);
@@ -169,6 +173,7 @@ export default function SettingsScreen() {
         setNotifCheckin(data.notifCheckin !== false);
         setNotifHabits(data.notifHabits !== false);
         setNotifGoals(data.notifGoals !== false);
+        if (data.morningBriefingTime) setMorningBriefingTime(data.morningBriefingTime);
       }
     } catch {
       // ignore
@@ -198,6 +203,7 @@ export default function SettingsScreen() {
           notifCheckin,
           notifHabits,
           notifGoals,
+          morningBriefingTime,
         }),
       });
       if (res.ok) {
@@ -207,6 +213,28 @@ export default function SettingsScreen() {
         } else {
           void cancelCheckinReminder();
         }
+        // Schedule or cancel morning briefing — fetch goal/habit for personalized body
+        void (async () => {
+          let topGoalName: string | null = null;
+          let topHabitName: string | null = null;
+          if (token && notifMorning) {
+            const [goalsRes, habitsRes] = await Promise.all([
+              fetch(`${apiBase}/api/goals`, { headers: { Authorization: `Bearer ${token}` } }).catch(() => null),
+              fetch(`${apiBase}/api/habits`, { headers: { Authorization: `Bearer ${token}` } }).catch(() => null),
+            ]);
+            if (goalsRes?.ok) {
+              const goals = (await goalsRes.json()) as Array<{ title: string; progressPercent: number }>;
+              const active = goals.filter((g) => g.progressPercent < 100);
+              if (active.length > 0) topGoalName = active[0]!.title;
+            }
+            if (habitsRes?.ok) {
+              const habits = (await habitsRes.json()) as Array<{ name: string; completedToday: boolean }>;
+              const pending = habits.filter((h) => !h.completedToday);
+              if (pending.length > 0) topHabitName = pending[0]!.name;
+            }
+          }
+          void scheduleMorningBriefing(morningBriefingTime, topGoalName, topHabitName, notifMorning);
+        })();
         // Cancel all scheduled habit reminders immediately when disabled
         if (!notifHabits) {
           void getScheduledHabitIds().then((ids) => {
@@ -223,7 +251,7 @@ export default function SettingsScreen() {
     } finally {
       setSaving(false);
     }
-  }, [getToken, apiBase, phoneNumber, preferredCallTime, callTimezone, callsEnabled, checkinReminderEnabled, notifMorning, notifCheckin, notifHabits, notifGoals, router]);
+  }, [getToken, apiBase, phoneNumber, preferredCallTime, callTimezone, callsEnabled, checkinReminderEnabled, notifMorning, notifCheckin, notifHabits, notifGoals, morningBriefingTime, router]);
 
   const filteredTz = COMMON_TIMEZONES.filter((tz) =>
     tz.toLowerCase().includes(tzSearch.toLowerCase())
@@ -282,6 +310,18 @@ export default function SettingsScreen() {
               thumbColor="#fff"
             />
           </View>
+
+          {notifMorning && (
+            <>
+              <View style={[styles.divider, { backgroundColor: colors.border }]} />
+              <View style={styles.fieldGroup}>
+                <Text style={[styles.fieldLabel, { color: colors.mutedForeground, fontFamily: "Inter_500Medium" }]}>
+                  Morning briefing time (24-hour)
+                </Text>
+                <TimePicker value={morningBriefingTime} onChange={setMorningBriefingTime} colors={colors} />
+              </View>
+            </>
+          )}
 
           <View style={[styles.divider, { backgroundColor: colors.border }]} />
 

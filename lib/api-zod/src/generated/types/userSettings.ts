@@ -27,4 +27,6 @@ export interface UserSettings {
   notifCheckin?: boolean;
   notifHabits?: boolean;
   notifGoals?: boolean;
+  /** @nullable */
+  morningBriefingTime?: string | null;
 }

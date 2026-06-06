@@ -723,6 +723,8 @@ components:
           type: boolean
         notifGoals:
           type: boolean
+        morningBriefingTime:
+          type: ["string", "null"]
 
     UpdateSettings:
       type: object
@@ -751,6 +753,8 @@ components:
           type: boolean
         notifGoals:
           type: boolean
+        morningBriefingTime:
+          type: ["string", "null"]
 
     HealthStatus:
       type: object

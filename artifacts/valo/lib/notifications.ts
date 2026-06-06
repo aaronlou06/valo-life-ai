@@ -185,3 +185,72 @@ export async function cancelCheckinReminder(): Promise<void> {
     // ignore
   }
 }
+
+const MORNING_BRIEFING_ID = "valo.morning-briefing";
+
+/**
+ * Schedules a repeating daily local notification for the morning briefing.
+ * Composes the body from the user's top goal and habit names, with friendly
+ * fallbacks when those are not available.
+ * When `enabled` is false the notification is cancelled instead of scheduled.
+ */
+export async function scheduleMorningBriefing(
+  time: string,
+  topGoalName?: string | null,
+  topHabitName?: string | null,
+  enabled = true,
+): Promise<void> {
+  if (!isNativePlatform()) return;
+  if (!enabled) {
+    await cancelMorningBriefing();
+    return;
+  }
+  try {
+    const parsed = parseHHMM(time);
+    if (!parsed) return;
+
+    await cancelMorningBriefing();
+
+    const granted = await requestNotificationPermissions();
+    if (!granted) return;
+
+    let body: string;
+    if (topGoalName && topHabitName) {
+      body = `Today: work toward "${topGoalName}" and complete "${topHabitName}".`;
+    } else if (topGoalName) {
+      body = `Today: work toward "${topGoalName}".`;
+    } else if (topHabitName) {
+      body = `Today: complete "${topHabitName}".`;
+    } else {
+      body = "Start your day with intention. Open Valo to see your priorities.";
+    }
+
+    const Notifications = await _ensureHandler();
+    await Notifications.scheduleNotificationAsync({
+      identifier: MORNING_BRIEFING_ID,
+      content: {
+        title: "Good morning",
+        body,
+        data: { type: "morning-briefing" },
+      },
+      trigger: {
+        type: Notifications.SchedulableTriggerInputTypes.CALENDAR,
+        hour: parsed.hour,
+        minute: parsed.minute,
+        repeats: true,
+      },
+    });
+  } catch {
+    // Scheduling errors must never surface to the user
+  }
+}
+
+export async function cancelMorningBriefing(): Promise<void> {
+  if (!isNativePlatform()) return;
+  try {
+    const Notifications = await _ensureHandler();
+    await Notifications.cancelScheduledNotificationAsync(MORNING_BRIEFING_ID);
+  } catch {
+    // ignore
+  }
+}

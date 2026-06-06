@@ -43,6 +43,8 @@ import { getRecentErrorLogs } from "@/lib/errorLogger";
 import {
   scheduleCheckinReminder,
   cancelCheckinReminder,
+  scheduleMorningBriefing,
+  cancelMorningBriefing,
 } from "@/lib/notifications";
 import {
   useListGoals,
@@ -257,11 +259,13 @@ function TimePickerModal({
   value,
   onClose,
   onSave,
+  title = "Check-in time",
 }: {
   visible: boolean;
   value: string;
   onClose: () => void;
   onSave: (hhmm: string) => void;
+  title?: string;
 }) {
   const colors = useColors();
 
@@ -311,7 +315,7 @@ function TimePickerModal({
           style={[styles.modalBox, { backgroundColor: colors.card, borderColor: colors.border }]}
         >
           <Text style={[styles.modalTitle, { color: colors.foreground, fontFamily: "Inter_600SemiBold" }]}>
-            Check-in time
+            {title}
           </Text>
           <View style={styles.pickerWrapper}>
             <View
@@ -361,6 +365,10 @@ function NotificationsModal({
   dailyReminder,
   onDailyReminderChange,
   notifCheckin,
+  morningBriefingTime,
+  onMorningBriefingTimeChange,
+  topGoalName,
+  topHabitName,
 }: {
   visible: boolean;
   callTime: string;
@@ -369,10 +377,15 @@ function NotificationsModal({
   dailyReminder: boolean;
   onDailyReminderChange: (enabled: boolean) => void;
   notifCheckin: boolean;
+  morningBriefingTime: string;
+  onMorningBriefingTimeChange: (time: string) => void;
+  topGoalName: string | null;
+  topHabitName: string | null;
 }) {
   const colors = useColors();
   const [prefs, setPrefs] = useState<NotificationPrefs>(DEFAULT_NOTIF_PREFS);
   const [savedKey, setSavedKey] = useState<string | null>(null);
+  const [showBriefingTimePicker, setShowBriefingTimePicker] = useState(false);
 
   useEffect(() => {
     if (visible) {
@@ -404,6 +417,24 @@ function NotificationsModal({
           void cancelCheckinReminder();
         }
         onDailyReminderChange(next.dailyReminder);
+      }
+
+      // Schedule or cancel the morning briefing notification
+      if (key === "morningBriefing") {
+        if (next.morningBriefing) {
+          void scheduleMorningBriefing(morningBriefingTime, topGoalName, topHabitName, true);
+        } else {
+          void cancelMorningBriefing();
+        }
+        const token = await getToken();
+        if (token) {
+          await fetch(`${getApiBase()}/api/settings`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+            body: JSON.stringify({ notifMorning: next.morningBriefing }),
+          }).catch(() => {});
+        }
+        return;
       }
 
       // Persist to server
@@ -452,7 +483,7 @@ function NotificationsModal({
                 <View
                   style={[
                     styles.notifRow,
-                    idx < TOGGLES.length - 1 && {
+                    idx < TOGGLES.length - 1 && !( t.key === "morningBriefing" && prefs.morningBriefing) && {
                       borderBottomWidth: StyleSheet.hairlineWidth,
                       borderBottomColor: colors.border,
                     },
@@ -475,6 +506,29 @@ function NotificationsModal({
                     thumbColor={colors.primaryForeground}
                   />
                 </View>
+                {t.key === "morningBriefing" && prefs.morningBriefing && (
+                  <TouchableOpacity
+                    style={[
+                      styles.notifTimeRow,
+                      idx < TOGGLES.length - 1 && {
+                        borderBottomWidth: StyleSheet.hairlineWidth,
+                        borderBottomColor: colors.border,
+                      },
+                    ]}
+                    onPress={() => setShowBriefingTimePicker(true)}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={[styles.notifTimelabel, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
+                      Briefing time
+                    </Text>
+                    <View style={styles.notifTimeRight}>
+                      <Text style={[styles.notifTimeValue, { color: colors.foreground, fontFamily: "Inter_500Medium" }]}>
+                        {formatTime(morningBriefingTime)}
+                      </Text>
+                      <Feather name="chevron-right" size={14} color={colors.mutedForeground} />
+                    </View>
+                  </TouchableOpacity>
+                )}
               </View>
             ))}
           </View>
@@ -490,6 +544,25 @@ function NotificationsModal({
           </View>
         </TouchableOpacity>
       </TouchableOpacity>
+      <TimePickerModal
+        visible={showBriefingTimePicker}
+        value={morningBriefingTime}
+        title="Morning briefing time"
+        onClose={() => setShowBriefingTimePicker(false)}
+        onSave={async (hhmm) => {
+          setShowBriefingTimePicker(false);
+          onMorningBriefingTimeChange(hhmm);
+          void scheduleMorningBriefing(hhmm, topGoalName, topHabitName, true);
+          const token = await getToken();
+          if (token) {
+            await fetch(`${getApiBase()}/api/settings`, {
+              method: "PATCH",
+              headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+              body: JSON.stringify({ morningBriefingTime: hhmm }),
+            }).catch(() => {});
+          }
+        }}
+      />
     </Modal>
   );
 }
@@ -718,6 +791,7 @@ export default function ProfileScreen() {
   const [userMotivation, setUserMotivation] = useState("");
   const [lifePriorities, setLifePriorities] = useState("");
   const [coreValues, setCoreValues] = useState<string[]>([]);
+  const [morningBriefingTime, setMorningBriefingTime] = useState("07:00");
   const [showTimePicker, setShowTimePicker] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
   const [showChangePassword, setShowChangePassword] = useState(false);
@@ -751,6 +825,7 @@ export default function ProfileScreen() {
       if (s.lifePriorities) setLifePriorities(s.lifePriorities);
       setDailyReminder(s.checkinReminderEnabled === true);
       setNotifCheckin(s.notifCheckin !== false);
+      if (s.morningBriefingTime) setMorningBriefingTime(s.morningBriefingTime);
     }
 
     if (contextRes?.ok) {
@@ -1866,6 +1941,10 @@ export default function ProfileScreen() {
         dailyReminder={dailyReminder}
         onDailyReminderChange={setDailyReminder}
         notifCheckin={notifCheckin}
+        morningBriefingTime={morningBriefingTime}
+        onMorningBriefingTimeChange={setMorningBriefingTime}
+        topGoalName={goals?.find((g) => g.progressPercent < 100)?.title ?? null}
+        topHabitName={habits?.find((h) => !h.completedToday)?.name ?? null}
       />
 
       <ChangePasswordModal
@@ -2213,6 +2292,20 @@ const styles = StyleSheet.create({
     gap: 2,
   },
   notifLabel: { fontSize: 15 },
+  notifTimeRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+  },
+  notifTimelabel: { fontSize: 13 },
+  notifTimeRight: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  notifTimeValue: { fontSize: 13 },
   notifNote: {
     flexDirection: "row",
     alignItems: "flex-start",

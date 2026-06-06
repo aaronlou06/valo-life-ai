@@ -6,10 +6,10 @@ import {
   useFonts,
 } from "@expo-google-fonts/inter";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { Stack } from "expo-router";
+import { Stack, useRouter } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import React, { useEffect, useRef, useState } from "react";
-import { ActivityIndicator, Linking, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, Linking, Platform, StyleSheet, Text, View } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { KeyboardProvider } from "react-native-keyboard-controller";
 import { SafeAreaProvider } from "react-native-safe-area-context";
@@ -19,7 +19,7 @@ import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { AuthProvider, useValoAuth } from "@/contexts/AuthContext";
 import { GOOGLE_OAUTH_PREFIX } from "@/lib/googleCalendar";
 import { installErrorLogger } from "@/lib/errorLogger";
-import { scheduleCheckinReminder } from "@/lib/notifications";
+import { scheduleCheckinReminder, scheduleMorningBriefing } from "@/lib/notifications";
 
 installErrorLogger();
 
@@ -69,17 +69,37 @@ function NotificationRestoreEffect() {
       try {
         const token = await getToken();
         if (!token) return;
-        const res = await fetch(`${apiBase}/api/settings`, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-        if (!res.ok) return;
-        const s = (await res.json()) as {
+        const [settingsRes, goalsRes, habitsRes] = await Promise.all([
+          fetch(`${apiBase}/api/settings`, { headers: { Authorization: `Bearer ${token}` } }),
+          fetch(`${apiBase}/api/goals`, { headers: { Authorization: `Bearer ${token}` } }),
+          fetch(`${apiBase}/api/habits`, { headers: { Authorization: `Bearer ${token}` } }),
+        ]);
+        if (!settingsRes.ok) return;
+        const s = (await settingsRes.json()) as {
           checkinReminderEnabled?: boolean;
           preferredCallTime?: string | null;
           notifCheckin?: boolean;
+          notifMorning?: boolean;
+          morningBriefingTime?: string | null;
         };
         if (s.checkinReminderEnabled && s.preferredCallTime) {
           void scheduleCheckinReminder(s.preferredCallTime, s.notifCheckin !== false);
+        }
+        if (s.notifMorning !== false) {
+          const briefingTime = s.morningBriefingTime ?? "07:00";
+          let topGoalName: string | null = null;
+          let topHabitName: string | null = null;
+          if (goalsRes.ok) {
+            const goals = (await goalsRes.json()) as Array<{ title: string; progressPercent: number }>;
+            const active = goals.filter((g) => g.progressPercent < 100);
+            if (active.length > 0) topGoalName = active[0]!.title;
+          }
+          if (habitsRes.ok) {
+            const habits = (await habitsRes.json()) as Array<{ name: string; completedToday: boolean }>;
+            const pending = habits.filter((h) => !h.completedToday);
+            if (pending.length > 0) topHabitName = pending[0]!.name;
+          }
+          void scheduleMorningBriefing(briefingTime, topGoalName, topHabitName, true);
         }
       } catch {}
     }
@@ -89,10 +109,42 @@ function NotificationRestoreEffect() {
   return null;
 }
 
+function NotificationDeepLinkEffect() {
+  const router = useRouter();
+
+  useEffect(() => {
+    if (Platform.OS === "web") return;
+
+    let sub: { remove: () => void } | null = null;
+
+    async function setup() {
+      try {
+        const Notifications = (await import("expo-notifications")) as typeof import("expo-notifications");
+        sub = Notifications.addNotificationResponseReceivedListener((response) => {
+          const data = response.notification.request.content.data as Record<string, unknown>;
+          const type = data?.type;
+          if (type === "morning-briefing" || type === "checkin") {
+            router.push("/(tabs)/checkin");
+          }
+        });
+      } catch {}
+    }
+
+    void setup();
+
+    return () => {
+      sub?.remove();
+    };
+  }, [router]);
+
+  return null;
+}
+
 function RootLayoutNav() {
   return (
     <>
       <NotificationRestoreEffect />
+      <NotificationDeepLinkEffect />
       <Stack screenOptions={{ headerShown: false }}>
         <Stack.Screen name="index" />
         <Stack.Screen name="(auth)" />
