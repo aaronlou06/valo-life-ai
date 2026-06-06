@@ -458,6 +458,10 @@ export const GetSettingsResponse = zod.object({
   firstCallCompleted: zod.boolean(),
   expoPushToken: zod.string().nullish(),
   checkinReminderEnabled: zod.boolean(),
+  notifMorning: zod.boolean().optional(),
+  notifCheckin: zod.boolean().optional(),
+  notifHabits: zod.boolean().optional(),
+  notifGoals: zod.boolean().optional(),
 });
 
 /**
@@ -472,6 +476,10 @@ export const UpdateSettingsBody = zod.object({
   lifePriorities: zod.string().nullish(),
   expoPushToken: zod.string().nullish(),
   checkinReminderEnabled: zod.boolean().optional(),
+  notifMorning: zod.boolean().optional(),
+  notifCheckin: zod.boolean().optional(),
+  notifHabits: zod.boolean().optional(),
+  notifGoals: zod.boolean().optional(),
 });
 
 export const UpdateSettingsResponse = zod.object({

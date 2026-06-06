@@ -23,4 +23,8 @@ export interface UserSettings {
   /** @nullable */
   expoPushToken?: string | null;
   checkinReminderEnabled: boolean;
+  notifMorning?: boolean;
+  notifCheckin?: boolean;
+  notifHabits?: boolean;
+  notifGoals?: boolean;
 }

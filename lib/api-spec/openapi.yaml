@@ -715,6 +715,14 @@ components:
           type: ["string", "null"]
         checkinReminderEnabled:
           type: boolean
+        notifMorning:
+          type: boolean
+        notifCheckin:
+          type: boolean
+        notifHabits:
+          type: boolean
+        notifGoals:
+          type: boolean
 
     UpdateSettings:
       type: object
@@ -734,6 +742,14 @@ components:
         expoPushToken:
           type: ["string", "null"]
         checkinReminderEnabled:
+          type: boolean
+        notifMorning:
+          type: boolean
+        notifCheckin:
+          type: boolean
+        notifHabits:
+          type: boolean
+        notifGoals:
           type: boolean
 
     HealthStatus:

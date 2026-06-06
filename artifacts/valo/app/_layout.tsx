@@ -76,9 +76,10 @@ function NotificationRestoreEffect() {
         const s = (await res.json()) as {
           checkinReminderEnabled?: boolean;
           preferredCallTime?: string | null;
+          notifCheckin?: boolean;
         };
         if (s.checkinReminderEnabled && s.preferredCallTime) {
-          void scheduleCheckinReminder(s.preferredCallTime);
+          void scheduleCheckinReminder(s.preferredCallTime, s.notifCheckin !== false);
         }
       } catch {}
     }

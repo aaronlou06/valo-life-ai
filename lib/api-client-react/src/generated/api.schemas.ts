@@ -22,6 +22,10 @@ export interface UserSettings {
   /** @nullable */
   expoPushToken?: string | null;
   checkinReminderEnabled: boolean;
+  notifMorning?: boolean;
+  notifCheckin?: boolean;
+  notifHabits?: boolean;
+  notifGoals?: boolean;
 }
 
 export interface UpdateSettings {
@@ -39,6 +43,10 @@ export interface UpdateSettings {
   /** @nullable */
   expoPushToken?: string | null;
   checkinReminderEnabled?: boolean;
+  notifMorning?: boolean;
+  notifCheckin?: boolean;
+  notifHabits?: boolean;
+  notifGoals?: boolean;
 }
 
 export interface HealthStatus {

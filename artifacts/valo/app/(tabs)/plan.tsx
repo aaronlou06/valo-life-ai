@@ -2034,7 +2034,8 @@ function ManageModal({
 export default function PlanScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
-  const { userId } = useValoAuth();
+  const { userId, getToken } = useValoAuth();
+  const notifHabitsRef = React.useRef(true);
   const today = new Date();
   const currentTodayStr = todayStr();
 
@@ -2085,6 +2086,28 @@ export default function PlanScreen() {
   const upsertReminderMutation = useUpsertReminder();
   const deleteReminderMutation = useDeleteReminder();
   const [reminderPickerHabit, setReminderPickerHabit] = useState<Habit | null>(null);
+
+  // ── Fetch notifHabits pref once on mount ──
+  useEffect(() => {
+    (async () => {
+      try {
+        const token = await getToken();
+        const apiBase = process.env.EXPO_PUBLIC_DOMAIN
+          ? `https://${process.env.EXPO_PUBLIC_DOMAIN}`
+          : "";
+        const res = await fetch(`${apiBase}/api/settings`, {
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+        });
+        if (res.ok) {
+          const data = (await res.json()) as { notifHabits?: boolean };
+          notifHabitsRef.current = data.notifHabits !== false;
+        }
+      } catch {
+        // silently ignore — default stays true
+      }
+    })();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // ── Section collapse state (persisted) ──────────────────────────────────
   const [sectionOpen, setSectionOpen] = useState({ goals: true, habits: true, schedule: true });
@@ -2137,7 +2160,7 @@ export default function PlanScreen() {
       if (habitId == null) continue;
       const habitName = habitMap.get(habitId);
       if (!habitName) continue;
-      scheduleHabitReminder(habitId, habitName, r.scheduledTime).catch(() => {});
+      scheduleHabitReminder(habitId, habitName, r.scheduledTime, notifHabitsRef.current).catch(() => {});
     }
   // Run once when reminders and habits are both loaded
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -2287,7 +2310,7 @@ export default function PlanScreen() {
       },
     });
     queryClient.invalidateQueries({ queryKey: getListRemindersQueryKey() });
-    await scheduleHabitReminder(habit.id, habit.name, time);
+    await scheduleHabitReminder(habit.id, habit.name, time, notifHabitsRef.current);
     setReminderPickerHabit(null);
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
   };

@@ -64,12 +64,21 @@ function parseHHMM(time: string): { hour: number; minute: number } | null {
   return { hour, minute };
 }
 
+/**
+ * Schedules a repeating daily local notification for a habit.
+ * When `enabled` is false the reminder is cancelled instead of scheduled.
+ */
 export async function scheduleHabitReminder(
   habitId: number,
   habitName: string,
   time: string,
+  enabled = true,
 ): Promise<void> {
   if (!isNativePlatform()) return;
+  if (!enabled) {
+    await cancelHabitReminder(habitId);
+    return;
+  }
   try {
     const parsed = parseHHMM(time);
     if (!parsed) return;
@@ -128,8 +137,16 @@ export async function getScheduledHabitIds(): Promise<number[]> {
 
 const CHECKIN_REMINDER_ID = "valo.checkin-reminder";
 
-export async function scheduleCheckinReminder(time: string): Promise<void> {
+/**
+ * Schedules a repeating daily local notification for the evening check-in.
+ * When `enabled` is false the reminder is cancelled instead of scheduled.
+ */
+export async function scheduleCheckinReminder(time: string, enabled = true): Promise<void> {
   if (!isNativePlatform()) return;
+  if (!enabled) {
+    await cancelCheckinReminder();
+    return;
+  }
   try {
     const parsed = parseHHMM(time);
     if (!parsed) return;

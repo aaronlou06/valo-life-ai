@@ -27,6 +27,10 @@ router.get("/settings", requireAuth, async (req, res): Promise<void> => {
     firstCallCompleted: profile?.firstCallCompleted ?? false,
     expoPushToken: profile?.expoPushToken ?? null,
     checkinReminderEnabled: profile?.checkinReminderEnabled ?? false,
+    notifMorning: profile?.notifMorning ?? true,
+    notifCheckin: profile?.notifCheckin ?? true,
+    notifHabits: profile?.notifHabits ?? true,
+    notifGoals: profile?.notifGoals ?? true,
   });
 });
 
@@ -41,6 +45,10 @@ router.patch("/settings", requireAuth, async (req, res): Promise<void> => {
     lifePriorities,
     expoPushToken,
     checkinReminderEnabled,
+    notifMorning,
+    notifCheckin,
+    notifHabits,
+    notifGoals,
   } = req.body as {
     phoneNumber?: string | null;
     preferredCallTime?: string | null;
@@ -50,6 +58,10 @@ router.patch("/settings", requireAuth, async (req, res): Promise<void> => {
     lifePriorities?: string | null;
     expoPushToken?: string | null;
     checkinReminderEnabled?: boolean;
+    notifMorning?: boolean;
+    notifCheckin?: boolean;
+    notifHabits?: boolean;
+    notifGoals?: boolean;
   };
 
   const updateValues: Partial<{
@@ -61,6 +73,10 @@ router.patch("/settings", requireAuth, async (req, res): Promise<void> => {
     lifePriorities: string | null;
     expoPushToken: string | null;
     checkinReminderEnabled: boolean;
+    notifMorning: boolean;
+    notifCheckin: boolean;
+    notifHabits: boolean;
+    notifGoals: boolean;
   }> = {};
 
   if (phoneNumber !== undefined) updateValues.phoneNumber = phoneNumber;
@@ -71,6 +87,10 @@ router.patch("/settings", requireAuth, async (req, res): Promise<void> => {
   if (lifePriorities !== undefined) updateValues.lifePriorities = lifePriorities;
   if (expoPushToken !== undefined) updateValues.expoPushToken = expoPushToken;
   if (checkinReminderEnabled !== undefined) updateValues.checkinReminderEnabled = checkinReminderEnabled;
+  if (notifMorning !== undefined) updateValues.notifMorning = notifMorning;
+  if (notifCheckin !== undefined) updateValues.notifCheckin = notifCheckin;
+  if (notifHabits !== undefined) updateValues.notifHabits = notifHabits;
+  if (notifGoals !== undefined) updateValues.notifGoals = notifGoals;
 
   const existing = await db
     .select({ id: userProfilesTable.id })

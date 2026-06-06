@@ -360,6 +360,7 @@ function NotificationsModal({
   onClose,
   dailyReminder,
   onDailyReminderChange,
+  notifCheckin,
 }: {
   visible: boolean;
   callTime: string;
@@ -367,6 +368,7 @@ function NotificationsModal({
   onClose: () => void;
   dailyReminder: boolean;
   onDailyReminderChange: (enabled: boolean) => void;
+  notifCheckin: boolean;
 }) {
   const colors = useColors();
   const [prefs, setPrefs] = useState<NotificationPrefs>(DEFAULT_NOTIF_PREFS);
@@ -397,7 +399,7 @@ function NotificationsModal({
       // Schedule or cancel the local check-in notification
       if (key === "dailyReminder") {
         if (next.dailyReminder) {
-          void scheduleCheckinReminder(callTime);
+          void scheduleCheckinReminder(callTime, notifCheckin);
         } else {
           void cancelCheckinReminder();
         }
@@ -711,6 +713,7 @@ export default function ProfileScreen() {
   const [nameInput, setNameInput] = useState(name ?? "");
   const [callTime, setCallTime] = useState("20:30");
   const [dailyReminder, setDailyReminder] = useState(false);
+  const [notifCheckin, setNotifCheckin] = useState(true);
   const [userIdentity, setUserIdentity] = useState("");
   const [userMotivation, setUserMotivation] = useState("");
   const [lifePriorities, setLifePriorities] = useState("");
@@ -747,6 +750,7 @@ export default function ProfileScreen() {
       if (s.preferredCallTime) setCallTime(s.preferredCallTime);
       if (s.lifePriorities) setLifePriorities(s.lifePriorities);
       setDailyReminder(s.checkinReminderEnabled === true);
+      setNotifCheckin(s.notifCheckin !== false);
     }
 
     if (contextRes?.ok) {
@@ -1849,7 +1853,7 @@ export default function ProfileScreen() {
           setShowTimePicker(false);
           await patchSettings({ preferredCallTime: hhmm }, "callTime");
           if (dailyReminder) {
-            void scheduleCheckinReminder(hhmm);
+            void scheduleCheckinReminder(hhmm, notifCheckin);
           }
         }}
       />
@@ -1861,6 +1865,7 @@ export default function ProfileScreen() {
         onClose={() => setShowNotifications(false)}
         dailyReminder={dailyReminder}
         onDailyReminderChange={setDailyReminder}
+        notifCheckin={notifCheckin}
       />
 
       <ChangePasswordModal

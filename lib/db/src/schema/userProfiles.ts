@@ -31,6 +31,10 @@ export const userProfilesTable = pgTable("user_profiles", {
   microphonePermission: boolean("microphone_permission"),
   expoPushToken: text("expo_push_token"),
   checkinReminderEnabled: boolean("checkin_reminder_enabled").notNull().default(false),
+  notifMorning: boolean("notif_morning").notNull().default(true),
+  notifCheckin: boolean("notif_checkin").notNull().default(true),
+  notifHabits: boolean("notif_habits").notNull().default(true),
+  notifGoals: boolean("notif_goals").notNull().default(true),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 });

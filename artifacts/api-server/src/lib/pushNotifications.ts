@@ -2,6 +2,8 @@ import { db, userProfilesTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
 import { logger } from "./logger";
 
+export type NotifType = "morning" | "checkin" | "habits" | "goals";
+
 interface ExpoPushMessage {
   to: string;
   title: string;
@@ -22,20 +24,41 @@ interface ExpoPushTicket {
  * https://exp.host/--/api/v2/push/send. Resolves silently
  * when the token is missing (user has not granted permission
  * or is not yet registered).
+ *
+ * Pass `notifType` to gate on the user's per-type notification preference.
+ * When provided, the function returns early if the user has disabled that type.
  */
 export async function sendPushNotification(
   userId: string,
   title: string,
-  body: string
+  body: string,
+  notifType?: NotifType
 ): Promise<void> {
   const rows = await db
-    .select({ expoPushToken: userProfilesTable.expoPushToken })
+    .select({
+      expoPushToken: userProfilesTable.expoPushToken,
+      notifMorning: userProfilesTable.notifMorning,
+      notifCheckin: userProfilesTable.notifCheckin,
+      notifHabits: userProfilesTable.notifHabits,
+      notifGoals: userProfilesTable.notifGoals,
+    })
     .from(userProfilesTable)
     .where(eq(userProfilesTable.userId, userId))
     .limit(1);
 
-  const token = rows[0]?.expoPushToken;
+  const row = rows[0];
+  const token = row?.expoPushToken;
   if (!token) return;
+
+  if (notifType) {
+    const prefMap: Record<NotifType, boolean> = {
+      morning: row?.notifMorning ?? true,
+      checkin: row?.notifCheckin ?? true,
+      habits: row?.notifHabits ?? true,
+      goals: row?.notifGoals ?? true,
+    };
+    if (!prefMap[notifType]) return;
+  }
 
   const message: ExpoPushMessage = { to: token, title, body, sound: "default" };
 

@@ -21,4 +21,8 @@ export interface UpdateSettings {
   /** @nullable */
   expoPushToken?: string | null;
   checkinReminderEnabled?: boolean;
+  notifMorning?: boolean;
+  notifCheckin?: boolean;
+  notifHabits?: boolean;
+  notifGoals?: boolean;
 }

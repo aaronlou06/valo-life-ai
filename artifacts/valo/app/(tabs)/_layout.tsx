@@ -129,6 +129,17 @@ export default function TabLayout() {
     if (!isSignedIn) return;
     (async () => {
       try {
+        const token = await getToken();
+        const apiBase = process.env.EXPO_PUBLIC_DOMAIN
+          ? `https://${process.env.EXPO_PUBLIC_DOMAIN}`
+          : "";
+        const settingsRes = await fetch(`${apiBase}/api/settings`, {
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+        });
+        const notifHabitsEnabled: boolean = settingsRes.ok
+          ? ((await settingsRes.json()) as { notifHabits?: boolean }).notifHabits !== false
+          : true;
+
         const [reminders, habits] = await Promise.all([listReminders(), listHabits()]);
         const habitMap = new Map(habits.map((h) => [h.id, h.name]));
         for (const r of reminders) {
@@ -138,7 +149,7 @@ export default function TabLayout() {
           if (habitId == null) continue;
           const habitName = habitMap.get(habitId);
           if (!habitName) continue;
-          scheduleHabitReminder(habitId, habitName, r.scheduledTime).catch(() => {});
+          scheduleHabitReminder(habitId, habitName, r.scheduledTime, notifHabitsEnabled).catch(() => {});
         }
       } catch {
         // Network failure or not yet signed in — silently skip

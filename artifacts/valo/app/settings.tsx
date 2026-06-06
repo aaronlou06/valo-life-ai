@@ -19,6 +19,12 @@ import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { useValoAuth } from "@/contexts/AuthContext";
 import { useColors } from "@/hooks/useColors";
+import {
+  scheduleCheckinReminder,
+  cancelCheckinReminder,
+  cancelHabitReminder,
+  getScheduledHabitIds,
+} from "@/lib/notifications";
 
 const COMMON_TIMEZONES = [
   "America/New_York",
@@ -122,8 +128,14 @@ export default function SettingsScreen() {
   const [preferredCallTime, setPreferredCallTime] = useState("20:00");
   const [callTimezone, setCallTimezone] = useState(getDeviceTimezone());
   const [callsEnabled, setCallsEnabled] = useState(false);
+  const [checkinReminderEnabled, setCheckinReminderEnabled] = useState(false);
   const [tzModalVisible, setTzModalVisible] = useState(false);
   const [tzSearch, setTzSearch] = useState("");
+
+  const [notifMorning, setNotifMorning] = useState(true);
+  const [notifCheckin, setNotifCheckin] = useState(true);
+  const [notifHabits, setNotifHabits] = useState(true);
+  const [notifGoals, setNotifGoals] = useState(true);
 
   const topPad = Platform.OS === "web" ? Math.max(insets.top, 67) : insets.top;
   const bottomPad = Platform.OS === "web" ? 34 : insets.bottom;
@@ -142,11 +154,21 @@ export default function SettingsScreen() {
           preferredCallTime: string | null;
           callTimezone: string | null;
           callsEnabled: boolean;
+          checkinReminderEnabled?: boolean;
+          notifMorning?: boolean;
+          notifCheckin?: boolean;
+          notifHabits?: boolean;
+          notifGoals?: boolean;
         };
         if (data.phoneNumber) setPhoneNumber(data.phoneNumber);
         if (data.preferredCallTime) setPreferredCallTime(data.preferredCallTime);
         if (data.callTimezone) setCallTimezone(data.callTimezone);
         setCallsEnabled(data.callsEnabled ?? false);
+        setCheckinReminderEnabled(data.checkinReminderEnabled ?? false);
+        setNotifMorning(data.notifMorning !== false);
+        setNotifCheckin(data.notifCheckin !== false);
+        setNotifHabits(data.notifHabits !== false);
+        setNotifGoals(data.notifGoals !== false);
       }
     } catch {
       // ignore
@@ -172,11 +194,27 @@ export default function SettingsScreen() {
           preferredCallTime,
           callTimezone,
           callsEnabled,
+          notifMorning,
+          notifCheckin,
+          notifHabits,
+          notifGoals,
         }),
       });
       if (res.ok) {
+        // Apply check-in reminder change immediately
+        if (checkinReminderEnabled && preferredCallTime) {
+          void scheduleCheckinReminder(preferredCallTime, notifCheckin);
+        } else {
+          void cancelCheckinReminder();
+        }
+        // Cancel all scheduled habit reminders immediately when disabled
+        if (!notifHabits) {
+          void getScheduledHabitIds().then((ids) => {
+            ids.forEach((id) => { void cancelHabitReminder(id); });
+          });
+        }
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-        Alert.alert("Saved", "Your call settings have been saved.", [{ text: "OK", onPress: () => router.back() }]);
+        Alert.alert("Saved", "Your settings have been saved.", [{ text: "OK", onPress: () => router.back() }]);
       } else {
         Alert.alert("Error", "Failed to save settings. Please try again.");
       }
@@ -185,7 +223,7 @@ export default function SettingsScreen() {
     } finally {
       setSaving(false);
     }
-  }, [getToken, apiBase, phoneNumber, preferredCallTime, callTimezone, callsEnabled, router]);
+  }, [getToken, apiBase, phoneNumber, preferredCallTime, callTimezone, callsEnabled, checkinReminderEnabled, notifMorning, notifCheckin, notifHabits, notifGoals, router]);
 
   const filteredTz = COMMON_TIMEZONES.filter((tz) =>
     tz.toLowerCase().includes(tzSearch.toLowerCase())
@@ -218,6 +256,98 @@ export default function SettingsScreen() {
             Settings
           </Text>
           <View style={{ width: 32 }} />
+        </View>
+
+        {/* Notifications section */}
+        <Text style={[styles.sectionLabel, { color: colors.mutedForeground, fontFamily: "Inter_500Medium" }]}>
+          NOTIFICATIONS
+        </Text>
+        <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
+          <View style={styles.row}>
+            <View style={{ flex: 1 }}>
+              <Text style={[styles.rowLabel, { color: colors.foreground, fontFamily: "Inter_600SemiBold" }]}>
+                Morning briefing
+              </Text>
+              <Text style={[styles.rowSub, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
+                Daily summary and priorities to start your day
+              </Text>
+            </View>
+            <Switch
+              value={notifMorning}
+              onValueChange={(v) => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                setNotifMorning(v);
+              }}
+              trackColor={{ false: colors.muted, true: colors.primary }}
+              thumbColor="#fff"
+            />
+          </View>
+
+          <View style={[styles.divider, { backgroundColor: colors.border }]} />
+
+          <View style={styles.row}>
+            <View style={{ flex: 1 }}>
+              <Text style={[styles.rowLabel, { color: colors.foreground, fontFamily: "Inter_600SemiBold" }]}>
+                Evening check-in reminder
+              </Text>
+              <Text style={[styles.rowSub, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
+                Prompt to reflect and log your day
+              </Text>
+            </View>
+            <Switch
+              value={notifCheckin}
+              onValueChange={(v) => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                setNotifCheckin(v);
+              }}
+              trackColor={{ false: colors.muted, true: colors.primary }}
+              thumbColor="#fff"
+            />
+          </View>
+
+          <View style={[styles.divider, { backgroundColor: colors.border }]} />
+
+          <View style={styles.row}>
+            <View style={{ flex: 1 }}>
+              <Text style={[styles.rowLabel, { color: colors.foreground, fontFamily: "Inter_600SemiBold" }]}>
+                Habit reminders
+              </Text>
+              <Text style={[styles.rowSub, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
+                Scheduled alerts for your daily habits
+              </Text>
+            </View>
+            <Switch
+              value={notifHabits}
+              onValueChange={(v) => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                setNotifHabits(v);
+              }}
+              trackColor={{ false: colors.muted, true: colors.primary }}
+              thumbColor="#fff"
+            />
+          </View>
+
+          <View style={[styles.divider, { backgroundColor: colors.border }]} />
+
+          <View style={styles.row}>
+            <View style={{ flex: 1 }}>
+              <Text style={[styles.rowLabel, { color: colors.foreground, fontFamily: "Inter_600SemiBold" }]}>
+                Goal reminders
+              </Text>
+              <Text style={[styles.rowSub, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
+                Deadline alerts for upcoming goal milestones
+              </Text>
+            </View>
+            <Switch
+              value={notifGoals}
+              onValueChange={(v) => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                setNotifGoals(v);
+              }}
+              trackColor={{ false: colors.muted, true: colors.primary }}
+              thumbColor="#fff"
+            />
+          </View>
         </View>
 
         {/* Daily Call section */}
