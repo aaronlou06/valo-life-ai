@@ -18,6 +18,9 @@ import { setBaseUrl } from "@workspace/api-client-react";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { GOOGLE_OAUTH_PREFIX } from "@/lib/googleCalendar";
+import { installErrorLogger } from "@/lib/errorLogger";
+
+installErrorLogger();
 
 console.log("[Valo] _layout module loaded");
 

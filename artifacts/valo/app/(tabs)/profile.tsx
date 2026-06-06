@@ -39,6 +39,7 @@ import {
   type GoogleCalendarInfo,
 } from "@/lib/googleCalendar";
 import { requestHealthKitPermissions } from "@/lib/healthKit";
+import { getRecentErrorLogs } from "@/lib/errorLogger";
 import {
   useListGoals,
   useListHabits,
@@ -899,6 +900,9 @@ export default function ProfileScreen() {
       `Device: ${deviceModel}`,
       `Platform: ${Platform.OS} ${osVersion}`,
       `User ID: ${userId ?? "not signed in"}`,
+      "",
+      "Recent errors:",
+      getRecentErrorLogs(),
     ];
     return lines.join("\n");
   }
