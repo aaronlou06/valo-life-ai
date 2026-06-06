@@ -60,13 +60,6 @@ export default {
       ],
       "expo-font",
       [
-        "expo-notifications",
-        {
-          icon: "./assets/images/icon.png",
-          color: "#C17B3F",
-        },
-      ],
-      [
         "react-native-health",
         {
           healthSharePermission:
