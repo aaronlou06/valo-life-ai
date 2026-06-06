@@ -166,6 +166,13 @@ function formatWeekLabel(start: Date): string {
   return `${sm} ${start.getDate()} – ${em} ${end.getDate()}`;
 }
 
+function formatDateWithDay(dateString: string): string {
+  const datePart = dateString.includes("T") ? dateString.split("T")[0]! : dateString;
+  const [y, m, d] = datePart.split("-").map(Number);
+  const date = new Date(y!, (m ?? 1) - 1, d);
+  return date.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", year: "numeric" });
+}
+
 function formatDayHeader(dateStr: string): string {
   const parts = dateStr.split("-").map(Number);
   const d = new Date(parts[0]!, (parts[1] ?? 1) - 1, parts[2]);
@@ -173,10 +180,7 @@ function formatDayHeader(dateStr: string): string {
 }
 
 function formatEventDate(dateStr: string): string {
-  const datePart = dateStr.includes("T") ? dateStr.split("T")[0]! : dateStr;
-  const parts = datePart.split("-").map(Number);
-  const d = new Date(parts[0]!, (parts[1] ?? 1) - 1, parts[2]);
-  return d.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", year: "numeric" });
+  return formatDateWithDay(dateStr);
 }
 
 function typeBadgeColor(type: string | null | undefined): string {
@@ -434,12 +438,8 @@ function DatePickerField({
   };
 
   const displayLabel = value ? (() => {
+    let s = formatDateWithDay(value);
     const hasT = value.includes("T");
-    const dp = hasT ? value.split("T")[0]! : value;
-    const [y, m, d] = dp.split("-").map(Number);
-    const dateObj = new Date(y!, (m ?? 1) - 1, d);
-    const dayAbbr = DAY_SHORT_NAMES[dateObj.getDay()]!;
-    let s = `${dayAbbr}, ${PICKER_MONTHS_SHORT[(m ?? 1) - 1]} ${d}, ${y}`;
     if (hasT) {
       const tp = value.split("T")[1]!;
       const [hs, ms] = tp.split(":");
@@ -2804,8 +2804,7 @@ export default function PlanScreen() {
               <Feather name={googleCalOpen ? "chevron-up" : "chevron-down"} size={16} color={colors.mutedForeground} />
             </TouchableOpacity>
             {googleCalOpen && upcomingGoogleEvents.map((event) => {
-              const dateParts = event.date.split("-").map(Number);
-              const dateLabel = new Date(dateParts[0]!, (dateParts[1] ?? 1) - 1, dateParts[2]).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
+              const dateLabel = formatDateWithDay(event.date);
               const timeLabel = event.startTime
                 ? new Date(event.startTime).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true })
                 : null;
