@@ -42,8 +42,17 @@ import {
   useListHabitCompletions,
   useToggleHabitCompletion,
   getListHabitCompletionsQueryKey,
+  useListReminders,
+  useUpsertReminder,
+  useDeleteReminder,
+  getListRemindersQueryKey,
   type Habit,
+  type Reminder,
 } from "@workspace/api-client-react";
+import {
+  scheduleHabitReminder,
+  cancelHabitReminder,
+} from "@/lib/notifications";
 import { useQueryClient } from "@tanstack/react-query";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -1382,10 +1391,12 @@ function YearView({
 // ─── Habit Row ────────────────────────────────────────────────────────────────
 
 function HabitRow({
-  habit, colors, onToggle, onDelete,
+  habit, colors, onToggle, onDelete, reminder, onBellPress,
 }: {
   habit: Habit; colors: Colors; onToggle: () => void; onDelete: () => void;
+  reminder?: Reminder; onBellPress: () => void;
 }) {
+  const hasReminder = !!reminder?.isActive;
   return (
     <TouchableOpacity
       style={[habitStyles.row, { backgroundColor: colors.card, borderColor: colors.border }]}
@@ -1403,10 +1414,98 @@ function HabitRow({
           {habit.streak} day streak
         </Text>
       </View>
+      <TouchableOpacity onPress={onBellPress} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} style={{ marginRight: 10 }}>
+        <Feather
+          name="bell"
+          size={14}
+          color={hasReminder ? colors.primary : colors.mutedForeground}
+        />
+      </TouchableOpacity>
       <TouchableOpacity onPress={onDelete} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
         <Feather name="trash-2" size={13} color={colors.mutedForeground} />
       </TouchableOpacity>
     </TouchableOpacity>
+  );
+}
+
+// ─── Habit Reminder Picker Modal ──────────────────────────────────────────────
+
+function HabitReminderModal({
+  visible, habitName, existingReminder, onClose, onSave, onClear, colors,
+}: {
+  visible: boolean;
+  habitName: string;
+  existingReminder?: Reminder;
+  onClose: () => void;
+  onSave: (time: string) => void;
+  onClear: () => void;
+  colors: Colors;
+}) {
+  const hasReminder = !!existingReminder?.isActive;
+  const [selHour, setSelHour] = useState(8);
+  const [selMinute, setSelMinute] = useState(0);
+  const [selAmPm, setSelAmPm] = useState(0);
+
+  useEffect(() => {
+    if (visible) {
+      if (existingReminder?.scheduledTime) {
+        const [hStr, mStr] = existingReminder.scheduledTime.split(":");
+        const h24 = parseInt(hStr ?? "9", 10);
+        const m = parseInt(mStr ?? "0", 10);
+        setSelAmPm(h24 < 12 ? 0 : 1);
+        const h12 = h24 % 12;
+        setSelHour(h12 === 0 ? 11 : h12 - 1);
+        const mIdx = PICKER_MINUTES.indexOf(String(m).padStart(2, "0"));
+        setSelMinute(mIdx >= 0 ? mIdx : 0);
+      } else {
+        setSelHour(8);
+        setSelMinute(0);
+        setSelAmPm(0);
+      }
+    }
+  }, [visible, existingReminder]);
+
+  const handleSave = () => {
+    const hv = selHour + 1;
+    const h24 = selAmPm === 0 ? (hv === 12 ? 0 : hv) : (hv === 12 ? 12 : hv + 12);
+    const time = `${String(h24).padStart(2, "0")}:${PICKER_MINUTES[selMinute]!}`;
+    onSave(time);
+  };
+
+  return (
+    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
+      <View style={Sh.pickerOverlay}>
+        <View style={[Sh.pickerSheet, { backgroundColor: colors.card }]}>
+          <Text style={[Sh.pickerTitle, { color: colors.foreground, fontFamily: "Inter_600SemiBold" }]}>
+            {hasReminder ? "Update reminder" : "Set reminder"}
+          </Text>
+          <Text style={{ color: colors.mutedForeground, fontFamily: "Inter_400Regular", fontSize: 13, textAlign: "center", marginBottom: 14 }}>
+            {habitName}
+          </Text>
+          <View style={{ position: "relative" }}>
+            <View style={[Sh.pickerHighlight, { top: PICKER_ITEM_H * 2, height: PICKER_ITEM_H, borderColor: colors.border }]} />
+            <View style={{ flexDirection: "row" }}>
+              <PickerColumn items={PICKER_HOURS} selectedIndex={selHour} onSelect={setSelHour} colors={colors} />
+              <PickerColumn items={PICKER_MINUTES} selectedIndex={selMinute} onSelect={setSelMinute} colors={colors} />
+              <PickerColumn items={PICKER_AMPM} selectedIndex={selAmPm} onSelect={setSelAmPm} colors={colors} />
+            </View>
+          </View>
+          <TouchableOpacity style={[Sh.pickerConfirmBtn, { backgroundColor: colors.primary }]} onPress={handleSave}>
+            <Text style={{ color: colors.primaryForeground, fontFamily: "Inter_600SemiBold", fontSize: 15 }}>
+              {hasReminder ? "Update reminder" : "Set reminder"}
+            </Text>
+          </TouchableOpacity>
+          {hasReminder && (
+            <TouchableOpacity style={Sh.pickerCancelBtn} onPress={onClear}>
+              <Text style={{ color: "#E11D48", fontFamily: "Inter_400Regular", fontSize: 14 }}>Remove reminder</Text>
+            </TouchableOpacity>
+          )}
+          <TouchableOpacity style={hasReminder ? { height: 28, justifyContent: "center", alignItems: "center" } : Sh.pickerCancelBtn} onPress={onClose}>
+            <Text style={{ color: colors.mutedForeground, fontFamily: "Inter_400Regular", fontSize: 14 }}>Cancel</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    </Modal>
   );
 }
 
@@ -1981,6 +2080,12 @@ export default function PlanScreen() {
   const [newHabitName, setNewHabitName] = useState("");
   const [showHabitInput, setShowHabitInput] = useState(false);
 
+  // ── Reminders state ──
+  const { data: reminders = [] } = useListReminders();
+  const upsertReminderMutation = useUpsertReminder();
+  const deleteReminderMutation = useDeleteReminder();
+  const [reminderPickerHabit, setReminderPickerHabit] = useState<Habit | null>(null);
+
   // ── Section collapse state (persisted) ──────────────────────────────────
   const [sectionOpen, setSectionOpen] = useState({ goals: true, habits: true, schedule: true });
   const [addHabitRoutineId, setAddHabitRoutineId] = useState<string | null>(null);
@@ -2019,6 +2124,24 @@ export default function PlanScreen() {
       })
       .catch(() => {});
   }, []);
+
+  // ── Startup sync: re-schedule habit reminders after app restart ──
+  useEffect(() => {
+    if (reminders.length === 0) return;
+    const habitReminders = reminders.filter((r) => r.type === "habit" && r.isActive);
+    if (habitReminders.length === 0) return;
+    const habitMap = new Map(habits.map((h) => [h.id, h.name]));
+    for (const r of habitReminders) {
+      const meta = r.metadata as { habitId?: number } | null;
+      const habitId = meta?.habitId;
+      if (habitId == null) continue;
+      const habitName = habitMap.get(habitId);
+      if (!habitName) continue;
+      scheduleHabitReminder(habitId, habitName, r.scheduledTime).catch(() => {});
+    }
+  // Run once when reminders and habits are both loaded
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [reminders.length, habits.length]);
 
   // ── Migrate legacy AsyncStorage routines on first load ──
   useEffect(() => {
@@ -2142,6 +2265,42 @@ export default function PlanScreen() {
   const handleDeleteHabit = (id: number) => {
     deleteHabitMutation.mutate({ id });
     queryClient.invalidateQueries({ queryKey: getListHabitsQueryKey() });
+    cancelHabitReminder(id).catch(() => {});
+  };
+
+  // ── Reminder handlers ──
+  const getHabitReminder = (habitId: number): Reminder | undefined =>
+    reminders.find((r) => {
+      if (r.type !== "habit") return false;
+      const meta = r.metadata as { habitId?: number } | null;
+      return meta?.habitId === habitId;
+    });
+
+  const handleSaveReminder = async (habit: Habit, time: string) => {
+    await upsertReminderMutation.mutateAsync({
+      data: {
+        type: "habit",
+        label: habit.name,
+        scheduledTime: time,
+        isActive: true,
+        metadata: { habitId: habit.id },
+      },
+    });
+    queryClient.invalidateQueries({ queryKey: getListRemindersQueryKey() });
+    await scheduleHabitReminder(habit.id, habit.name, time);
+    setReminderPickerHabit(null);
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+  };
+
+  const handleClearReminder = async (habit: Habit) => {
+    const existing = getHabitReminder(habit.id);
+    if (existing) {
+      await deleteReminderMutation.mutateAsync({ id: existing.id });
+      queryClient.invalidateQueries({ queryKey: getListRemindersQueryKey() });
+    }
+    await cancelHabitReminder(habit.id);
+    setReminderPickerHabit(null);
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
   };
 
   // ── Calendar nav ──
@@ -2415,15 +2574,26 @@ export default function PlanScreen() {
               <Text style={[planStyles.emptyText, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>No habits yet. Small things compound.</Text>
             </View>
           ) : (
-            standaloneHabits.map((habit) => (
-              <HabitRow
-                key={habit.id}
-                habit={habit}
-                colors={colors}
-                onToggle={() => toggleHabit(habit.id, habit.completedToday, habit.streak)}
-                onDelete={() => handleDeleteHabit(habit.id)}
-              />
-            ))
+            standaloneHabits.map((habit) => {
+              const habitReminder = getHabitReminder(habit.id);
+              return (
+                <HabitRow
+                  key={habit.id}
+                  habit={habit}
+                  colors={colors}
+                  onToggle={() => toggleHabit(habit.id, habit.completedToday, habit.streak)}
+                  onDelete={() => handleDeleteHabit(habit.id)}
+                  reminder={habitReminder}
+                  onBellPress={() => {
+                    if (habitReminder?.isActive) {
+                      void handleClearReminder(habit);
+                    } else {
+                      setReminderPickerHabit(habit);
+                    }
+                  }}
+                />
+              );
+            })
           )}
           </>)}
         </View>
@@ -2532,15 +2702,26 @@ export default function PlanScreen() {
                   />
                   {routineHabits.length > 0 && (
                     <View style={habitStyles.subList}>
-                      {routineHabits.map((habit) => (
-                        <HabitRow
-                          key={habit.id}
-                          habit={habit}
-                          colors={colors}
-                          onToggle={() => toggleHabit(habit.id, habit.completedToday, habit.streak)}
-                          onDelete={() => handleDeleteHabit(habit.id)}
-                        />
-                      ))}
+                      {routineHabits.map((habit) => {
+                        const habitReminder = getHabitReminder(habit.id);
+                        return (
+                          <HabitRow
+                            key={habit.id}
+                            habit={habit}
+                            colors={colors}
+                            onToggle={() => toggleHabit(habit.id, habit.completedToday, habit.streak)}
+                            onDelete={() => handleDeleteHabit(habit.id)}
+                            reminder={habitReminder}
+                            onBellPress={() => {
+                              if (habitReminder?.isActive) {
+                                void handleClearReminder(habit);
+                              } else {
+                                setReminderPickerHabit(habit);
+                              }
+                            }}
+                          />
+                        );
+                      })}
                     </View>
                   )}
                   {isAddingHere ? (
@@ -2728,6 +2909,16 @@ export default function PlanScreen() {
         onClose={() => setRoutineHabitsSheet(null)}
         colors={colors}
         bottomInset={insets.bottom}
+      />
+
+      <HabitReminderModal
+        visible={reminderPickerHabit !== null}
+        habitName={reminderPickerHabit?.name ?? ""}
+        existingReminder={reminderPickerHabit ? getHabitReminder(reminderPickerHabit.id) : undefined}
+        onClose={() => setReminderPickerHabit(null)}
+        onSave={(time) => { if (reminderPickerHabit) void handleSaveReminder(reminderPickerHabit, time); }}
+        onClear={() => { if (reminderPickerHabit) void handleClearReminder(reminderPickerHabit); }}
+        colors={colors}
       />
     </>
   );

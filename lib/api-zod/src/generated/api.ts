@@ -593,6 +593,52 @@ export const ListHabitCompletionsResponse = zod.array(
 );
 
 /**
+ * @summary List all reminders for the authenticated user
+ */
+export const ListRemindersResponseItem = zod.object({
+  id: zod.number(),
+  userId: zod.string(),
+  type: zod.string(),
+  label: zod.string(),
+  scheduledTime: zod.string().describe("HH:MM 24-hour time string"),
+  isActive: zod.boolean(),
+  metadata: zod.record(zod.string(), zod.unknown()).nullish(),
+  createdAt: zod.string(),
+  updatedAt: zod.string(),
+});
+export const ListRemindersResponse = zod.array(ListRemindersResponseItem);
+
+/**
+ * @summary Create or update a reminder (upserts by userId + type + metadata.habitId)
+ */
+export const UpsertReminderBody = zod.object({
+  type: zod.string(),
+  label: zod.string(),
+  scheduledTime: zod.string().describe("HH:MM 24-hour time string"),
+  isActive: zod.boolean().optional(),
+  metadata: zod.record(zod.string(), zod.unknown()).nullish(),
+});
+
+export const UpsertReminderResponse = zod.object({
+  id: zod.number(),
+  userId: zod.string(),
+  type: zod.string(),
+  label: zod.string(),
+  scheduledTime: zod.string().describe("HH:MM 24-hour time string"),
+  isActive: zod.boolean(),
+  metadata: zod.record(zod.string(), zod.unknown()).nullish(),
+  createdAt: zod.string(),
+  updatedAt: zod.string(),
+});
+
+/**
+ * @summary Delete a reminder by id
+ */
+export const DeleteReminderParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+/**
  * @summary Toggle a habit completion for a specific date
  */
 export const ToggleHabitCompletionBody = zod.object({

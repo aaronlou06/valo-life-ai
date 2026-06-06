@@ -6,10 +6,11 @@ import { SymbolView } from "expo-symbols";
 import { Feather } from "@expo/vector-icons";
 import React, { useEffect, useState } from "react";
 import { Platform, StyleSheet, View, useColorScheme, ActivityIndicator } from "react-native";
-import { setAuthTokenGetter } from "@workspace/api-client-react";
+import { setAuthTokenGetter, listReminders, listHabits } from "@workspace/api-client-react";
 import { useColors } from "@/hooks/useColors";
 import { useValoAuth } from "@/contexts/AuthContext";
 import { isOnboardingComplete, loadOnboardingState } from "@/hooks/onboardingState";
+import { scheduleHabitReminder } from "@/lib/notifications";
 
 function NativeTabLayout() {
   return (
@@ -122,6 +123,30 @@ export default function TabLayout() {
   useEffect(() => {
     setAuthTokenGetter(() => getToken());
   }, [getToken]);
+
+  // Re-schedule all active habit reminders on app startup so they survive restarts.
+  useEffect(() => {
+    if (!isSignedIn) return;
+    (async () => {
+      try {
+        const [reminders, habits] = await Promise.all([listReminders(), listHabits()]);
+        const habitMap = new Map(habits.map((h) => [h.id, h.name]));
+        for (const r of reminders) {
+          if (!r.isActive || r.type !== "habit") continue;
+          const meta = r.metadata as { habitId?: number } | null;
+          const habitId = meta?.habitId;
+          if (habitId == null) continue;
+          const habitName = habitMap.get(habitId);
+          if (!habitName) continue;
+          scheduleHabitReminder(habitId, habitName, r.scheduledTime).catch(() => {});
+        }
+      } catch {
+        // Network failure or not yet signed in — silently skip
+      }
+    })();
+  // Run once on sign-in
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isSignedIn]);
 
   useEffect(() => {
     if (!isSignedIn || isOnboardingComplete()) {

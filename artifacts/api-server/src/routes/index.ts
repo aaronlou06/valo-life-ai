@@ -24,6 +24,7 @@ import habitCompletionsRouter from "./habit-completions";
 import telemetryRouter from "./telemetry";
 import mealRouter from "./meal";
 import feedbackRouter from "./feedback";
+import remindersRouter from "./reminders";
 
 const router: IRouter = Router();
 
@@ -52,5 +53,6 @@ router.use(habitCompletionsRouter);
 router.use(telemetryRouter);
 router.use(mealRouter);
 router.use(feedbackRouter);
+router.use(remindersRouter);
 
 export default router;

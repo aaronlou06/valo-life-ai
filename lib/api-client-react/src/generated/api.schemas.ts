@@ -415,6 +415,32 @@ export interface ToggleHabitCompletionInput {
   date: string;
 }
 
+export type ReminderMetadata = { [key: string]: unknown } | null;
+
+export interface Reminder {
+  id: number;
+  userId: string;
+  type: string;
+  label: string;
+  /** HH:MM 24-hour time string */
+  scheduledTime: string;
+  isActive: boolean;
+  metadata?: ReminderMetadata;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type ReminderInputMetadata = { [key: string]: unknown } | null;
+
+export interface ReminderInput {
+  type: string;
+  label: string;
+  /** HH:MM 24-hour time string */
+  scheduledTime: string;
+  isActive?: boolean;
+  metadata?: ReminderInputMetadata;
+}
+
 export interface InsightPattern {
   id: number;
   userId: string;

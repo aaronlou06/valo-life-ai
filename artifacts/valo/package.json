@@ -74,6 +74,7 @@
     "expo-device": "^56.0.4",
     "expo-image-manipulator": "^56.0.13",
     "expo-mail-composer": "^56.0.4",
+    "expo-notifications": "^56.0.15",
     "react-native-draggable-flatlist": "^4.0.3",
     "react-native-health": "^1.19.0"
   }

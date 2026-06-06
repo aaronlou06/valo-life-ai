@@ -617,6 +617,53 @@ paths:
                 items:
                   $ref: "#/components/schemas/HabitCompletion"
 
+  /reminders:
+    get:
+      operationId: listReminders
+      tags: [habits]
+      summary: List all reminders for the authenticated user
+      responses:
+        "200":
+          description: List of reminders
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Reminder"
+    post:
+      operationId: upsertReminder
+      tags: [habits]
+      summary: Create or update a reminder (upserts by userId + type + metadata.habitId)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReminderInput"
+      responses:
+        "200":
+          description: Upserted reminder
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Reminder"
+
+  /reminders/{id}:
+    delete:
+      operationId: deleteReminder
+      tags: [habits]
+      summary: Delete a reminder by id
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+
   /habit-completions/toggle:
     post:
       operationId: toggleHabitCompletion
@@ -1211,6 +1258,50 @@ components:
         date:
           type: string
           description: YYYY-MM-DD
+
+    Reminder:
+      type: object
+      required: [id, userId, type, label, scheduledTime, isActive, createdAt, updatedAt]
+      properties:
+        id:
+          type: integer
+        userId:
+          type: string
+        type:
+          type: string
+        label:
+          type: string
+        scheduledTime:
+          type: string
+          description: "HH:MM 24-hour time string"
+        isActive:
+          type: boolean
+        metadata:
+          type: object
+          nullable: true
+          additionalProperties: true
+        createdAt:
+          type: string
+        updatedAt:
+          type: string
+
+    ReminderInput:
+      type: object
+      required: [type, label, scheduledTime]
+      properties:
+        type:
+          type: string
+        label:
+          type: string
+        scheduledTime:
+          type: string
+          description: "HH:MM 24-hour time string"
+        isActive:
+          type: boolean
+        metadata:
+          type: object
+          nullable: true
+          additionalProperties: true
 
     InsightPattern:
       type: object
