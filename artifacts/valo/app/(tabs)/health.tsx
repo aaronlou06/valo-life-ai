@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from "react";
+import React, { useState, useCallback, useEffect } from "react";
 import {
   View,
   Text,
@@ -15,6 +15,8 @@ import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context"
 import { Feather } from "@expo/vector-icons";
 import { useFocusEffect, useRouter } from "expo-router";
 import { useQueryClient } from "@tanstack/react-query";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { HEALTHKIT_AUTHORIZED_DATE_KEY } from "@/lib/healthKit";
 import {
   useListDailyLogHistory,
   useGetTodayLog,
@@ -685,6 +687,13 @@ export default function HealthScreen() {
   const [showAddWorkout, setShowAddWorkout] = useState(false);
   const [savingWorkout, setSavingWorkout] = useState(false);
   const [showAllWorkouts, setShowAllWorkouts] = useState(false);
+  const [healthKitAuthDate, setHealthKitAuthDate] = useState<string | null>(null);
+
+  useEffect(() => {
+    AsyncStorage.getItem(HEALTHKIT_AUTHORIZED_DATE_KEY).then((val) => {
+      setHealthKitAuthDate(val);
+    });
+  }, []);
 
   const { data: logHistory = [], isLoading: loadingHistory } =
     useListDailyLogHistory();
@@ -779,6 +788,18 @@ export default function HealthScreen() {
           >
             Trends from your logged data
           </Text>
+          {healthKitAuthDate != null && (() => {
+            const d = new Date(healthKitAuthDate);
+            const label = d.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" });
+            return (
+              <View style={[styles.historyBadge, { backgroundColor: colors.muted, borderColor: colors.border }]}>
+                <Feather name="clock" size={12} color={colors.mutedForeground} />
+                <Text style={[styles.historyBadgeText, { color: colors.mutedForeground }]}>
+                  History available since {label}
+                </Text>
+              </View>
+            );
+          })()}
 
           {loadingHistory ? (
             <ActivityIndicator
@@ -1062,6 +1083,22 @@ const styles = StyleSheet.create({
     height: StyleSheet.hairlineWidth,
     marginHorizontal: 20,
     marginTop: 16,
+  },
+
+  // History badge
+  historyBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    alignSelf: "flex-start",
+    borderRadius: 6,
+    borderWidth: StyleSheet.hairlineWidth,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    marginBottom: 14,
+  },
+  historyBadgeText: {
+    fontSize: 12,
   },
 
   // Metrics
