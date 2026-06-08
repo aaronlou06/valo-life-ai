@@ -47,6 +47,35 @@ function extractTranscript(payload: VapiWebhookPayload): TranscriptEntry[] {
 router.post("/vapi/webhook", async (req, res): Promise<void> => {
   const payload = req.body as VapiWebhookPayload;
 
+  // ── Call-start onboarding guard ───────────────────────────────────────────
+  // For call-started events, check that the user has completed onboarding.
+  // Vapi does not wait on this response, but we log and short-circuit processing.
+  if (
+    payload.type === "call-started" ||
+    payload.type === "call-start" ||
+    payload.type === "assistant-request"
+  ) {
+    const metaUserId = payload.call?.metadata?.userId as string | undefined;
+    if (metaUserId) {
+      const profileRows = await db
+        .select({ onboardingCompleted: userProfilesTable.onboardingCompleted })
+        .from(userProfilesTable)
+        .where(eq(userProfilesTable.userId, metaUserId))
+        .limit(1);
+
+      if (profileRows[0] && !profileRows[0].onboardingCompleted) {
+        req.log.warn({ userId: metaUserId }, "call-start blocked: onboarding incomplete");
+        res.status(200).json({ error: "onboarding_incomplete" });
+        return;
+      }
+    }
+    // For assistant-request, Vapi waits — return early after the guard
+    if (payload.type === "assistant-request") {
+      res.status(200).json({ ok: true });
+      return;
+    }
+  }
+
   // Acknowledge immediately — VAPI does not wait for processing
   res.status(200).json({ ok: true });
 

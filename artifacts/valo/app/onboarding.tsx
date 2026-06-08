@@ -29,6 +29,9 @@ import StepConnect from "@/components/onboarding/StepConnect";
 import StepPriorities from "@/components/onboarding/StepPriorities";
 import StepWants from "@/components/onboarding/StepWants";
 import StepMotivation from "@/components/onboarding/StepMotivation";
+import StepOpenText from "@/components/onboarding/StepOpenText";
+import StepCallTime from "@/components/onboarding/StepCallTime";
+import StepComplete from "@/components/onboarding/StepComplete";
 
 type StepName =
   | "welcome"
@@ -40,22 +43,32 @@ type StepName =
   | "priorities"
   | "wants"
   | "motivation"
-  | "connect";
+  | "ideal_day"
+  | "struggling"
+  | "people"
+  | "goal_90"
+  | "weighing"
+  | "call_time"
+  | "remember_this"
+  | "connect"
+  | "complete";
 
-// Steps counted in the progress bar (welcome is a full-screen gate, excluded)
+// Voice path skips the text-only deep-profile questions (Valo collects those verbally)
 const VOICE_SEQUENCE: StepName[] = [
   "language", "identity", "birthday", "mic_permission", "voice", "connect",
 ];
 const TEXT_SEQUENCE: StepName[] = [
   "language", "identity", "birthday", "mic_permission", "voice",
-  "priorities", "wants", "motivation", "connect",
+  "priorities", "wants", "motivation",
+  "ideal_day", "struggling", "people", "goal_90", "weighing", "call_time", "remember_this",
+  "connect",
 ];
 
 function getProgress(
   step: StepName,
   voiceCallCompleted: boolean,
 ): { current: number; total: number } {
-  if (step === "welcome") return { current: 0, total: 1 };
+  if (step === "welcome" || step === "complete") return { current: 0, total: 1 };
   const seq = voiceCallCompleted ? VOICE_SEQUENCE : TEXT_SEQUENCE;
   const idx = seq.indexOf(step);
   return { current: idx === -1 ? 1 : idx + 1, total: seq.length };
@@ -109,7 +122,9 @@ export default function OnboardingScreen() {
   const [step, setStep] = useState<StepName>("welcome");
   const [voiceCallCompleted, setVoiceCallCompleted] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [completing, setCompleting] = useState(false);
   const [allData, setAllData] = useState<Record<string, any>>({});
+  const [completedProfile, setCompletedProfile] = useState<any>(null);
 
   const currentDataRef = useRef<{ data: Record<string, any>; valid: boolean }>({
     data: {},
@@ -155,23 +170,78 @@ export default function OnboardingScreen() {
     [getToken],
   );
 
+  const saveProgress = useCallback(
+    async (currentStep: number, answers: Record<string, any>) => {
+      try {
+        const token = await getToken();
+        await fetch(`${getApiBase()}/api/onboarding/progress`, {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json",
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          },
+          body: JSON.stringify({ lastQuestion: currentStep, answersSOFar: answers }),
+        });
+      } catch {
+        // Non-critical — don't block the user
+      }
+    },
+    [getToken],
+  );
+
   const handleStepChange = useCallback((data: Record<string, any>, valid: boolean) => {
     currentDataRef.current = { data, valid };
     setCurrentValid(valid);
   }, []);
 
-  const finishOnboarding = useCallback(async () => {
-    try {
-      await patchOnboarding({ onboardingCompleted: true });
-    } catch {
-      // proceed even if network fails
-    }
+  // ── Complete onboarding — calls Claude endpoint ──────────────────────────
+  const completeOnboarding = useCallback(
+    async (data: Record<string, any>) => {
+      setCompleting(true);
+      const answers = {
+        name: data.name,
+        area_to_improve: data.lifePriorities,
+        ideal_day: data.idealDay,
+        change_struggling_with: data.changeStruggling,
+        important_people: data.importantPeople,
+        motivation: data.userMotivation,
+        success_90_days: data.goal90Days,
+        weighing_on_you: data.weighingOn,
+        call_time: data.preferredCallTime,
+        remember_this: data.rememberThis,
+      };
+
+      try {
+        const token = await getToken();
+        const res = await fetch(`${getApiBase()}/api/onboarding/complete`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          },
+          body: JSON.stringify({ answers }),
+        });
+        if (res.ok) {
+          const result = await res.json() as { success: boolean; profile: any };
+          setCompletedProfile(result.profile);
+        }
+      } catch {
+        // Fail silently — we still transition to complete screen
+      } finally {
+        setCompleting(false);
+      }
+    },
+    [getToken],
+  );
+
+  const navigateToApp = useCallback(async () => {
     await AsyncStorage.setItem("@valo/onboarding-complete", "true");
     markOnboardingComplete();
     router.replace("/(tabs)/checkin");
-  }, [patchOnboarding, router]);
+  }, [router]);
 
-  // ── Welcome → Language ────────────────────────────────────────────────────
+  // ── Step handlers ─────────────────────────────────────────────────────────
+
   const handleWelcomeBegin = useCallback(() => {
     animateTransition(() => {
       setStep("language");
@@ -179,7 +249,6 @@ export default function OnboardingScreen() {
     });
   }, [animateTransition]);
 
-  // ── Language → Identity ───────────────────────────────────────────────────
   const handleLanguageContinue = useCallback(
     (data: Record<string, any>) => {
       void patchOnboarding(data).catch(() => {});
@@ -192,7 +261,6 @@ export default function OnboardingScreen() {
     [patchOnboarding, animateTransition],
   );
 
-  // ── Identity Continue button (outer) → Birthday ────────────────────────────
   const handleNext = useCallback(async () => {
     if (!currentValid || saving) return;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -218,7 +286,6 @@ export default function OnboardingScreen() {
     }
   }, [currentValid, saving, patchOnboarding, animateTransition, updateName]);
 
-  // ── Birthday → Mic Permission ──────────────────────────────────────────────
   const handleBirthdayContinue = useCallback(
     (data: Record<string, any>) => {
       void patchOnboarding(data).catch(() => {});
@@ -232,7 +299,6 @@ export default function OnboardingScreen() {
     animateTransition(() => setStep("mic_permission"));
   }, [animateTransition]);
 
-  // ── Mic Permission → Voice ─────────────────────────────────────────────────
   const handleMicGranted = useCallback(
     (micPermission: boolean) => {
       void patchOnboarding({ microphonePermission: micPermission }).catch(() => {});
@@ -245,7 +311,6 @@ export default function OnboardingScreen() {
     [patchOnboarding, animateTransition],
   );
 
-  // ── Voice call completed → Connect ─────────────────────────────────────────
   const handleVoiceCallComplete = useCallback(() => {
     setVoiceCallCompleted(true);
     animateTransition(() => {
@@ -254,7 +319,6 @@ export default function OnboardingScreen() {
     });
   }, [animateTransition]);
 
-  // ── Voice call skipped → Priorities ───────────────────────────────────────
   const handleSkipVoiceCall = useCallback(() => {
     animateTransition(() => {
       setStep("priorities");
@@ -262,15 +326,17 @@ export default function OnboardingScreen() {
     });
   }, [animateTransition]);
 
-  // ── Text step continue ─────────────────────────────────────────────────────
+  // Generic text step continue — saves data and moves to next step
   const handleTextStepContinue = useCallback(
     (data: Record<string, any>, nextStep: StepName) => {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
       void patchOnboarding(data).catch(() => {});
-      setAllData((prev) => ({ ...prev, ...data }));
+      const merged = { ...allData, ...data };
+      setAllData(merged);
+      void saveProgress(TEXT_SEQUENCE.indexOf(nextStep), merged);
       animateTransition(() => setStep(nextStep));
     },
-    [patchOnboarding, animateTransition],
+    [patchOnboarding, animateTransition, allData, saveProgress],
   );
 
   const handleTextStepSkip = useCallback(
@@ -281,7 +347,33 @@ export default function OnboardingScreen() {
     [animateTransition],
   );
 
-  // ── Back navigation ────────────────────────────────────────────────────────
+  // Open-text step continue — stores locally and moves forward
+  const handleOpenTextContinue = useCallback(
+    (data: Record<string, any>, nextStep: StepName) => {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      const merged = { ...allData, ...data };
+      setAllData(merged);
+      void saveProgress(TEXT_SEQUENCE.indexOf(nextStep), merged);
+      animateTransition(() => setStep(nextStep));
+    },
+    [animateTransition, allData, saveProgress],
+  );
+
+  const handleOpenTextSkip = useCallback(
+    (nextStep: StepName) => {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      animateTransition(() => setStep(nextStep));
+    },
+    [animateTransition],
+  );
+
+  // StepConnect completion → Claude processing → complete screen
+  const handleConnectComplete = useCallback(async () => {
+    const data = allData;
+    animateTransition(() => setStep("complete"));
+    await completeOnboarding(data);
+  }, [allData, animateTransition, completeOnboarding]);
+
   const handleBack = useCallback(() => {
     if (saving) return;
     const backMap: Partial<Record<StepName, StepName>> = {
@@ -290,6 +382,13 @@ export default function OnboardingScreen() {
       mic_permission: "birthday",
       wants: "priorities",
       motivation: "wants",
+      ideal_day: "motivation",
+      struggling: "ideal_day",
+      people: "struggling",
+      goal_90: "people",
+      weighing: "goal_90",
+      call_time: "weighing",
+      remember_this: "call_time",
     };
     const target = backMap[step];
     if (!target) return;
@@ -303,19 +402,34 @@ export default function OnboardingScreen() {
   const topPad = Platform.OS === "web" ? Math.max(insets.top, 67) : insets.top;
   const bottomPad = insets.bottom;
 
-  const showHeader = step !== "voice" && step !== "welcome";
+  const showHeader = step !== "voice" && step !== "welcome" && step !== "complete";
   const showContinueBtn = step === "identity";
-  const backAllowedSteps: StepName[] = ["identity", "birthday", "mic_permission", "wants", "motivation"];
+  const backAllowedSteps: StepName[] = [
+    "identity", "birthday", "mic_permission", "wants", "motivation",
+    "ideal_day", "struggling", "people", "goal_90", "weighing", "call_time", "remember_this",
+  ];
   const backDisabled = !backAllowedSteps.includes(step);
   const { current: progressCurrent, total: progressTotal } = getProgress(step, voiceCallCompleted);
 
-  // Welcome screen is rendered outside the scroll/header layout
   if (step === "welcome") {
     return (
       <StepValoIntro
         name={allData.name}
         onBegin={handleWelcomeBegin}
       />
+    );
+  }
+
+  if (step === "complete") {
+    return (
+      <View style={[styles.completeContainer, { backgroundColor: colors.background, paddingTop: topPad + 24, paddingBottom: bottomPad + 24, paddingHorizontal: 24 }]}>
+        <StepComplete
+          name={allData.name ?? completedProfile?.name}
+          callTime={completedProfile?.user_call_time ?? allData.preferredCallTime}
+          loading={completing}
+          onGo={navigateToApp}
+        />
+      </View>
     );
   }
 
@@ -396,15 +510,80 @@ export default function OnboardingScreen() {
 
           {step === "motivation" && (
             <StepMotivation
-              onContinue={(data) => handleTextStepContinue(data, "connect")}
-              onSkip={() => handleTextStepSkip("connect")}
+              onContinue={(data) => handleTextStepContinue(data, "ideal_day")}
+              onSkip={() => handleTextStepSkip("ideal_day")}
+            />
+          )}
+
+          {step === "ideal_day" && (
+            <StepOpenText
+              question="What does your ideal day look like — what would make you feel like you really lived it?"
+              field="idealDay"
+              onContinue={(data) => handleOpenTextContinue(data, "struggling")}
+              onSkip={() => handleOpenTextSkip("struggling")}
+            />
+          )}
+
+          {step === "struggling" && (
+            <StepOpenText
+              question="What's something you keep trying to change about yourself but haven't cracked yet?"
+              field="changeStruggling"
+              onContinue={(data) => handleOpenTextContinue(data, "people")}
+              onSkip={() => handleOpenTextSkip("people")}
+            />
+          )}
+
+          {step === "people" && (
+            <StepOpenText
+              question="Who are the most important people in your life right now?"
+              placeholder="Family, partner, friends, colleagues..."
+              field="importantPeople"
+              onContinue={(data) => handleOpenTextContinue(data, "goal_90")}
+              onSkip={() => handleOpenTextSkip("goal_90")}
+            />
+          )}
+
+          {step === "goal_90" && (
+            <StepOpenText
+              question="What does success look like for you in the next 90 days?"
+              placeholder="Be specific — what would feel like a real win?"
+              field="goal90Days"
+              onContinue={(data) => handleOpenTextContinue(data, "weighing")}
+              onSkip={() => handleOpenTextSkip("weighing")}
+            />
+          )}
+
+          {step === "weighing" && (
+            <StepOpenText
+              question="Is there anything you're dealing with right now that's been weighing on you?"
+              placeholder="No pressure — share only what feels right."
+              field="weighingOn"
+              onContinue={(data) => handleOpenTextContinue(data, "call_time")}
+              onSkip={() => handleOpenTextSkip("call_time")}
+            />
+          )}
+
+          {step === "call_time" && (
+            <StepCallTime
+              onContinue={(data) => handleOpenTextContinue(data, "remember_this")}
+              onSkip={() => handleOpenTextSkip("remember_this")}
+            />
+          )}
+
+          {step === "remember_this" && (
+            <StepOpenText
+              question="What's one thing you want me to always remember about you?"
+              placeholder="Anything that defines who you are..."
+              field="rememberThis"
+              onContinue={(data) => handleOpenTextContinue(data, "connect")}
+              onSkip={() => handleOpenTextSkip("connect")}
             />
           )}
 
           {step === "connect" && (
             <StepConnect
               name={allData.name ?? ""}
-              onComplete={finishOnboarding}
+              onComplete={handleConnectComplete}
             />
           )}
         </ScrollView>
@@ -455,6 +634,7 @@ export default function OnboardingScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
+  completeContainer: { flex: 1 },
   header: {
     flexDirection: "row",
     alignItems: "center",

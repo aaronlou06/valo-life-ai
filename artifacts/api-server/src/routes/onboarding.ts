@@ -1,9 +1,13 @@
 import { Router, type IRouter } from "express";
 import { eq } from "drizzle-orm";
-import { db, userProfilesTable } from "@workspace/db";
+import { db, userProfilesTable, goalsTable } from "@workspace/db";
 import { requireAuth, type AuthenticatedRequest } from "../middlewares/requireAuth";
+import { anthropic } from "@workspace/integrations-anthropic-ai";
+import { logger } from "../lib/logger";
 
 const router: IRouter = Router();
+
+// ── Status ────────────────────────────────────────────────────────────────────
 
 router.get("/onboarding/status", requireAuth, async (req, res): Promise<void> => {
   const userId = (req as AuthenticatedRequest).userId;
@@ -12,6 +16,7 @@ router.get("/onboarding/status", requireAuth, async (req, res): Promise<void> =>
     .select({
       onboardingCompleted: userProfilesTable.onboardingCompleted,
       firstCallCompleted: userProfilesTable.firstCallCompleted,
+      onboardingProgress: userProfilesTable.onboardingProgress,
     })
     .from(userProfilesTable)
     .where(eq(userProfilesTable.userId, userId))
@@ -21,8 +26,13 @@ router.get("/onboarding/status", requireAuth, async (req, res): Promise<void> =>
   res.status(200).json({
     onboardingCompleted: profile?.onboardingCompleted ?? false,
     firstCallCompleted: profile?.firstCallCompleted ?? false,
+    onboardingProgress: profile?.onboardingProgress
+      ? JSON.parse(profile.onboardingProgress)
+      : null,
   });
 });
+
+// ── Save individual fields (incremental) ──────────────────────────────────────
 
 const ALLOWED_FIELDS = [
   "name",
@@ -49,6 +59,9 @@ const ALLOWED_FIELDS = [
   "birthday",
   "preferredLanguage",
   "microphonePermission",
+  "topGoal",
+  "onboardingAnswers",
+  "onboardingProgress",
 ] as const;
 
 router.patch("/onboarding/save", requireAuth, async (req, res): Promise<void> => {
@@ -76,6 +89,203 @@ router.patch("/onboarding/save", requireAuth, async (req, res): Promise<void> =>
     });
 
   res.status(200).json({ ok: true });
+});
+
+// ── Progress save (for resume support) ───────────────────────────────────────
+
+router.patch("/onboarding/progress", requireAuth, async (req, res): Promise<void> => {
+  const userId = (req as AuthenticatedRequest).userId;
+  const { lastQuestion, answersSOFar } = req.body as {
+    lastQuestion?: number;
+    answersSOFar?: Record<string, unknown>;
+  };
+
+  const progress = JSON.stringify({
+    completed: false,
+    lastQuestion: lastQuestion ?? 0,
+    answersSOFar: answersSOFar ?? {},
+  });
+
+  await db
+    .insert(userProfilesTable)
+    .values({ userId, onboardingProgress: progress })
+    .onConflictDoUpdate({
+      target: userProfilesTable.userId,
+      set: { onboardingProgress: progress },
+    });
+
+  res.status(200).json({ ok: true });
+});
+
+// ── Complete onboarding — Claude processing ───────────────────────────────────
+
+const CLAUDE_SYSTEM_PROMPT = `You are processing onboarding answers for a new user of Valo, a personal AI life companion.
+Based on these answers, populate the user's memory profile.
+Return ONLY valid JSON with no markdown or preamble:
+{
+  "personal_details": [
+    "array of clean factual statements about this person based on their answers",
+    "write them as third-person facts e.g. 'Wants to improve his fitness and energy levels'"
+  ],
+  "things_that_matter": [
+    "array of people, goals, and values that clearly matter to this person"
+  ],
+  "emotional_patterns": [
+    "array of observations about what motivates and drives this person based on their answers"
+  ],
+  "recurring_struggles": [
+    "array of struggles or patterns they mentioned — these are starting points, not conclusions"
+  ],
+  "top_goal": "their primary 90-day goal in one clean sentence",
+  "user_motivation": "what drives them in one clean sentence",
+  "user_call_time": "preferred check-in time in HH:MM 24h format, or null if not provided"
+}`;
+
+interface OnboardingAnswers {
+  name?: string;
+  area_to_improve?: string;
+  ideal_day?: string;
+  change_struggling_with?: string;
+  important_people?: string;
+  motivation?: string;
+  success_90_days?: string;
+  weighing_on_you?: string;
+  call_time?: string;
+  remember_this?: string;
+  [key: string]: string | undefined;
+}
+
+interface ClaudeProfile {
+  personal_details: string[];
+  things_that_matter: string[];
+  emotional_patterns: string[];
+  recurring_struggles: string[];
+  top_goal: string;
+  user_motivation: string;
+  user_call_time: string | null;
+}
+
+router.post("/onboarding/complete", requireAuth, async (req, res): Promise<void> => {
+  const userId = (req as AuthenticatedRequest).userId;
+  const { answers } = req.body as { answers: OnboardingAnswers };
+
+  if (!answers || typeof answers !== "object") {
+    res.status(400).json({ error: "answers object is required" });
+    return;
+  }
+
+  const answerLines = [
+    answers.name ? `name: ${answers.name}` : null,
+    answers.area_to_improve ? `area_to_improve: ${answers.area_to_improve}` : null,
+    answers.ideal_day ? `ideal_day: ${answers.ideal_day}` : null,
+    answers.change_struggling_with ? `change_struggling_with: ${answers.change_struggling_with}` : null,
+    answers.important_people ? `important_people: ${answers.important_people}` : null,
+    answers.motivation ? `motivation: ${answers.motivation}` : null,
+    answers.success_90_days ? `success_90_days: ${answers.success_90_days}` : null,
+    answers.weighing_on_you ? `weighing_on_you: ${answers.weighing_on_you}` : null,
+    answers.call_time ? `call_time: ${answers.call_time}` : null,
+    answers.remember_this ? `remember_this: ${answers.remember_this}` : null,
+  ].filter((l): l is string => l !== null);
+
+  if (answerLines.length === 0) {
+    res.status(400).json({ error: "at least one answer is required" });
+    return;
+  }
+
+  let profile: ClaudeProfile = {
+    personal_details: [],
+    things_that_matter: [],
+    emotional_patterns: [],
+    recurring_struggles: [],
+    top_goal: "",
+    user_motivation: "",
+    user_call_time: answers.call_time ?? null,
+  };
+
+  try {
+    const msg = await anthropic.messages.create({
+      model: "claude-haiku-4-5",
+      max_tokens: 1200,
+      system: CLAUDE_SYSTEM_PROMPT,
+      messages: [
+        {
+          role: "user",
+          content: `Raw answers:\n${answerLines.join("\n")}`,
+        },
+      ],
+    });
+
+    const text = msg.content[0]?.type === "text" ? msg.content[0].text : "";
+    const clean = text.replace(/```(?:json)?\n?/g, "").replace(/```\n?/g, "").trim();
+    profile = JSON.parse(clean) as ClaudeProfile;
+  } catch (err) {
+    logger.error({ err, userId }, "POST /onboarding/complete: Claude processing failed");
+    // Proceed with raw data — don't block the user
+  }
+
+  // ── Persist to DB ─────────────────────────────────────────────────────────
+  const updateValues: Record<string, unknown> = {
+    onboardingCompleted: true,
+    onboardingAnswers: JSON.stringify(answers),
+    onboardingProgress: JSON.stringify({ completed: true }),
+  };
+
+  if (answers.name) updateValues.name = answers.name;
+  if (profile.user_motivation) updateValues.userMotivation = profile.user_motivation;
+  if (profile.user_call_time) updateValues.preferredCallTime = profile.user_call_time;
+  if (profile.top_goal) updateValues.topGoal = profile.top_goal;
+
+  if (profile.personal_details.length > 0) {
+    updateValues.userIdentity = profile.personal_details.join("; ");
+  }
+  if (profile.things_that_matter.length > 0) {
+    updateValues.userPriorities = profile.things_that_matter.join("; ");
+  }
+  if (profile.emotional_patterns.length > 0) {
+    updateValues.userWantsMore = profile.emotional_patterns.join("; ");
+  }
+  if (profile.recurring_struggles.length > 0) {
+    updateValues.recurringStruggles = JSON.stringify(profile.recurring_struggles);
+  }
+
+  try {
+    await db
+      .insert(userProfilesTable)
+      .values({ userId, ...(updateValues as any) })
+      .onConflictDoUpdate({
+        target: userProfilesTable.userId,
+        set: updateValues as any,
+      });
+
+    // Create the top goal as a proper goal record if we have one
+    if (profile.top_goal) {
+      await db
+        .insert(goalsTable)
+        .values({
+          userId,
+          title: profile.top_goal,
+          notes: "Set during onboarding",
+          targetDate: (() => {
+            const d = new Date();
+            d.setDate(d.getDate() + 90);
+            return d.toISOString().split("T")[0]!;
+          })(),
+        })
+        .catch(() => {});
+    }
+  } catch (err) {
+    req.log.error({ err, userId }, "POST /onboarding/complete: DB write failed");
+    res.status(500).json({ error: "Failed to save onboarding profile" });
+    return;
+  }
+
+  res.status(200).json({
+    success: true,
+    profile: {
+      ...profile,
+      name: answers.name,
+    },
+  });
 });
 
 export default router;

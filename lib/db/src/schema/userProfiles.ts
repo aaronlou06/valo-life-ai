@@ -37,6 +37,9 @@ export const userProfilesTable = pgTable("user_profiles", {
   notifGoals: boolean("notif_goals").notNull().default(true),
   morningBriefingTime: text("morning_briefing_time"),
   recurringStruggles: text("recurring_struggles"),
+  topGoal: text("top_goal"),
+  onboardingAnswers: text("onboarding_answers"),
+  onboardingProgress: text("onboarding_progress"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 });

@@ -1,0 +1,85 @@
+Build an onboarding flow that collects foundational data about a new user and seeds their Valo memory profile before their first call.
+
+OVERVIEW
+When a new user signs up, before they ever make a call, run them through a conversational onboarding sequence. The answers get stored directly to their memory profile so Valo's first call already feels personal.
+
+ONBOARDING QUESTIONS
+Collect answers to these questions in order. Present them one at a time — not as a form, as a conversation. Each question should feel like it's coming from Valo directly.
+
+1. "What's your name?" → store to user_name
+2. "What's the one area of your life you most want to improve right now?" → store to profile.things_that_matter
+3. "What does your ideal day look like — what would make you feel like you really lived it?" → store to profile.personal_details as "Ideal day: [answer]"
+4. "What's something you keep trying to change about yourself but haven't cracked yet?" → store to profile.recurring_struggles as initial value
+5. "Who are the most important people in your life right now?" → store to profile.things_that_matter
+6. "What motivates you most — what makes you want to get up and do the work?" → store to user_motivation and profile.emotional_patterns as "Motivated by: [answer]"
+7. "What does success look like for you in the next 90 days?" → store to top_goal and profile.personal_details as "90-day goal: [answer]"
+8. "Is there anything you're dealing with right now that's been weighing on you?" → store to profile.recurring_struggles, append to existing
+9. "What time of day do you want Valo to check in with you?" → store to user_call_time
+10. "What's one thing you want Valo to always remember about you?" → store to profile.things_that_matter, append to existing
+
+PROCESSING
+After all questions are answered, send the full set of answers to Claude with this prompt:
+
+"You are processing onboarding answers for a new user of Valo, a personal AI life companion.
+Based on these answers, populate the user's memory profile.
+Return ONLY valid JSON with no markdown or preamble:
+{
+  personal_details: [
+    array of clean factual statements about this person based on their answers,
+    write them as third-person facts e.g. 'Wants to improve his fitness and energy levels'
+  ],
+  things_that_matter: [
+    array of people, goals, and values that clearly matter to this person
+  ],
+  emotional_patterns: [
+    array of observations about what motivates and drives this person based on their answers
+  ],
+  recurring_struggles: [
+    array of struggles or patterns they mentioned — these are starting points, not conclusions
+  ],
+  commitments_history: [],
+  top_goal: string — their primary 90-day goal in one clean sentence,
+  user_motivation: string — what drives them in one clean sentence,
+  user_call_time: string — preferred check-in time
+}
+
+Raw answers:
+[insert answers as key-value pairs]"
+
+Save the Claude output directly to the user's memory profile in userProfilesTable and to the profile object in Replit DB under user:{userId}:memory.
+
+Also set last_call to null and call_summaries to [] since this is a new user.
+
+ROUTE
+POST /onboarding/complete
+Body: {
+  userId,
+  answers: {
+    name, area_to_improve, ideal_day, change_struggling_with,
+    important_people, motivation, success_90_days,
+    weighing_on_you, call_time, remember_this
+  }
+}
+
+- Validate userId and all answer fields exist
+- Run the Claude processing prompt above
+- Save to both userProfilesTable and Replit DB memory object
+- Return { success: true, profile: <the processed profile> }
+- Wrap in try/catch, log errors, return 500 on failure
+
+FRONTEND NOTES
+The onboarding UI should:
+- Show one question at a time with a text input
+- Have a progress indicator (e.g. "3 of 10")
+- Feel conversational — Valo's name and voice, not a signup form
+- On completion, show a brief message before the first call:
+  "I've got what I need to get started. Your first check-in is set for [call_time]. 
+   I'll be thinking about what you shared. Talk soon."
+- Do not let users skip to the call until onboarding is complete
+
+EDGE CASES
+- If a user abandons onboarding halfway, save whatever was collected so far and let them resume
+- Store onboarding progress in a separate key: user:{userId}:onboarding_progress as { completed: false, last_question: 3, answers_so_far: {} }
+- On resume, start from the last unanswered question
+- Once /onboarding/complete is called successfully, set user:{userId}:onboarding_progress to { completed: true }
+- Add a middleware check on /webhook/call-start that returns { error: "onboarding_incomplete" } if the user hasn't finished onboarding — the frontend should catch this and redirect them back
