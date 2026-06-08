@@ -56,9 +56,15 @@ import {
   useUpsertReminder,
   useDeleteReminder,
   getListRemindersQueryKey,
+  useListPersonalDates,
+  useCreatePersonalDate,
+  useDeletePersonalDate,
+  useUpdatePersonalDate,
+  getListPersonalDatesQueryKey,
   type Habit,
   type Reminder,
   type CalendarEventInput,
+  type PersonalDate,
 } from "@workspace/api-client-react";
 import { getRecurrenceOccurrences, getRoutineOccurrences, MAX_DAYS_OUT } from "@/lib/recurrence";
 import {
@@ -114,6 +120,8 @@ const SCHEDULE_KEY_FOR  = (uid: string) => `@valo/work-schedule-${uid}`;
 const SECTIONS_OPEN_KEY = "valo:plan_sections_open";
 const CELL_MIN_H    = 80;
 const MAX_CELL_PILLS = 3;
+
+const PERSONAL_DATE_COLOR = "#D64E79";
 
 const ORDINAL_LABELS = ["1st","2nd","3rd","4th"] as const;
 
@@ -190,6 +198,31 @@ interface WorkSchedule {
 function todayStr(): string {
   const d = new Date();
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
+}
+
+function getPersonalDatesForDate(dateStr: string, personalDates: PersonalDate[]): PersonalDate[] {
+  const parts = dateStr.split("-").map(Number);
+  const month = parts[1];
+  const day = parts[2];
+  if (!month || !day) return [];
+  return personalDates.filter((pd) => pd.month === month && pd.day === day);
+}
+
+function buildPersonalDateMap(
+  year: number,
+  month: number,
+  personalDates: PersonalDate[],
+): Map<string, PersonalDate[]> {
+  const map = new Map<string, PersonalDate[]>();
+  const mm = String(month + 1).padStart(2, "0");
+  for (const pd of personalDates) {
+    if (pd.month !== month + 1) continue;
+    const dd = String(pd.day).padStart(2, "0");
+    const dateStr = `${year}-${mm}-${dd}`;
+    if (!map.has(dateStr)) map.set(dateStr, []);
+    map.get(dateStr)!.push(pd);
+  }
+  return map;
 }
 
 function toISODate(d: Date): string {
@@ -700,8 +733,6 @@ function AddEventModal({
   const [customInterval, setCustomInterval] = useState("7");
   const [repeatEndDate, setRepeatEndDate] = useState("");
 
-  const isEdit = !!editEvent;
-
   useEffect(() => {
     if (visible) {
       if (editEvent) {
@@ -1126,7 +1157,7 @@ function MyScheduleCard({ schedule, onEdit, colors }: { schedule: WorkSchedule |
 // ─── Day Detail Sheet ─────────────────────────────────────────────────────────
 
 function DayDetailSheet({
-  visible, dateStr, events, onClose, onAddEvent, onDelete, onEdit, onRoutineDelete, onRoutineTap, colors, bottomInset, region,
+  visible, dateStr, events, onClose, onAddEvent, onDelete, onEdit, onRoutineDelete, onRoutineTap, colors, bottomInset, region, personalDates,
 }: {
   visible: boolean; dateStr: string; events: CalendarEvent[]; onClose: () => void;
   onAddEvent: () => void; onDelete: (ev: CalendarEvent) => void;
@@ -1134,9 +1165,11 @@ function DayDetailSheet({
   onRoutineDelete: (routineName: string, occurrenceDate: string) => void;
   onRoutineTap: (ev: CalendarEvent) => void;
   colors: Colors; bottomInset: number; region: HolidayLocale;
+  personalDates: PersonalDate[];
 }) {
   const header = dateStr ? formatDayHeader(dateStr) : "";
   const holiday = dateStr ? getHolidayForDate(dateStr, region) : null;
+  const dayPersonalDates = dateStr ? getPersonalDatesForDate(dateStr, personalDates) : [];
 
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
@@ -1152,24 +1185,39 @@ function DayDetailSheet({
           </View>
 
           <ScrollView showsVerticalScrollIndicator={false} style={{ flexGrow: 0 }}>
-            {holiday && (
+            {(holiday || dayPersonalDates.length > 0) && (
               <>
                 <Text style={{ fontSize: 11, fontFamily: "Inter_500Medium", color: colors.mutedForeground, textTransform: "uppercase", letterSpacing: 0.6, marginBottom: 6 }}>All Day</Text>
-                <View style={{ backgroundColor: HOLIDAY_COLOR + "15", borderRadius: 10, borderWidth: 1, borderColor: HOLIDAY_COLOR + "40", padding: 12, marginBottom: 8, flexDirection: "row", alignItems: "center", gap: 8 }}>
-                  <View style={{ width: 4, borderRadius: 2, backgroundColor: HOLIDAY_COLOR, alignSelf: "stretch" }} />
-                  <Feather name="flag" size={15} color={HOLIDAY_COLOR} style={{ marginLeft: 2 }} />
-                  <View style={{ flex: 1 }}>
-                    <Text style={{ fontSize: 14, fontFamily: "Inter_500Medium", color: colors.foreground }}>{holiday.name}</Text>
-                    <Text style={{ fontSize: 12, fontFamily: "Inter_400Regular", color: colors.mutedForeground, marginTop: 2 }}>Federal Holiday</Text>
+                {holiday && (
+                  <View style={{ backgroundColor: HOLIDAY_COLOR + "15", borderRadius: 10, borderWidth: 1, borderColor: HOLIDAY_COLOR + "40", padding: 12, marginBottom: 8, flexDirection: "row", alignItems: "center", gap: 8 }}>
+                    <View style={{ width: 4, borderRadius: 2, backgroundColor: HOLIDAY_COLOR, alignSelf: "stretch" }} />
+                    <Feather name="flag" size={15} color={HOLIDAY_COLOR} style={{ marginLeft: 2 }} />
+                    <View style={{ flex: 1 }}>
+                      <Text style={{ fontSize: 14, fontFamily: "Inter_500Medium", color: colors.foreground }}>{holiday.name}</Text>
+                      <Text style={{ fontSize: 12, fontFamily: "Inter_400Regular", color: colors.mutedForeground, marginTop: 2 }}>Federal Holiday</Text>
+                    </View>
+                    <View style={{ backgroundColor: HOLIDAY_COLOR + "22", paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6 }}>
+                      <Text style={{ fontSize: 11, fontFamily: "Inter_500Medium", color: HOLIDAY_COLOR }}>All day</Text>
+                    </View>
                   </View>
-                  <View style={{ backgroundColor: HOLIDAY_COLOR + "22", paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6 }}>
-                    <Text style={{ fontSize: 11, fontFamily: "Inter_500Medium", color: HOLIDAY_COLOR }}>All day</Text>
+                )}
+                {dayPersonalDates.map((pd) => (
+                  <View key={pd.id} style={{ backgroundColor: PERSONAL_DATE_COLOR + "15", borderRadius: 10, borderWidth: 1, borderColor: PERSONAL_DATE_COLOR + "40", padding: 12, marginBottom: 8, flexDirection: "row", alignItems: "center", gap: 8 }}>
+                    <View style={{ width: 4, borderRadius: 2, backgroundColor: PERSONAL_DATE_COLOR, alignSelf: "stretch" }} />
+                    <Feather name="heart" size={15} color={PERSONAL_DATE_COLOR} style={{ marginLeft: 2 }} />
+                    <View style={{ flex: 1 }}>
+                      <Text style={{ fontSize: 14, fontFamily: "Inter_500Medium", color: colors.foreground }}>{pd.name}</Text>
+                      {pd.label ? <Text style={{ fontSize: 12, fontFamily: "Inter_400Regular", color: colors.mutedForeground, marginTop: 2 }}>{pd.label}</Text> : null}
+                    </View>
+                    <View style={{ backgroundColor: PERSONAL_DATE_COLOR + "22", paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6 }}>
+                      <Text style={{ fontSize: 11, fontFamily: "Inter_500Medium", color: PERSONAL_DATE_COLOR }}>All day</Text>
+                    </View>
                   </View>
-                </View>
+                ))}
                 {events.length > 0 && <View style={{ height: 1, backgroundColor: colors.border, marginVertical: 8 }} />}
               </>
             )}
-            {events.length === 0 && !holiday ? (
+            {events.length === 0 && !holiday && dayPersonalDates.length === 0 ? (
               <Text style={{ color: colors.mutedForeground, fontFamily: "Inter_400Regular", textAlign: "center", paddingVertical: 28, fontSize: 14 }}>
                 No events on this day
               </Text>
@@ -1283,11 +1331,11 @@ function DayDetailSheet({
 // ─── Month Grid ───────────────────────────────────────────────────────────────
 
 function MonthGrid({
-  viewYear, viewMonth, eventsByDate, currentTodayStr, onDayPress, colors, region,
+  viewYear, viewMonth, eventsByDate, currentTodayStr, onDayPress, colors, region, personalDates,
 }: {
   viewYear: number; viewMonth: number; eventsByDate: Record<string, CalendarEvent[]>;
   currentTodayStr: string; onDayPress: (dateStr: string) => void; colors: Colors;
-  region: HolidayLocale;
+  region: HolidayLocale; personalDates: PersonalDate[];
 }) {
   const daysInMonth = new Date(viewYear, viewMonth + 1, 0).getDate();
   const firstDayOffset = new Date(viewYear, viewMonth, 1).getDay();
@@ -1299,6 +1347,11 @@ function MonthGrid({
     return new Map(holidays.map((h) => [h.date, h.name]));
   }, [viewYear, viewMonth, region]);
 
+  const monthPersonalDates = useMemo(
+    () => buildPersonalDateMap(viewYear, viewMonth, personalDates),
+    [viewYear, viewMonth, personalDates],
+  );
+
   return (
     <View style={[planStyles.grid, { borderColor: colors.border }]}>
       {cells.map((day, i) => {
@@ -1306,7 +1359,9 @@ function MonthGrid({
         const dateStr = `${viewYear}-${String(viewMonth + 1).padStart(2,"0")}-${String(day).padStart(2,"0")}`;
         const dayEvents = eventsByDate[dateStr] ?? [];
         const holidayName = monthHolidays.get(dateStr);
-        const maxPills = holidayName ? MAX_CELL_PILLS - 1 : MAX_CELL_PILLS;
+        const dayPersonalDates = monthPersonalDates.get(dateStr) ?? [];
+        const hasSpecial = !!(holidayName || dayPersonalDates.length > 0);
+        const maxPills = hasSpecial ? MAX_CELL_PILLS - 1 : MAX_CELL_PILLS;
         const visibleEvents = dayEvents.slice(0, maxPills);
         const hiddenCount = dayEvents.length - visibleEvents.length;
         const isToday = dateStr === currentTodayStr;
@@ -1326,12 +1381,20 @@ function MonthGrid({
               {holidayName && (
                 <View style={{ width: 5, height: 5, borderRadius: 3, backgroundColor: HOLIDAY_COLOR, marginLeft: 2 }} />
               )}
+              {dayPersonalDates.length > 0 && (
+                <View style={{ width: 5, height: 5, borderRadius: 3, backgroundColor: PERSONAL_DATE_COLOR, marginLeft: 2 }} />
+              )}
             </View>
             {holidayName && (
               <View style={[planStyles.cellPill, { backgroundColor: HOLIDAY_COLOR }]}>
                 <Text style={planStyles.cellPillText} numberOfLines={1}>{holidayName}</Text>
               </View>
             )}
+            {dayPersonalDates.slice(0, holidayName ? 0 : 1).map((pd) => (
+              <View key={pd.id} style={[planStyles.cellPill, { backgroundColor: PERSONAL_DATE_COLOR }]}>
+                <Text style={planStyles.cellPillText} numberOfLines={1}>{pd.name}</Text>
+              </View>
+            ))}
             {visibleEvents.map((ev) => (
               <View key={ev.id} style={[planStyles.cellPill, { backgroundColor: eventColor(ev) }]}>
                 <Text style={planStyles.cellPillText} numberOfLines={1}>{ev.title}</Text>
@@ -1350,11 +1413,11 @@ function MonthGrid({
 // ─── Week View ────────────────────────────────────────────────────────────────
 
 function WeekView({
-  weekStart, eventsByDate, currentTodayStr, onDayPress, colors, region,
+  weekStart, eventsByDate, currentTodayStr, onDayPress, colors, region, personalDates,
 }: {
   weekStart: Date; eventsByDate: Record<string, CalendarEvent[]>;
   currentTodayStr: string; onDayPress: (dateStr: string) => void; colors: Colors;
-  region: HolidayLocale;
+  region: HolidayLocale; personalDates: PersonalDate[];
 }) {
   const weekDates = Array.from({ length: 7 }, (_, i) => {
     const d = new Date(weekStart); d.setDate(weekStart.getDate() + i); return d;
@@ -1366,6 +1429,7 @@ function WeekView({
         const dayEvents = eventsByDate[dateStr] ?? [];
         const isToday = dateStr === currentTodayStr;
         const holiday = getHolidayForDate(dateStr, region);
+        const dayPersonalDates = getPersonalDatesForDate(dateStr, personalDates);
         const visibleEvents = dayEvents.slice(0, 4);
         const hiddenCount = dayEvents.length - visibleEvents.length;
         return (
@@ -1388,6 +1452,11 @@ function WeekView({
                 <Text style={planStyles.cellPillText} numberOfLines={1}>{holiday.name}</Text>
               </View>
             )}
+            {dayPersonalDates.map((pd) => (
+              <View key={pd.id} style={[planStyles.cellPill, { backgroundColor: PERSONAL_DATE_COLOR, marginBottom: 2 }]}>
+                <Text style={planStyles.cellPillText} numberOfLines={1}>{pd.name}</Text>
+              </View>
+            ))}
             {visibleEvents.map((ev) => {
               const color = eventColor(ev);
               return (
@@ -2263,6 +2332,182 @@ function ManageModal({
   );
 }
 
+// ─── Personal Dates Modal ─────────────────────────────────────────────────────
+
+const PERSONAL_DATE_LABELS = ["Birthday", "Anniversary", "Other"];
+
+function PersonalDatesModal({
+  visible, onClose, colors, insets,
+}: {
+  visible: boolean; onClose: () => void; colors: Colors; insets: { bottom: number };
+}) {
+  const { data: personalDates = [], refetch } = useListPersonalDates();
+  const { mutateAsync: createDate } = useCreatePersonalDate();
+  const { mutateAsync: deleteDate } = useDeletePersonalDate();
+  const queryClient = useQueryClient();
+
+  const [adding, setAdding] = useState(false);
+  const [name, setName] = useState("");
+  const [label, setLabel] = useState("Birthday");
+  const [month, setMonth] = useState(new Date().getMonth());
+  const [day, setDay] = useState(new Date().getDate() - 1);
+  const [saving, setSaving] = useState(false);
+
+  const daysInMonth = new Date(2024, month + 1, 0).getDate();
+  const dayItems = useMemo(() => Array.from({ length: daysInMonth }, (_, i) => String(i + 1)), [daysInMonth]);
+  const clampedDay = Math.min(day, daysInMonth - 1);
+
+  function resetForm() {
+    setName("");
+    setLabel("Birthday");
+    setMonth(new Date().getMonth());
+    setDay(new Date().getDate() - 1);
+    setAdding(false);
+  }
+
+  async function handleCreate() {
+    if (!name.trim()) return;
+    setSaving(true);
+    try {
+      await createDate({ data: { name: name.trim(), month: month + 1, day: clampedDay + 1, label: label === "Other" ? null : label } });
+      await queryClient.invalidateQueries({ queryKey: getListPersonalDatesQueryKey() });
+      refetch();
+      resetForm();
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    } catch {
+      Alert.alert("Error", "Failed to save personal date.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handleDelete(id: number) {
+    Alert.alert("Delete", "Remove this personal date?", [
+      { text: "Cancel", style: "cancel" },
+      {
+        text: "Delete",
+        style: "destructive",
+        onPress: async () => {
+          try {
+            await deleteDate({ id });
+            await queryClient.invalidateQueries({ queryKey: getListPersonalDatesQueryKey() });
+            refetch();
+            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+          } catch {
+            Alert.alert("Error", "Failed to delete.");
+          }
+        },
+      },
+    ]);
+  }
+
+  function formatMonthDay(pd: PersonalDate): string {
+    const monthNames = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+    return `${monthNames[(pd.month - 1) % 12]} ${pd.day}`;
+  }
+
+  return (
+    <Modal visible={visible} transparent animationType="slide" onRequestClose={() => { resetForm(); onClose(); }}>
+      <View style={Sh.sheetOverlay}>
+        <TouchableOpacity style={{ flex: 1 }} activeOpacity={1} onPress={() => { resetForm(); onClose(); }} />
+        <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={{ width: "100%" }}>
+          <View style={[Sh.bottomSheet, { backgroundColor: colors.background, paddingBottom: insets.bottom + 16, maxHeight: "80%" }]}>
+            <View style={[Sh.sheetHandle, { backgroundColor: colors.border }]} />
+            <View style={Sh.sheetHeader}>
+              <Text style={[Sh.sheetTitle, { color: colors.foreground, fontFamily: "Inter_700Bold", fontSize: 18 }]}>Birthdays & Anniversaries</Text>
+              <TouchableOpacity onPress={() => { resetForm(); onClose(); }} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                <Feather name="x" size={22} color={colors.mutedForeground} />
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView showsVerticalScrollIndicator={false} style={{ flexGrow: 0 }}>
+              {personalDates.length === 0 && !adding ? (
+                <View style={[planStyles.emptyState, { borderColor: colors.border, backgroundColor: colors.card, marginBottom: 12 }]}>
+                  <Feather name="heart" size={22} color={colors.mutedForeground} />
+                  <Text style={[planStyles.emptyText, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
+                    No personal dates yet. Add a birthday or anniversary.
+                  </Text>
+                </View>
+              ) : (
+                personalDates.map((pd) => (
+                  <View key={pd.id} style={[planStyles.eventCard, { backgroundColor: colors.card, borderColor: colors.border, marginBottom: 8 }]}>
+                    <View style={planStyles.eventTop}>
+                      <View style={{ width: 4, borderRadius: 2, backgroundColor: PERSONAL_DATE_COLOR, alignSelf: "stretch", marginRight: 8 }} />
+                      <Feather name="heart" size={14} color={PERSONAL_DATE_COLOR} style={{ marginRight: 4 }} />
+                      <View style={{ flex: 1 }}>
+                        <Text style={{ fontSize: 14, fontFamily: "Inter_500Medium", color: colors.foreground }}>{pd.name}</Text>
+                        {pd.label ? <Text style={{ fontSize: 12, fontFamily: "Inter_400Regular", color: colors.mutedForeground, marginTop: 1 }}>{pd.label}</Text> : null}
+                      </View>
+                      <View style={{ backgroundColor: PERSONAL_DATE_COLOR + "22", paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6, marginRight: 8 }}>
+                        <Text style={{ fontSize: 12, fontFamily: "Inter_500Medium", color: PERSONAL_DATE_COLOR }}>{formatMonthDay(pd)}</Text>
+                      </View>
+                      <TouchableOpacity onPress={() => handleDelete(pd.id)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                        <Feather name="trash-2" size={16} color={colors.mutedForeground} />
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                ))
+              )}
+
+              {adding ? (
+                <View style={[planStyles.eventCard, { backgroundColor: colors.card, borderColor: PERSONAL_DATE_COLOR + "60", marginBottom: 8 }]}>
+                  <TextInput
+                    style={[planStyles.textInput, { color: colors.foreground, fontFamily: "Inter_400Regular", borderWidth: 1, borderColor: colors.border, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 10, marginBottom: 10, fontSize: 15 }]}
+                    value={name}
+                    onChangeText={setName}
+                    placeholder="e.g. Mom's Birthday"
+                    placeholderTextColor={colors.mutedForeground}
+                    autoFocus
+                    returnKeyType="done"
+                  />
+
+                  <Text style={{ fontSize: 12, fontFamily: "Inter_500Medium", color: colors.mutedForeground, marginBottom: 6 }}>Date (month & day)</Text>
+                  <View style={{ position: "relative", marginBottom: 10 }}>
+                    <View style={[Sh.pickerHighlight, { top: PICKER_ITEM_H * 2, height: PICKER_ITEM_H, borderColor: colors.border }]} />
+                    <View style={{ flexDirection: "row" }}>
+                      <PickerColumn items={PICKER_MONTHS} selectedIndex={month} onSelect={setMonth} colors={colors} />
+                      <PickerColumn items={dayItems} selectedIndex={clampedDay} onSelect={setDay} colors={colors} />
+                    </View>
+                  </View>
+
+                  <Text style={{ fontSize: 12, fontFamily: "Inter_500Medium", color: colors.mutedForeground, marginBottom: 6 }}>Type</Text>
+                  <View style={{ flexDirection: "row", gap: 8, marginBottom: 14 }}>
+                    {PERSONAL_DATE_LABELS.map((l) => (
+                      <TouchableOpacity
+                        key={l}
+                        onPress={() => setLabel(l)}
+                        style={{ paddingHorizontal: 14, paddingVertical: 7, borderRadius: 20, borderWidth: 1, borderColor: label === l ? PERSONAL_DATE_COLOR : colors.border, backgroundColor: label === l ? PERSONAL_DATE_COLOR + "18" : colors.card }}
+                      >
+                        <Text style={{ fontSize: 13, fontFamily: label === l ? "Inter_600SemiBold" : "Inter_400Regular", color: label === l ? PERSONAL_DATE_COLOR : colors.mutedForeground }}>{l}</Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+
+                  <View style={{ flexDirection: "row", gap: 10 }}>
+                    <TouchableOpacity style={{ flex: 1, height: 44, borderRadius: 10, borderWidth: 1, borderColor: colors.border, justifyContent: "center", alignItems: "center" }} onPress={resetForm}>
+                      <Text style={{ color: colors.mutedForeground, fontFamily: "Inter_400Regular" }}>Cancel</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity style={{ flex: 2, height: 44, borderRadius: 10, backgroundColor: PERSONAL_DATE_COLOR, justifyContent: "center", alignItems: "center", opacity: saving ? 0.7 : 1 }} onPress={handleCreate} disabled={saving}>
+                      <Text style={{ color: "#fff", fontFamily: "Inter_600SemiBold" }}>{saving ? "Saving..." : "Save"}</Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              ) : null}
+            </ScrollView>
+
+            {!adding && (
+              <TouchableOpacity style={[Sh.saveBtn, { backgroundColor: PERSONAL_DATE_COLOR, marginTop: 10 }]} onPress={() => setAdding(true)}>
+                <Feather name="plus" size={18} color="#fff" />
+                <Text style={[Sh.saveBtnText, { color: "#fff", fontFamily: "Inter_600SemiBold" }]}>Add personal date</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+        </KeyboardAvoidingView>
+      </View>
+    </Modal>
+  );
+}
+
 // ─── Main Screen ──────────────────────────────────────────────────────────────
 
 export default function PlanScreen() {
@@ -2321,6 +2566,10 @@ export default function PlanScreen() {
   const upsertReminderMutation = useUpsertReminder();
   const deleteReminderMutation = useDeleteReminder();
   const [reminderPickerHabit, setReminderPickerHabit] = useState<Habit | null>(null);
+
+  // ── Personal dates ──
+  const { data: personalDates = [] } = useListPersonalDates();
+  const [showPersonalDates, setShowPersonalDates] = useState(false);
 
   // ── Fetch notifHabits pref once on mount ──
   useEffect(() => {
@@ -3014,6 +3263,13 @@ export default function PlanScreen() {
         <View style={planStyles.section}>
           <View style={[planStyles.sectionHeader, { marginBottom: 12 }]}>
             <Text style={[planStyles.sectionTitle, { color: colors.foreground, fontFamily: "Inter_600SemiBold" }]}>Calendar</Text>
+            <TouchableOpacity
+              style={{ flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8, borderWidth: 1, borderColor: PERSONAL_DATE_COLOR + "50", backgroundColor: PERSONAL_DATE_COLOR + "10" }}
+              onPress={() => setShowPersonalDates(true)}
+            >
+              <Feather name="heart" size={13} color={PERSONAL_DATE_COLOR} />
+              <Text style={{ fontSize: 12, fontFamily: "Inter_500Medium", color: PERSONAL_DATE_COLOR }}>Dates</Text>
+            </TouchableOpacity>
           </View>
 
           {/* View mode toggle */}
@@ -3058,9 +3314,9 @@ export default function PlanScreen() {
 
           {/* Calendar grid */}
           {viewMode === "month" ? (
-            <MonthGrid viewYear={viewYear} viewMonth={viewMonth} eventsByDate={eventsByDate} currentTodayStr={currentTodayStr} onDayPress={handleDayPress} colors={colors} region={region} />
+            <MonthGrid viewYear={viewYear} viewMonth={viewMonth} eventsByDate={eventsByDate} currentTodayStr={currentTodayStr} onDayPress={handleDayPress} colors={colors} region={region} personalDates={personalDates} />
           ) : viewMode === "week" ? (
-            <WeekView weekStart={weekStart} eventsByDate={eventsByDate} currentTodayStr={currentTodayStr} onDayPress={handleDayPress} colors={colors} region={region} />
+            <WeekView weekStart={weekStart} eventsByDate={eventsByDate} currentTodayStr={currentTodayStr} onDayPress={handleDayPress} colors={colors} region={region} personalDates={personalDates} />
           ) : (
             <YearView viewYear={viewYear} eventsByDate={eventsByDate} currentTodayStr={currentTodayStr} onDayPress={handleDayPress} colors={colors} region={region} />
           )}
@@ -3347,6 +3603,14 @@ export default function PlanScreen() {
         colors={colors}
         bottomInset={insets.bottom}
         region={region}
+        personalDates={personalDates}
+      />
+
+      <PersonalDatesModal
+        visible={showPersonalDates}
+        onClose={() => setShowPersonalDates(false)}
+        colors={colors}
+        insets={insets}
       />
 
       <RoutineModal

@@ -25,6 +25,7 @@ import telemetryRouter from "./telemetry";
 import mealRouter from "./meal";
 import feedbackRouter from "./feedback";
 import remindersRouter from "./reminders";
+import personalDatesRouter from "./personal-dates";
 
 const router: IRouter = Router();
 
@@ -54,5 +55,6 @@ router.use(telemetryRouter);
 router.use(mealRouter);
 router.use(feedbackRouter);
 router.use(remindersRouter);
+router.use(personalDatesRouter);
 
 export default router;

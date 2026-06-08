@@ -305,31 +305,6 @@ export const UpdateCalendarEventResponse = zod.object({
 });
 
 /**
- * @summary Update a calendar event
- */
-export const UpdateCalendarEventParams = zod.object({
-  id: zod.coerce.number(),
-});
-
-export const UpdateCalendarEventBody = zod.object({
-  title: zod.string().optional(),
-  date: zod.string().optional(),
-  type: zod.string().nullish(),
-  notes: zod.string().nullish(),
-});
-
-export const UpdateCalendarEventResponse = zod.object({
-  id: zod.number(),
-  userId: zod.string(),
-  date: zod.string(),
-  title: zod.string(),
-  startTime: zod.string().nullish(),
-  endTime: zod.string().nullish(),
-  type: zod.string().nullish(),
-  notes: zod.string().nullish(),
-});
-
-/**
  * @summary Delete a calendar event
  */
 export const DeleteCalendarEventParams = zod.object({
@@ -845,4 +820,67 @@ export const ToggleHabitCompletionResponse = zod.object({
   completionDate: zod.string(),
   completed: zod.boolean(),
   createdAt: zod.string(),
+});
+
+/**
+ * @summary List all personal dates for the current user
+ */
+export const ListPersonalDatesResponseItem = zod.object({
+  id: zod.number(),
+  userId: zod.string(),
+  name: zod
+    .string()
+    .describe('e.g. \"Mom\'s Birthday\", \"Wedding Anniversary\"'),
+  month: zod.number().describe("1–12"),
+  day: zod.number().describe("1–31"),
+  label: zod.string().nullish().describe('e.g. \"Birthday\", \"Anniversary\"'),
+  createdAt: zod.string(),
+  updatedAt: zod.string(),
+});
+export const ListPersonalDatesResponse = zod.array(
+  ListPersonalDatesResponseItem,
+);
+
+/**
+ * @summary Create a new personal date
+ */
+export const CreatePersonalDateBody = zod.object({
+  name: zod.string(),
+  month: zod.number(),
+  day: zod.number(),
+  label: zod.string().nullish(),
+});
+
+/**
+ * @summary Update a personal date
+ */
+export const UpdatePersonalDateParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const UpdatePersonalDateBody = zod.object({
+  name: zod.string().optional(),
+  month: zod.number().optional(),
+  day: zod.number().optional(),
+  label: zod.string().nullish(),
+});
+
+export const UpdatePersonalDateResponse = zod.object({
+  id: zod.number(),
+  userId: zod.string(),
+  name: zod
+    .string()
+    .describe('e.g. \"Mom\'s Birthday\", \"Wedding Anniversary\"'),
+  month: zod.number().describe("1–12"),
+  day: zod.number().describe("1–31"),
+  label: zod.string().nullish().describe('e.g. \"Birthday\", \"Anniversary\"'),
+  createdAt: zod.string(),
+  updatedAt: zod.string(),
+});
+
+/**
+ * @summary Delete a personal date
+ */
+export const DeletePersonalDateParams = zod.object({
+  id: zod.coerce.number(),
 });

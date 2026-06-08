@@ -44,6 +44,9 @@ import type {
   MoodInput,
   OnboardingSaveInput,
   OnboardingStatus,
+  PersonalDate,
+  PersonalDateInput,
+  PersonalDateUpdate,
   Reminder,
   ReminderInput,
   ReminderUpdate,
@@ -3421,4 +3424,336 @@ export const useToggleHabitCompletion = <
   TContext
 > => {
   return useMutation(getToggleHabitCompletionMutationOptions(options));
+};
+
+/**
+ * @summary List all personal dates for the current user
+ */
+export const getListPersonalDatesUrl = () => {
+  return `/api/personal-dates`;
+};
+
+export const listPersonalDates = async (
+  options?: RequestInit,
+): Promise<PersonalDate[]> => {
+  return customFetch<PersonalDate[]>(getListPersonalDatesUrl(), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getListPersonalDatesQueryKey = () => {
+  return [`/api/personal-dates`] as const;
+};
+
+export const getListPersonalDatesQueryOptions = <
+  TData = Awaited<ReturnType<typeof listPersonalDates>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof listPersonalDates>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getListPersonalDatesQueryKey();
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof listPersonalDates>>
+  > = ({ signal }) => listPersonalDates({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof listPersonalDates>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type ListPersonalDatesQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listPersonalDates>>
+>;
+export type ListPersonalDatesQueryError = ErrorType<unknown>;
+
+/**
+ * @summary List all personal dates for the current user
+ */
+
+export function useListPersonalDates<
+  TData = Awaited<ReturnType<typeof listPersonalDates>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof listPersonalDates>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getListPersonalDatesQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Create a new personal date
+ */
+export const getCreatePersonalDateUrl = () => {
+  return `/api/personal-dates`;
+};
+
+export const createPersonalDate = async (
+  personalDateInput: PersonalDateInput,
+  options?: RequestInit,
+): Promise<PersonalDate> => {
+  return customFetch<PersonalDate>(getCreatePersonalDateUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(personalDateInput),
+  });
+};
+
+export const getCreatePersonalDateMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createPersonalDate>>,
+    TError,
+    { data: BodyType<PersonalDateInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof createPersonalDate>>,
+  TError,
+  { data: BodyType<PersonalDateInput> },
+  TContext
+> => {
+  const mutationKey = ["createPersonalDate"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof createPersonalDate>>,
+    { data: BodyType<PersonalDateInput> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return createPersonalDate(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type CreatePersonalDateMutationResult = NonNullable<
+  Awaited<ReturnType<typeof createPersonalDate>>
+>;
+export type CreatePersonalDateMutationBody = BodyType<PersonalDateInput>;
+export type CreatePersonalDateMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Create a new personal date
+ */
+export const useCreatePersonalDate = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createPersonalDate>>,
+    TError,
+    { data: BodyType<PersonalDateInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof createPersonalDate>>,
+  TError,
+  { data: BodyType<PersonalDateInput> },
+  TContext
+> => {
+  return useMutation(getCreatePersonalDateMutationOptions(options));
+};
+
+/**
+ * @summary Update a personal date
+ */
+export const getUpdatePersonalDateUrl = (id: number) => {
+  return `/api/personal-dates/${id}`;
+};
+
+export const updatePersonalDate = async (
+  id: number,
+  personalDateUpdate: PersonalDateUpdate,
+  options?: RequestInit,
+): Promise<PersonalDate> => {
+  return customFetch<PersonalDate>(getUpdatePersonalDateUrl(id), {
+    ...options,
+    method: "PATCH",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(personalDateUpdate),
+  });
+};
+
+export const getUpdatePersonalDateMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updatePersonalDate>>,
+    TError,
+    { id: number; data: BodyType<PersonalDateUpdate> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof updatePersonalDate>>,
+  TError,
+  { id: number; data: BodyType<PersonalDateUpdate> },
+  TContext
+> => {
+  const mutationKey = ["updatePersonalDate"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof updatePersonalDate>>,
+    { id: number; data: BodyType<PersonalDateUpdate> }
+  > = (props) => {
+    const { id, data } = props ?? {};
+
+    return updatePersonalDate(id, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type UpdatePersonalDateMutationResult = NonNullable<
+  Awaited<ReturnType<typeof updatePersonalDate>>
+>;
+export type UpdatePersonalDateMutationBody = BodyType<PersonalDateUpdate>;
+export type UpdatePersonalDateMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Update a personal date
+ */
+export const useUpdatePersonalDate = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updatePersonalDate>>,
+    TError,
+    { id: number; data: BodyType<PersonalDateUpdate> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof updatePersonalDate>>,
+  TError,
+  { id: number; data: BodyType<PersonalDateUpdate> },
+  TContext
+> => {
+  return useMutation(getUpdatePersonalDateMutationOptions(options));
+};
+
+/**
+ * @summary Delete a personal date
+ */
+export const getDeletePersonalDateUrl = (id: number) => {
+  return `/api/personal-dates/${id}`;
+};
+
+export const deletePersonalDate = async (
+  id: number,
+  options?: RequestInit,
+): Promise<void> => {
+  return customFetch<void>(getDeletePersonalDateUrl(id), {
+    ...options,
+    method: "DELETE",
+  });
+};
+
+export const getDeletePersonalDateMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deletePersonalDate>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof deletePersonalDate>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  const mutationKey = ["deletePersonalDate"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof deletePersonalDate>>,
+    { id: number }
+  > = (props) => {
+    const { id } = props ?? {};
+
+    return deletePersonalDate(id, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type DeletePersonalDateMutationResult = NonNullable<
+  Awaited<ReturnType<typeof deletePersonalDate>>
+>;
+
+export type DeletePersonalDateMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Delete a personal date
+ */
+export const useDeletePersonalDate = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deletePersonalDate>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof deletePersonalDate>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  return useMutation(getDeletePersonalDateMutationOptions(options));
 };

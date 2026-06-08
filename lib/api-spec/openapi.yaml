@@ -33,6 +33,8 @@ tags:
     description: AI image analysis via Claude vision
   - name: profile
     description: User profile and streak data
+  - name: personal-dates
+    description: Personal recurring dates (birthdays, anniversaries)
 paths:
   /healthz:
     get:
@@ -765,6 +767,76 @@ paths:
               schema:
                 $ref: "#/components/schemas/HabitCompletion"
 
+  /personal-dates:
+    get:
+      operationId: listPersonalDates
+      tags: [personal-dates]
+      summary: List all personal dates for the current user
+      responses:
+        "200":
+          description: List of personal dates
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/PersonalDate"
+    post:
+      operationId: createPersonalDate
+      tags: [personal-dates]
+      summary: Create a new personal date
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PersonalDateInput"
+      responses:
+        "201":
+          description: Created personal date
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PersonalDate"
+
+  /personal-dates/{id}:
+    patch:
+      operationId: updatePersonalDate
+      tags: [personal-dates]
+      summary: Update a personal date
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PersonalDateUpdate"
+      responses:
+        "200":
+          description: Updated personal date
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PersonalDate"
+    delete:
+      operationId: deletePersonalDate
+      tags: [personal-dates]
+      summary: Delete a personal date
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+
 components:
   schemas:
     UserSettings:
@@ -1468,18 +1540,6 @@ components:
           nullable: true
           additionalProperties: true
 
-    CalendarEventUpdate:
-      type: object
-      properties:
-        title:
-          type: string
-        date:
-          type: string
-        type:
-          type: ["string", "null"]
-        notes:
-          type: ["string", "null"]
-
     ReminderUpdate:
       type: object
       properties:
@@ -1493,6 +1553,56 @@ components:
           type: object
           nullable: true
           additionalProperties: true
+
+    PersonalDate:
+      type: object
+      required: [id, userId, name, month, day, createdAt, updatedAt]
+      properties:
+        id:
+          type: integer
+        userId:
+          type: string
+        name:
+          type: string
+          description: e.g. "Mom's Birthday", "Wedding Anniversary"
+        month:
+          type: integer
+          description: 1–12
+        day:
+          type: integer
+          description: 1–31
+        label:
+          type: ["string", "null"]
+          description: e.g. "Birthday", "Anniversary"
+        createdAt:
+          type: string
+        updatedAt:
+          type: string
+
+    PersonalDateInput:
+      type: object
+      required: [name, month, day]
+      properties:
+        name:
+          type: string
+        month:
+          type: integer
+        day:
+          type: integer
+        label:
+          type: ["string", "null"]
+
+    PersonalDateUpdate:
+      type: object
+      properties:
+        name:
+          type: string
+        month:
+          type: integer
+        day:
+          type: integer
+        label:
+          type: ["string", "null"]
 
     InsightPattern:
       type: object

@@ -519,15 +519,6 @@ export interface ReminderInput {
   metadata?: ReminderInputMetadata;
 }
 
-export interface CalendarEventUpdate {
-  title?: string;
-  date?: string;
-  /** @nullable */
-  type?: string | null;
-  /** @nullable */
-  notes?: string | null;
-}
-
 export type ReminderUpdateMetadata = { [key: string]: unknown } | null;
 
 export interface ReminderUpdate {
@@ -535,6 +526,40 @@ export interface ReminderUpdate {
   label?: string;
   scheduledTime?: string;
   metadata?: ReminderUpdateMetadata;
+}
+
+export interface PersonalDate {
+  id: number;
+  userId: string;
+  /** e.g. "Mom's Birthday", "Wedding Anniversary" */
+  name: string;
+  /** 1–12 */
+  month: number;
+  /** 1–31 */
+  day: number;
+  /**
+   * e.g. "Birthday", "Anniversary"
+   * @nullable
+   */
+  label?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface PersonalDateInput {
+  name: string;
+  month: number;
+  day: number;
+  /** @nullable */
+  label?: string | null;
+}
+
+export interface PersonalDateUpdate {
+  name?: string;
+  month?: number;
+  day?: number;
+  /** @nullable */
+  label?: string | null;
 }
 
 export interface InsightPattern {
