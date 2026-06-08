@@ -1,0 +1,43 @@
+Add a function to the Valo backend that builds a dynamic system prompt for Vapi before each call.
+
+This function is called buildVapiSystemPrompt(basePrompt, memory, intelligence) and returns a string.
+
+It takes:
+- basePrompt: the full static Vapi system prompt as a string
+- memory: the user's memory object from Replit DB
+- intelligence: the pre-call intelligence object from generatePreCallIntelligence
+
+It replaces these placeholders in the basePrompt string with real values:
+
+From memory.profile:
+- {{memory_recurring_struggles}} → memory.profile.recurring_struggles joined as a numbered list, or "None recorded yet" if empty
+- {{memory_things_that_matter}} → memory.profile.things_that_matter joined as a numbered list, or "None recorded yet" if empty
+- {{memory_emotional_patterns}} → memory.profile.emotional_patterns joined as a numbered list, or "None recorded yet" if empty
+- {{memory_personal_details}} → memory.profile.personal_details joined as a numbered list, or "None recorded yet" if empty
+- {{memory_open_commitments}} → filter memory.profile.commitments_history where status === "pending", map to commitment strings, join as numbered list, or "None recorded yet" if empty
+
+From memory.last_call (use "Not available" if last_call is null):
+- {{last_call_date}} → memory.last_call.date formatted as readable date string
+- {{last_call_emotional_tone}} → memory.last_call.emotional_tone
+- {{last_call_unresolved_threads}} → memory.last_call.unresolved_threads joined as a numbered list
+- {{last_call_commitments}} → memory.last_call.commitments_made joined as a numbered list
+
+From intelligence (use "Not available" if intelligence is null):
+- {{intel_pattern_observation}} → intelligence.pattern_observation
+- {{intel_unresolved_thread}} → intelligence.unresolved_thread
+- {{intel_suggested_question}} → intelligence.suggested_question
+- {{intel_emotional_baseline}} → intelligence.emotional_baseline
+- {{intel_data_anomaly}} → intelligence.data_anomaly or "None today"
+
+Also add a new route:
+
+POST /vapi/system-prompt
+Body: { userId, healthData, basePrompt }
+- Validate userId and basePrompt exist
+- Run getMemory(userId)
+- Run generatePreCallIntelligence(memory, healthData || {})
+- Run buildVapiSystemPrompt(basePrompt, memory, intelligence)
+- Return { systemPrompt: "<the fully built string>" }
+- Wrap in try/catch
+
+This route is what your app calls right before initiating a Vapi call. The returned systemPrompt gets passed to Vapi's API as the assistant's system prompt for that session.

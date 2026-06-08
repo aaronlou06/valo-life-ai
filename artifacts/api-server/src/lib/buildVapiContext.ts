@@ -3,6 +3,7 @@ import {
   calendarEventsTable,
   dailyLogsTable,
   db,
+  debriefExtractionsTable,
   goalsTable,
   habitsTable,
   insightsTable,
@@ -11,6 +12,7 @@ import {
   remindersTable,
   userProfilesTable,
 } from "@workspace/db";
+import { anthropic } from "@workspace/integrations-anthropic-ai";
 
 function formatCallTime(hhmm: string | null | undefined): string {
   if (!hhmm) return "not set";
@@ -210,6 +212,7 @@ export async function buildVapiContext(userId: string): Promise<Record<string, u
     latestInsight,
     todayLogEntries,
     entityReminderRows,
+    recentDebriefs,
   ] = await Promise.all([
     db
       .select()
@@ -284,10 +287,21 @@ export async function buildVapiContext(userId: string): Promise<Record<string, u
       .select()
       .from(remindersTable)
       .where(and(eq(remindersTable.userId, userId), eq(remindersTable.isActive, true))),
+
+    db
+      .select()
+      .from(debriefExtractionsTable)
+      .where(eq(debriefExtractionsTable.userId, userId))
+      .orderBy(desc(debriefExtractionsTable.createdAt))
+      .limit(5),
   ]);
 
   const log = todayLogRows[0];
   const profile = profileRows[0];
+  const lastDebrief = recentDebriefs[0] ?? null;
+  const recentStruggles = recentDebriefs
+    .filter((d) => d.oneStruggle)
+    .map((d) => d.oneStruggle!);
 
   // ── Entity reminders ─────────────────────────────────────────────────────────
   const activeEntityReminders = entityReminderRows.filter(
@@ -504,10 +518,161 @@ export async function buildVapiContext(userId: string): Promise<Record<string, u
 
     // ── Entity reminders ─────────────────────────────────────────────────
     entity_reminders_str,
+
+    // ── Last call (most recent debrief extraction) ────────────────────────
+    last_call_date: lastDebrief?.date ?? null,
+    last_call_emotional_tone: lastDebrief
+      ? [lastDebrief.primaryEmotion, lastDebrief.energyLevel].filter(Boolean).join(", ") || null
+      : null,
+    last_call_unresolved_threads: lastDebrief?.oneStruggle ? [lastDebrief.oneStruggle] : [],
+    last_call_commitments: lastDebrief?.tomorrowIntention ? [lastDebrief.tomorrowIntention] : [],
+    recent_struggles: recentStruggles,
   };
 
   // context_string is built last — it references the fields above
   data.context_string = buildContextString(data);
 
   return data;
+}
+
+// ── Pre-call intelligence ─────────────────────────────────────────────────────
+
+export interface PreCallIntelligence {
+  pattern_observation: string;
+  unresolved_thread: string;
+  suggested_question: string;
+  emotional_baseline: string;
+  data_anomaly: string | null;
+}
+
+export async function generatePreCallIntelligence(
+  context: Record<string, unknown>,
+  healthData: Record<string, unknown> = {}
+): Promise<PreCallIntelligence | null> {
+  const lastCallDate = context.last_call_date as string | null;
+  const lastCallTone = context.last_call_emotional_tone as string | null;
+  const lastStruggle = (context.last_call_unresolved_threads as string[])[0] ?? "none";
+
+  const summaryLines = [
+    `User: ${context.user_name}`,
+    `Goals: ${context.goals_summary}`,
+    `Recovery: HRV ${context.hrv_today ?? "N/A"}, Sleep ${context.sleep_hours ?? "N/A"} hrs, RHR ${context.rhr_today ?? "N/A"}`,
+    `14-day mood avg: ${context.mood_avg_14d ?? "N/A"}, HRV avg: ${context.hrv_avg_14d ?? "N/A"}`,
+    `Workout consistency (14d): ${context.workout_consistency_14d}%`,
+    `Habits: ${context.habits_summary}`,
+    `Last call (${lastCallDate ?? "N/A"}): tone "${lastCallTone ?? "N/A"}", open struggle: "${lastStruggle}"`,
+    `Recent pattern: ${context.latest_pattern ?? "none"}`,
+    Object.keys(healthData).length > 0 ? `Health data: ${JSON.stringify(healthData)}` : null,
+  ].filter((l): l is string => l !== null);
+
+  try {
+    const msg = await anthropic.messages.create({
+      model: "claude-haiku-4-5",
+      max_tokens: 800,
+      messages: [
+        {
+          role: "user",
+          content: `You are generating pre-call intelligence for Valo, a personal AI life companion. Surface non-obvious insights so Valo opens with genuine wisdom, not just data readback.
+
+Rules:
+- pattern_observation: something the user probably has not consciously connected themselves
+- unresolved_thread: the most emotionally significant open item
+- suggested_question: specific, not generic — feels like it comes from someone paying close attention
+- emotional_baseline: read between the lines — what is the real trend
+- data_anomaly: only populate if something is genuinely unusual vs history, otherwise null
+
+USER DATA:
+${summaryLines.join("\n")}
+
+Return ONLY valid JSON with no markdown:
+{
+  "pattern_observation": "...",
+  "unresolved_thread": "...",
+  "suggested_question": "...",
+  "emotional_baseline": "...",
+  "data_anomaly": "..." or null
+}`,
+        },
+      ],
+    });
+
+    const text = msg.content[0]?.type === "text" ? msg.content[0].text : "";
+    const clean = text.replace(/```(?:json)?\n?/g, "").replace(/```\n?/g, "").trim();
+    return JSON.parse(clean) as PreCallIntelligence;
+  } catch {
+    return null;
+  }
+}
+
+// ── System prompt builder ─────────────────────────────────────────────────────
+
+function numberedList(items: string[]): string {
+  if (items.length === 0) return "None recorded yet";
+  return items.map((item, i) => `${i + 1}. ${item}`).join("\n");
+}
+
+export function buildVapiSystemPrompt(
+  basePrompt: string,
+  context: Record<string, unknown>,
+  intelligence: PreCallIntelligence | null
+): string {
+  const recentStruggles = (context.recent_struggles as string[] | undefined) ?? [];
+  const userPriorities = context.user_priorities as string | null;
+  const userWantsMore = context.user_wants_more as string | null;
+  const userIdentity = context.user_identity as string | null;
+  const userMotivation = context.user_motivation as string | null;
+  const dietContext = context.diet_context as string | null;
+  const goalsSummary = context.goals_summary as string | null;
+  const moodAvg14d = context.mood_avg_14d as number | null;
+  const lastCallTone = context.last_call_emotional_tone as string | null;
+  const lastCallDate = context.last_call_date as string | null;
+  const lastCallUnresolved = (context.last_call_unresolved_threads as string[] | undefined) ?? [];
+  const lastCallCommitments = (context.last_call_commitments as string[] | undefined) ?? [];
+
+  const thingsTheMatter = [userPriorities, userWantsMore]
+    .filter((v): v is string => typeof v === "string" && v.length > 0);
+
+  const emotionalPatterns = [
+    moodAvg14d != null ? `14-day mood avg ${moodAvg14d}/10` : null,
+    lastCallTone,
+  ].filter((v): v is string => typeof v === "string" && v.length > 0);
+
+  const personalDetails = [userIdentity, dietContext, userMotivation]
+    .filter((v): v is string => typeof v === "string" && v.length > 0);
+
+  const openCommitments = goalsSummary?.split("; ").filter(Boolean) ?? [];
+
+  const replacements: Record<string, string> = {
+    // Memory placeholders
+    memory_recurring_struggles: numberedList(recentStruggles),
+    memory_things_that_matter: numberedList(thingsTheMatter),
+    memory_emotional_patterns: numberedList(emotionalPatterns),
+    memory_personal_details: numberedList(personalDetails),
+    memory_open_commitments: numberedList(openCommitments),
+    // Last-call placeholders
+    last_call_date: lastCallDate
+      ? new Date(lastCallDate).toLocaleDateString("en-US", {
+          weekday: "long", month: "long", day: "numeric",
+        })
+      : "Not available",
+    last_call_emotional_tone: lastCallTone ?? "Not available",
+    last_call_unresolved_threads: lastCallDate
+      ? numberedList(lastCallUnresolved)
+      : "Not available",
+    last_call_commitments: lastCallDate
+      ? numberedList(lastCallCommitments)
+      : "Not available",
+    // Intelligence placeholders
+    intel_pattern_observation: intelligence?.pattern_observation ?? "Not available",
+    intel_unresolved_thread: intelligence?.unresolved_thread ?? "Not available",
+    intel_suggested_question: intelligence?.suggested_question ?? "Not available",
+    intel_emotional_baseline: intelligence?.emotional_baseline ?? "Not available",
+    intel_data_anomaly: intelligence?.data_anomaly ?? "None today",
+    // Backward-compatible context_string injection
+    context_string: (context.context_string as string | undefined) ?? "",
+  };
+
+  return basePrompt.replace(/\{\{(\w+)\}\}/g, (_, key: string) => {
+    return key in replacements ? replacements[key]! : `{{${key}}}`;
+  });
 }

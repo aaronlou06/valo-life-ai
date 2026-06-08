@@ -2,7 +2,11 @@ import { Router, type IRouter } from "express";
 import { eq } from "drizzle-orm";
 import { db, goalsTable, userProfilesTable } from "@workspace/db";
 import { requireAuth, type AuthenticatedRequest } from "../middlewares/requireAuth";
-import { buildVapiContext } from "../lib/buildVapiContext";
+import {
+  buildVapiContext,
+  buildVapiSystemPrompt,
+  generatePreCallIntelligence,
+} from "../lib/buildVapiContext";
 import { processDebriefTranscript, type TranscriptEntry } from "../lib/processDebrief";
 
 const router: IRouter = Router();
@@ -165,8 +169,42 @@ async function handleVapiContextAuth(req: any, res: any): Promise<void> {
   }
 }
 
+// POST /vapi/system-prompt
+// Body: { healthData?, basePrompt }
+// Returns { systemPrompt } — the basePrompt with all {{placeholder}} values filled in.
+// Intended to be called right before initiating a Vapi call; the returned string is
+// passed to Vapi as the assistant's system prompt for that session.
+async function handleBuildSystemPrompt(req: any, res: any): Promise<void> {
+  const userId = (req as AuthenticatedRequest).userId;
+  const { healthData, basePrompt } = req.body as {
+    healthData?: Record<string, unknown>;
+    basePrompt?: string;
+  };
+
+  if (!basePrompt) {
+    res.status(400).json({ error: "basePrompt is required" });
+    return;
+  }
+
+  try {
+    const context = await buildVapiContext(userId);
+    let intelligence = null;
+    try {
+      intelligence = await generatePreCallIntelligence(context, healthData ?? {});
+    } catch {
+      // Fail gracefully — intelligence enriches but is not required
+    }
+    const systemPrompt = buildVapiSystemPrompt(basePrompt, context, intelligence);
+    res.json({ systemPrompt });
+  } catch (err: any) {
+    req.log.error({ err, userId }, "POST /vapi/system-prompt failed");
+    res.status(500).json({ error: "Failed to build system prompt" });
+  }
+}
+
 // ── Routes ───────────────────────────────────────────────────────────────────
 
+router.post("/vapi/system-prompt", requireAuth, handleBuildSystemPrompt);
 router.get("/vapi/context/:userId", requireAuth, handleVapiContext);
 router.post("/vapi/context/:userId", requireAuth, handleVapiContext);
 router.get("/vapi/context", requireAuth, handleVapiContextAuth);
