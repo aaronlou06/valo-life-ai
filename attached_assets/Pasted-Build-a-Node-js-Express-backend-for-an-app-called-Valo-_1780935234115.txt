@@ -1,0 +1,112 @@
+Build a Node.js Express backend for an app called Valo. Use ES modules (type: module in package.json).
+
+Dependencies needed: express, @anthropic-ai/sdk, @replit/database
+
+Use process.env.ANTHROPIC_API_KEY for the Anthropic client. Use process.env.PORT || 3000 for the server port.
+
+DATABASE STRUCTURE
+Use Replit DB with key pattern: user:{userId}:memory
+Each user's memory object looks like this:
+{
+  profile: {
+    recurring_struggles: [],
+    commitments_history: [{ commitment, status: "pending|resolved|abandoned", date }],
+    personal_details: [],
+    emotional_patterns: [],
+    things_that_matter: []
+  },
+  call_summaries: [], // max 30 entries, drop oldest when over
+  last_call: {
+    date,
+    unresolved_threads: [],
+    commitments_made: [],
+    emotional_tone,
+    pattern_observation
+  }
+}
+
+If a user has no memory yet, return the empty structure above as a default.
+
+HELPER FUNCTIONS
+- getMemory(userId): fetch from Replit DB or return default structure
+- saveMemory(userId, memory): save to Replit DB
+- safeParseJSON(text): strip markdown code fences, parse JSON, return null on failure and log the error
+
+THREE CLAUDE JOBS — all use model claude-opus-4-5, max_tokens 1000 unless specified
+
+1. summarizeCall(transcript)
+Prompt: You are analyzing a conversation transcript from a personal life coaching AI called Valo. Extract key information and return ONLY valid JSON with no preamble or markdown.
+Return this exact structure:
+{
+  unresolved_threads: ["things mentioned but not resolved"],
+  commitments_made: ["specific things the user said they would do"],
+  emotional_tone: "one sentence on emotional state during this call",
+  new_personal_details: ["new facts learned about this person"],
+  pattern_observation: "one behavioral or emotional pattern visible in this conversation"
+}
+
+2. mergeMemory(existingMemory, newSummary) — max_tokens 1500
+Prompt: You are updating a user's long-term memory profile for a personal AI companion called Valo.
+Rules:
+- Merge new information into existing profile, do not simply append
+- If a commitment from history appears resolved in the new summary, mark it resolved
+- If a recurring struggle appears again, note its significance
+- Keep the profile lean — summarize, don't accumulate verbatim text
+- Preserve things_that_matter even if not mentioned recently
+- Return ONLY valid JSON with no markdown
+Return the full updated memory object matching the database structure above.
+Include today's ISO date as last_call.date.
+
+3. generatePreCallIntelligence(memory, healthData) — max_tokens 800
+Prompt: You are generating pre-call intelligence for Valo, a personal AI life companion. Surface non-obvious insights so Valo opens with genuine wisdom, not just data readback.
+Rules:
+- pattern_observation should be something the user probably hasn't consciously connected themselves
+- unresolved_thread should be the most emotionally significant open item
+- suggested_question should be specific, not generic — make it feel like it comes from someone paying close attention
+- emotional_baseline should read between the lines — what's the real trend
+- data_anomaly should only be populated if something is genuinely unusual, otherwise return null
+Return ONLY valid JSON:
+{
+  pattern_observation: "one insight the user probably hasn't made about themselves",
+  unresolved_thread: "most important open item from recent calls",
+  suggested_question: "one specific question worth asking today",
+  emotional_baseline: "one sentence on the real emotional trend",
+  data_anomaly: "something unusual in today's data vs history, or null"
+}
+
+ROUTES
+
+POST /webhook/call-end
+Body: { transcript, userId }
+- Validate both fields exist, return 400 if not
+- Run summarizeCall(transcript)
+- Get existing memory with getMemory(userId)
+- Run mergeMemory(existingMemory, summary)
+- Save updated memory with saveMemory(userId, updatedMemory)
+- Return 200 { success: true }
+- Wrap everything in try/catch, log errors, return 500 on failure
+
+POST /webhook/call-start
+Body: { userId, healthData }
+- Validate userId exists, return 400 if not
+- Get memory with getMemory(userId)
+- Run generatePreCallIntelligence(memory, healthData || {})
+- If intelligence generation fails, return 200 { intelligence: null } — fail gracefully, don't break the call
+- Return 200 { intelligence }
+- Wrap in try/catch
+
+GET /memory/:userId
+- Return full memory object for that user
+- Wrap in try/catch
+
+POST /memory/:userId/update
+Body: { field, value }
+- Only allow updates to valid profile fields: recurring_struggles, commitments_history, personal_details, emotional_patterns, things_that_matter
+- Update that field and save
+- Return 400 if field is not in the allowed list
+- Wrap in try/catch
+
+GET /health
+Return { status: "ok" }
+
+Log a message to console for each webhook call showing the userId and which route was hit.
