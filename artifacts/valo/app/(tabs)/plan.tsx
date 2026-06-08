@@ -686,7 +686,22 @@ function AddEventModal({
     if (visible) {
       if (event) {
         setTitle(event.title);
-        setDate(event.date);
+        // Reconstruct datetime so eventDateTime is non-null in handleSave and fireAt is computed.
+        // Time is stored in notes as "HH:MM AM/PM" via extractEventTime; convert to 24-h ISO.
+        const rawTime = extractEventTime(event.notes);
+        if (rawTime) {
+          const startPart = rawTime.split(/\s*[—–\-]\s*/)[0]!.trim();
+          const mins = parseTime12ToMinutes(startPart);
+          if (mins !== null) {
+            const h = Math.floor(mins / 60);
+            const m = mins % 60;
+            setDate(`${event.date}T${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`);
+          } else {
+            setDate(event.date);
+          }
+        } else {
+          setDate(event.date);
+        }
         setEventType(event.type ?? null);
         setNotes(routineNotesText(event.notes));
         setSaving(false);
@@ -742,10 +757,10 @@ function AddEventModal({
         for (const existing of existingList) {
           void cancelEntityReminderNotification(existing.id);
           const m = existing.metadata as { remindBeforeSeconds?: number } | null;
-          void upsertReminder({
+          await upsertReminder({
             data: { type: "event", label: title.trim(), scheduledTime: "00:00", isActive: false,
               metadata: { entityId: String(savedId), entityType: "event", remindBeforeSeconds: m?.remindBeforeSeconds ?? 3600 } },
-          }).catch(() => {});
+          });
         }
       } else {
         // Toggle ON: upsert active slots, delete removed ones.
@@ -758,7 +773,7 @@ function AddEventModal({
         for (const [secs, existing] of existingBySeconds) {
           if (!currentSlotSet.has(secs)) {
             void cancelEntityReminderNotification(existing.id);
-            void deleteReminder({ id: existing.id }).catch(() => {});
+            await deleteReminder({ id: existing.id });
           }
         }
         for (const remindBeforeSeconds of reminderSlots) {

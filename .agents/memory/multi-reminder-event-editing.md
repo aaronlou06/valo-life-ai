@@ -1,30 +1,22 @@
 ---
 name: Multi-reminder event editing
-description: How event editing and reminder lifecycle are wired in plan.tsx and the API server
+description: Durable decisions for event editing and reminder lifecycle in plan.tsx
 ---
 
-## Rules
+## Decision: Datetime reconstruction in edit mode
 
-**Event editing:** `AddEventModal` accepts an optional `event?: CalendarEvent` prop. When set, it:
-- Pre-populates title, date (YYYY-MM-DD), type, and notes (via `routineNotesText()` to strip `time:...|` prefix)
-- Loads existing reminders from `useListReminders()` into `existingEventRemindersRef`
-- Calls `useUpdateCalendarEvent` (PATCH) instead of `useCreateCalendarEvent` (POST) on save
-- Title shows "Edit Event", button shows "Save changes"
+**Why:** Saved event dates are stored as `YYYY-MM-DD`; the time is stored in `notes` as `time:HH:MM AM/PM|...`. If the edit modal pre-populates `date` as plain YYYY-MM-DD, then `date.includes("T")` is false and `eventDateTime` is null in handleSave — notifications are never re-scheduled.
 
-**Reminder lifecycle (same semantics as RoutineModal):**
-- Toggle OFF: `upsertReminder({ isActive: false })` — records preserved, reactivates later
-- Toggle ON: upsert each active slot, delete records for removed slot sizes
-- Uses `cancelEntityReminderNotification(id)` before deactivating or deleting
+**How to apply:** On open with `event` prop, extract time from `event.notes` via `extractEventTime()`, convert from 12h → 24h using `parseTime12ToMinutes()`, then set `date` as `event.date + "T" + HH:MM` so `fireAt` is always computable.
 
-**DayDetailSheet:** has `onEditEvent?: (ev: CalendarEvent) => void` prop. Non-routine event cards show a pencil (edit-2) icon button. Tap calls `onEditEvent?.(ev)`.
+## Decision: Reminder mutations must be awaited
 
-**PlanScreen wiring:**
-- `editingEvent: CalendarEvent | null` state
-- `onEditEvent` handler: `setShowDayDetail(false); setEditingEvent(ev); setTimeout(() => setShowAddEvent(true), 220)`
-- `AddEventModal` receives `event={editingEvent ?? undefined}` and `onClose` resets editingEvent
+**Why:** Toggle-off and slot-deletion paths use `void X.catch(() => {})` which silently swallows failures — users get success UX while DB and notification state diverge.
 
-**API server:**
-- `PATCH /reminders/:id` — updates `isActive`, `label`, `scheduledTime`, `metadata`
-- VAPI instructions reference PATCH for activate/deactivate (not POST)
+**How to apply:** All `upsertReminder` and `deleteReminder` calls in `handleSave` must be `await`-ed (inside the existing `try/catch`). Only `cancelEntityReminderNotification` (device-only, best-effort) may remain `void`.
 
-**Why:** Code review required toggle-off to preserve records (isActive:false) and event editing to use PATCH, not recreate. The 220ms setTimeout matches the sheet close animation.
+## Decision: Toggle-off = isActive:false, not delete
+
+**Why:** Preserves reminder records so they can be reactivated; prevents re-entering all slot sizes after a temporary disable.
+
+**How to apply:** When `!reminderEnabled` on save, call `upsertReminder` with `isActive: false` for every existing reminder record. When re-enabled, call with `isActive: true`.
