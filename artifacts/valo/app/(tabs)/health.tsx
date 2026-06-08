@@ -25,6 +25,7 @@ import {
   getListDailyLogHistoryQueryKey,
   getGetTodayLogQueryKey,
   type DailyLog,
+  type ListDailyLogHistoryParams,
 } from "@workspace/api-client-react";
 import { useColors } from "@/hooks/useColors";
 import * as Haptics from "expo-haptics";
@@ -629,13 +630,70 @@ function AddWorkoutModal({
 
 // ─── HistoryBreakdownModal ────────────────────────────────────────────────────
 
-const HISTORY_METRICS: { key: keyof DailyLog; short: string }[] = [
-  { key: "sleepHours", short: "Sleep" },
-  { key: "hrv", short: "HRV" },
-  { key: "restingHeartRate", short: "RHR" },
-  { key: "steps", short: "Steps" },
-  { key: "activeCalories", short: "Cal" },
-  { key: "respiratoryRate", short: "Resp" },
+function formatExactNumber(v: number): string {
+  return v % 1 === 0
+    ? Math.round(v).toLocaleString("en-US")
+    : v.toFixed(2).replace(/\.?0+$/, "");
+}
+
+const HISTORY_METRICS: {
+  key: keyof DailyLog;
+  short: string;
+  label: string;
+  unit: string;
+  format: (v: number) => string;
+  formatExact: (v: number) => string;
+}[] = [
+  {
+    key: "sleepHours",
+    short: "Sleep",
+    label: "Sleep",
+    unit: "hrs",
+    format: (v) => v.toFixed(1),
+    formatExact: (v) => v.toFixed(1),
+  },
+  {
+    key: "hrv",
+    short: "HRV",
+    label: "HRV",
+    unit: "ms",
+    format: (v) => String(Math.round(v)),
+    formatExact: formatExactNumber,
+  },
+  {
+    key: "restingHeartRate",
+    short: "RHR",
+    label: "Resting HR",
+    unit: "bpm",
+    format: (v) => String(Math.round(v)),
+    formatExact: formatExactNumber,
+  },
+  {
+    key: "steps",
+    short: "Steps",
+    label: "Steps",
+    unit: "steps",
+    format: (v) =>
+      v >= 1000 ? `${(v / 1000).toFixed(1)}k` : String(Math.round(v)),
+    formatExact: formatExactNumber,
+  },
+  {
+    key: "activeCalories",
+    short: "Cal",
+    label: "Active Cal",
+    unit: "kcal",
+    format: (v) =>
+      v >= 1000 ? `${(v / 1000).toFixed(1)}k` : String(Math.round(v)),
+    formatExact: formatExactNumber,
+  },
+  {
+    key: "respiratoryRate",
+    short: "Resp",
+    label: "Resp. Rate",
+    unit: "brpm",
+    format: (v) => String(Math.round(v)),
+    formatExact: formatExactNumber,
+  },
 ];
 
 interface HistoryBreakdownModalProps {
@@ -652,12 +710,17 @@ function HistoryBreakdownModal({
   colors,
 }: HistoryBreakdownModalProps) {
   const insets = useSafeAreaInsets();
+  const [expandedDate, setExpandedDate] = useState<string | null>(null);
+
+  function toggleExpanded(dateStr: string) {
+    Haptics.selectionAsync();
+    setExpandedDate((prev) => (prev === dateStr ? null : dateStr));
+  }
 
   const startDate = authDate.split("T")[0]!;
+  const historyParams: ListDailyLogHistoryParams = { startDate };
 
-  const { data: fullHistory = [], isLoading } = useListDailyLogHistory({
-    startDate,
-  });
+  const { data: fullHistory = [], isLoading } = useListDailyLogHistory(historyParams);
 
   const logByDate = React.useMemo(() => {
     const map: Record<string, DailyLog> = {};
@@ -796,20 +859,10 @@ function HistoryBreakdownModal({
               log != null &&
               HISTORY_METRICS.some((m) => log[m.key] != null);
             const isToday = idx === 0;
+            const isExpanded = expandedDate === dateStr;
 
-            return (
-              <View
-                key={dateStr}
-                style={[
-                  styles.historyDayRow,
-                  {
-                    borderBottomColor: colors.border,
-                    backgroundColor: hasAnyData
-                      ? colors.background
-                      : colors.muted,
-                  },
-                ]}
-              >
+            const rowContent = (
+              <>
                 <View style={styles.historyDayDateCell}>
                   <Text
                     style={[
@@ -864,6 +917,92 @@ function HistoryBreakdownModal({
                     </View>
                   );
                 })}
+                {hasAnyData && (
+                  <Feather
+                    name={isExpanded ? "chevron-up" : "chevron-down"}
+                    size={14}
+                    color={colors.mutedForeground}
+                    style={{ marginLeft: 4 }}
+                  />
+                )}
+              </>
+            );
+
+            return (
+              <View key={dateStr}>
+                {hasAnyData ? (
+                  <TouchableOpacity
+                    onPress={() => toggleExpanded(dateStr)}
+                    style={[
+                      styles.historyDayRow,
+                      {
+                        borderBottomColor: isExpanded ? "transparent" : colors.border,
+                        backgroundColor: colors.background,
+                      },
+                    ]}
+                    activeOpacity={0.7}
+                  >
+                    {rowContent}
+                  </TouchableOpacity>
+                ) : (
+                  <View
+                    style={[
+                      styles.historyDayRow,
+                      {
+                        borderBottomColor: colors.border,
+                        backgroundColor: colors.muted,
+                      },
+                    ]}
+                  >
+                    {rowContent}
+                  </View>
+                )}
+                {isExpanded && log != null && (
+                  <View
+                    style={[
+                      styles.historyDetailPanel,
+                      {
+                        backgroundColor: colors.muted,
+                        borderBottomColor: colors.border,
+                      },
+                    ]}
+                  >
+                    {HISTORY_METRICS.filter((m) => log[m.key] != null).map(
+                      (m) => {
+                        const raw = log[m.key]!;
+                        const num = Number(raw);
+                        return (
+                          <View key={m.key as string} style={styles.historyDetailChip}>
+                            <Text
+                              style={[
+                                styles.historyDetailLabel,
+                                { color: colors.mutedForeground },
+                              ]}
+                            >
+                              {m.label}
+                            </Text>
+                            <Text
+                              style={[
+                                styles.historyDetailValue,
+                                { color: colors.foreground },
+                              ]}
+                            >
+                              {m.formatExact(num)}{" "}
+                              <Text
+                                style={[
+                                  styles.historyDetailUnit,
+                                  { color: colors.mutedForeground },
+                                ]}
+                              >
+                                {m.unit}
+                              </Text>
+                            </Text>
+                          </View>
+                        );
+                      }
+                    )}
+                  </View>
+                )}
               </View>
             );
           })}
@@ -1683,5 +1822,31 @@ const styles = StyleSheet.create({
     width: 8,
     height: 8,
     borderRadius: 4,
+  },
+  historyDetailPanel: {
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 10,
+  },
+  historyDetailChip: {
+    minWidth: 90,
+  },
+  historyDetailLabel: {
+    fontSize: 10,
+    fontWeight: "600",
+    letterSpacing: 0.4,
+    textTransform: "uppercase",
+    marginBottom: 2,
+  },
+  historyDetailValue: {
+    fontSize: 15,
+    fontWeight: "600",
+  },
+  historyDetailUnit: {
+    fontSize: 12,
+    fontWeight: "400",
   },
 });
