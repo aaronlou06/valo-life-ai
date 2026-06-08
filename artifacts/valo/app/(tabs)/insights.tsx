@@ -28,6 +28,7 @@ import {
 import { useColors } from "@/hooks/useColors";
 import { trackEvent } from "@/services/telemetry";
 import { getUpcomingHoliday } from "@/constants/federalHolidays";
+import { useHolidayRegion } from "@/hooks/useHolidayRegion";
 import * as Haptics from "expo-haptics";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -461,6 +462,7 @@ export default function InsightsScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const qc = useQueryClient();
+  const { region } = useHolidayRegion();
   const [refreshing, setRefreshing] = useState(false);
 
   const { data: insights = [], isLoading: insightsLoading } = useListInsights();
@@ -678,7 +680,7 @@ export default function InsightsScreen() {
 
             {/* Upcoming Holiday */}
             {(() => {
-              const upcoming = getUpcomingHoliday(30);
+              const upcoming = getUpcomingHoliday(30, region);
               if (!upcoming) return null;
               const label =
                 upcoming.daysAway === 0

@@ -24,6 +24,11 @@ import Constants from "expo-constants";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useColors } from "@/hooks/useColors";
 import { useValoAuth } from "@/contexts/AuthContext";
+import { useHolidayRegion } from "@/hooks/useHolidayRegion";
+import {
+  HOLIDAY_LOCALE_LABELS,
+  type HolidayLocale,
+} from "@/constants/federalHolidays";
 import { useHealthKitSync } from "@/hooks/useHealthKitSync";
 import {
   buildGoogleOAuthUrl,
@@ -750,6 +755,7 @@ export default function ProfileScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { name, email, signOut, updateName, getToken, userId } = useValoAuth();
+  const { region, saveRegion } = useHolidayRegion();
 
   const { data: goals } = useListGoals();
   const { data: habits } = useListHabits();
@@ -1833,6 +1839,25 @@ export default function ProfileScreen() {
               label="Notifications"
               value={dailyReminder ? `Reminder: ${formatTime(callTime)}` : undefined}
               onPress={() => setShowNotifications(true)}
+            />
+            <ChevronRow
+              icon="globe"
+              label="Holiday region"
+              value={HOLIDAY_LOCALE_LABELS[region]}
+              onPress={() => {
+                const LOCALES: HolidayLocale[] = ["US", "CA", "UK", "AU"];
+                Alert.alert(
+                  "Holiday region",
+                  "Choose the region for public holidays shown on your calendar.",
+                  [
+                    ...LOCALES.map((loc) => ({
+                      text: `${loc === region ? "✓ " : ""}${HOLIDAY_LOCALE_LABELS[loc]}`,
+                      onPress: () => { void saveRegion(loc); },
+                    })),
+                    { text: "Cancel", style: "cancel" as const },
+                  ],
+                );
+              }}
               last
             />
           </View>

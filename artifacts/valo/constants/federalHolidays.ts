@@ -1,3 +1,5 @@
+export type HolidayLocale = "US" | "CA" | "UK" | "AU";
+
 export interface FederalHoliday {
   name: string;
   date: string;
@@ -22,24 +24,34 @@ function nthWeekday(year: number, month: number, weekday: number, n: number): Da
  * e.g. lastWeekday(2026, 4, MON) → last Monday of May 2026
  */
 function lastWeekday(year: number, month: number, weekday: number): Date {
-  // Start from the last day of the month and walk back
   const last = new Date(year, month + 1, 0);
   const dayOffset = (last.getDay() - weekday + 7) % 7;
   return new Date(year, month, last.getDate() - dayOffset);
 }
 
 /**
- * For fixed-date holidays (New Year's, Juneteenth, Independence Day,
- * Veterans Day, Christmas), returns the observed date when the actual
- * date falls on a weekend:
- *   Saturday → preceding Friday
- *   Sunday   → following Monday
+ * US-style observed date: Saturday → preceding Friday, Sunday → following Monday.
+ * Used only for US federal holidays.
  */
 function observed(year: number, month: number, day: number): Date {
   const d = new Date(year, month, day);
   const dow = d.getDay();
-  if (dow === 6) return new Date(year, month, day - 1); // Saturday → Friday
-  if (dow === 0) return new Date(year, month, day + 1); // Sunday → Monday
+  if (dow === 6) return new Date(year, month, day - 1);
+  if (dow === 0) return new Date(year, month, day + 1);
+  return d;
+}
+
+/**
+ * Forward-only observed date (used for CA, UK, AU):
+ *   Saturday → following Monday (+2)
+ *   Sunday   → following Monday (+1)
+ * No backward shift — substitute days always land within the same or next week.
+ */
+function observedForward(year: number, month: number, day: number): Date {
+  const d = new Date(year, month, day);
+  const dow = d.getDay();
+  if (dow === 6) return new Date(year, month, day + 2);
+  if (dow === 0) return new Date(year, month, day + 1);
   return d;
 }
 
@@ -50,83 +62,222 @@ function toIso(d: Date): string {
   return `${y}-${m}-${day}`;
 }
 
+function addDays(d: Date, n: number): Date {
+  return new Date(d.getFullYear(), d.getMonth(), d.getDate() + n);
+}
+
 /**
- * Computes all 11 US federal holidays for any given year, using the
- * statutory rules (fixed dates with observed-day shifts, nth-weekday
- * rules). Returns them sorted by observed date.
- *
- * Note: New Year's Day observed on the preceding Friday (Dec 31) is
- * included in the previous year's computation and also surfaces as part
- * of the new year's holiday set so callers querying either year see it.
+ * Computes Easter Sunday for the given year using the Anonymous Gregorian algorithm.
  */
-function computeHolidaysForYear(year: number): FederalHoliday[] {
+function easterSunday(year: number): Date {
+  const a = year % 19;
+  const b = Math.floor(year / 100);
+  const c = year % 100;
+  const d = Math.floor(b / 4);
+  const e = b % 4;
+  const f = Math.floor((b + 8) / 25);
+  const g = Math.floor((b - f + 1) / 3);
+  const h = (19 * a + b - d - g + 15) % 30;
+  const i = Math.floor(c / 4);
+  const k = c % 4;
+  const l = (32 + 2 * e + 2 * i - h - k) % 7;
+  const m = Math.floor((a + 11 * h + 22 * l) / 451);
+  const month = Math.floor((h + l - 7 * m + 114) / 31) - 1;
+  const day = ((h + l - 7 * m + 114) % 31) + 1;
+  return new Date(year, month, day);
+}
+
+// ─── Christmas / Boxing Day helper (shared by UK and AU) ─────────────────────
+
+function addChristmasHolidays(
+  year: number,
+  add: (name: string, d: Date) => void,
+): void {
+  const xmasDow = new Date(year, 11, 25).getDay();
+  if (xmasDow === 6) {
+    // Dec 25 Sat → Christmas observed Mon Dec 27, Boxing Day observed Tue Dec 28
+    add("Christmas Day", new Date(year, 11, 27));
+    add("Boxing Day", new Date(year, 11, 28));
+  } else if (xmasDow === 0) {
+    // Dec 25 Sun → Boxing Day Mon Dec 26, Christmas observed Tue Dec 27
+    add("Boxing Day", new Date(year, 11, 26));
+    add("Christmas Day", new Date(year, 11, 27));
+  } else {
+    add("Christmas Day", new Date(year, 11, 25));
+    const dec26dow = new Date(year, 11, 26).getDay();
+    const boxingDay =
+      dec26dow === 6
+        ? new Date(year, 11, 28)
+        : dec26dow === 0
+        ? new Date(year, 11, 27)
+        : new Date(year, 11, 26);
+    add("Boxing Day", boxingDay);
+  }
+}
+
+// ─── US federal holidays ─────────────────────────────────────────────────────
+
+/**
+ * Computes all 11 US federal holidays for any given year.
+ */
+function computeHolidaysForYear_US(year: number): FederalHoliday[] {
   const holidays: FederalHoliday[] = [];
+  const add = (name: string, d: Date) => holidays.push({ name, date: toIso(d) });
 
-  const add = (name: string, d: Date) => {
-    holidays.push({ name, date: toIso(d) });
-  };
-
-  // New Year's Day — January 1 (observed)
-  // If observed date falls in previous December, include it anyway; callers
-  // looking at Jan will still find it via getHolidaysForMonth for that year.
   add("New Year's Day", observed(year, 0, 1));
-
-  // Martin Luther King Jr. Day — 3rd Monday of January
   add("Martin Luther King Jr. Day", nthWeekday(year, 0, MON, 3));
-
-  // Presidents' Day (Washington's Birthday) — 3rd Monday of February
   add("Presidents' Day", nthWeekday(year, 1, MON, 3));
-
-  // Memorial Day — last Monday of May
   add("Memorial Day", lastWeekday(year, 4, MON));
-
-  // Juneteenth — June 19 (observed)
   add("Juneteenth", observed(year, 5, 19));
-
-  // Independence Day — July 4 (observed)
   add("Independence Day", observed(year, 6, 4));
-
-  // Labor Day — 1st Monday of September
   add("Labor Day", nthWeekday(year, 8, MON, 1));
-
-  // Columbus Day — 2nd Monday of October
   add("Columbus Day", nthWeekday(year, 9, MON, 2));
-
-  // Veterans Day — November 11 (observed)
   add("Veterans Day", observed(year, 10, 11));
-
-  // Thanksgiving — 4th Thursday of November
   add("Thanksgiving", nthWeekday(year, 10, THU, 4));
-
-  // Christmas Day — December 25 (observed)
   add("Christmas Day", observed(year, 11, 25));
 
   return holidays.sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
 }
 
-// Simple year-keyed cache so we don't recompute on every call.
-const cache = new Map<number, FederalHoliday[]>();
+// ─── Canada federal holidays ─────────────────────────────────────────────────
 
-function holidaysForYear(year: number): FederalHoliday[] {
-  if (!cache.has(year)) {
-    cache.set(year, computeHolidaysForYear(year));
-  }
-  return cache.get(year)!;
+function computeHolidaysForYear_CA(year: number): FederalHoliday[] {
+  const holidays: FederalHoliday[] = [];
+  const add = (name: string, d: Date) => holidays.push({ name, date: toIso(d) });
+
+  add("New Year's Day", observedForward(year, 0, 1));
+  add("Family Day", nthWeekday(year, 1, MON, 3));
+
+  const easter = easterSunday(year);
+  add("Good Friday", addDays(easter, -2));
+
+  // Victoria Day: last Monday before May 25 (i.e. Monday preceding May 25)
+  const may25dow = new Date(year, 4, 25).getDay();
+  const victoriaOffset = may25dow === 1 ? 7 : may25dow === 0 ? 6 : may25dow - 1;
+  add("Victoria Day", new Date(year, 4, 25 - victoriaOffset));
+
+  add("Canada Day", observedForward(year, 6, 1));
+  add("Civic Holiday", nthWeekday(year, 7, MON, 1));
+  add("Labour Day", nthWeekday(year, 8, MON, 1));
+  add("National Day for Truth and Reconciliation", new Date(year, 8, 30));
+  add("Thanksgiving", nthWeekday(year, 9, MON, 2));
+  add("Remembrance Day", observedForward(year, 10, 11));
+  add("Christmas Day", observedForward(year, 11, 25));
+
+  const dec26dow = new Date(year, 11, 26).getDay();
+  const boxingDay =
+    dec26dow === 6
+      ? new Date(year, 11, 28)
+      : dec26dow === 0
+      ? new Date(year, 11, 27)
+      : new Date(year, 11, 26);
+  add("Boxing Day", boxingDay);
+
+  return holidays.sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
 }
 
-export function getHolidaysForMonth(year: number, month: number): FederalHoliday[] {
-  const prefix = `${year}-${String(month + 1).padStart(2, "0")}`;
+// ─── UK (England & Wales) bank holidays ──────────────────────────────────────
 
-  // New Year's observed on Dec 31 of the previous year: also check prev year
-  const results = holidaysForYear(year).filter((h) => h.date.startsWith(prefix));
+function computeHolidaysForYear_UK(year: number): FederalHoliday[] {
+  const holidays: FederalHoliday[] = [];
+  const add = (name: string, d: Date) => holidays.push({ name, date: toIso(d) });
+
+  add("New Year's Day", observedForward(year, 0, 1));
+
+  const easter = easterSunday(year);
+  add("Good Friday", addDays(easter, -2));
+  add("Easter Monday", addDays(easter, 1));
+
+  add("Early May Bank Holiday", nthWeekday(year, 4, MON, 1));
+  add("Spring Bank Holiday", lastWeekday(year, 4, MON));
+  add("Summer Bank Holiday", lastWeekday(year, 7, MON));
+
+  addChristmasHolidays(year, add);
+
+  return holidays.sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
+}
+
+// ─── Australia national public holidays ──────────────────────────────────────
+
+function computeHolidaysForYear_AU(year: number): FederalHoliday[] {
+  const holidays: FederalHoliday[] = [];
+  const add = (name: string, d: Date) => holidays.push({ name, date: toIso(d) });
+
+  add("New Year's Day", observedForward(year, 0, 1));
+
+  // Australia Day: January 26 (Monday substitute if weekend)
+  const jan26dow = new Date(year, 0, 26).getDay();
+  add(
+    "Australia Day",
+    jan26dow === 6
+      ? new Date(year, 0, 28)
+      : jan26dow === 0
+      ? new Date(year, 0, 27)
+      : new Date(year, 0, 26),
+  );
+
+  const easter = easterSunday(year);
+  add("Good Friday", addDays(easter, -2));
+  add("Easter Saturday", addDays(easter, -1));
+  add("Easter Monday", addDays(easter, 1));
+
+  // Anzac Day: April 25 (Monday substitute if Sunday)
+  const apr25dow = new Date(year, 3, 25).getDay();
+  add("Anzac Day", apr25dow === 0 ? new Date(year, 3, 26) : new Date(year, 3, 25));
+
+  // King's Birthday: 2nd Monday of June (national default; QLD and WA differ)
+  add("King's Birthday", nthWeekday(year, 5, MON, 2));
+
+  addChristmasHolidays(year, add);
+
+  return holidays.sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
+}
+
+// ─── Cache & dispatch ─────────────────────────────────────────────────────────
+
+const cache = new Map<string, FederalHoliday[]>();
+
+function holidaysForYear(year: number, locale: HolidayLocale = "US"): FederalHoliday[] {
+  const key = `${locale}-${year}`;
+  if (!cache.has(key)) {
+    let computed: FederalHoliday[];
+    switch (locale) {
+      case "CA":
+        computed = computeHolidaysForYear_CA(year);
+        break;
+      case "UK":
+        computed = computeHolidaysForYear_UK(year);
+        break;
+      case "AU":
+        computed = computeHolidaysForYear_AU(year);
+        break;
+      default:
+        computed = computeHolidaysForYear_US(year);
+    }
+    cache.set(key, computed);
+  }
+  return cache.get(key)!;
+}
+
+// ─── Public API ───────────────────────────────────────────────────────────────
+
+export function getHolidaysForMonth(
+  year: number,
+  month: number,
+  locale: HolidayLocale = "US",
+): FederalHoliday[] {
+  const prefix = `${year}-${String(month + 1).padStart(2, "0")}`;
+  const results = holidaysForYear(year, locale).filter((h) => h.date.startsWith(prefix));
 
   if (month === 11) {
-    // December: next year's New Year's might be observed on Dec 31 of this year
-    const nextYearHolidays = holidaysForYear(year + 1);
-    const dec31 = `${year}-12-31`;
-    for (const h of nextYearHolidays) {
-      if (h.date === dec31 && !results.some((r) => r.date === dec31)) {
-        results.push(h);
+    // December: next year's New Year's might be observed on Dec 31 of this year (US only)
+    if (locale === "US") {
+      const nextYearHolidays = holidaysForYear(year + 1, locale);
+      const dec31 = `${year}-12-31`;
+      for (const h of nextYearHolidays) {
+        if (h.date === dec31 && !results.some((r) => r.date === dec31)) {
+          results.push(h);
+        }
       }
     }
   }
@@ -134,20 +285,24 @@ export function getHolidaysForMonth(year: number, month: number): FederalHoliday
   return results.sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
 }
 
-export function getHolidayForDate(dateStr: string): FederalHoliday | null {
+export function getHolidayForDate(
+  dateStr: string,
+  locale: HolidayLocale = "US",
+): FederalHoliday | null {
   const year = parseInt(dateStr.slice(0, 4), 10);
   if (isNaN(year)) return null;
 
-  // Check the year of the date string, plus surrounding years for observed-day
-  // shifts that land in an adjacent year (e.g. New Year's observed Dec 31).
   for (const y of [year - 1, year, year + 1]) {
-    const found = holidaysForYear(y).find((h) => h.date === dateStr);
+    const found = holidaysForYear(y, locale).find((h) => h.date === dateStr);
     if (found) return found;
   }
   return null;
 }
 
-export function getUpcomingHoliday(withinDays = 30): (FederalHoliday & { daysAway: number }) | null {
+export function getUpcomingHoliday(
+  withinDays = 30,
+  locale: HolidayLocale = "US",
+): (FederalHoliday & { daysAway: number }) | null {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
   const limit = new Date(today);
@@ -157,11 +312,10 @@ export function getUpcomingHoliday(withinDays = 30): (FederalHoliday & { daysAwa
   const limitYear = limit.getFullYear();
 
   const candidates: FederalHoliday[] = [
-    ...holidaysForYear(todayYear),
-    ...(limitYear > todayYear ? holidaysForYear(limitYear) : []),
+    ...holidaysForYear(todayYear, locale),
+    ...(limitYear > todayYear ? holidaysForYear(limitYear, locale) : []),
   ];
 
-  // Sort and find the first one in [today, limit]
   candidates.sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
 
   for (const h of candidates) {
@@ -175,3 +329,10 @@ export function getUpcomingHoliday(withinDays = 30): (FederalHoliday & { daysAwa
 }
 
 export const HOLIDAY_COLOR = "#C17B3F";
+
+export const HOLIDAY_LOCALE_LABELS: Record<HolidayLocale, string> = {
+  US: "United States",
+  CA: "Canada",
+  UK: "United Kingdom",
+  AU: "Australia",
+};

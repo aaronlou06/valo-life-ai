@@ -25,7 +25,9 @@ import {
   getHolidaysForMonth,
   getHolidayForDate,
   HOLIDAY_COLOR,
+  type HolidayLocale,
 } from "@/constants/federalHolidays";
+import { useHolidayRegion } from "@/hooks/useHolidayRegion";
 import {
   useListGoals,
   useCreateGoal,
@@ -1124,17 +1126,17 @@ function MyScheduleCard({ schedule, onEdit, colors }: { schedule: WorkSchedule |
 // ─── Day Detail Sheet ─────────────────────────────────────────────────────────
 
 function DayDetailSheet({
-  visible, dateStr, events, onClose, onAddEvent, onDelete, onEdit, onRoutineDelete, onRoutineTap, colors, bottomInset,
+  visible, dateStr, events, onClose, onAddEvent, onDelete, onEdit, onRoutineDelete, onRoutineTap, colors, bottomInset, region,
 }: {
   visible: boolean; dateStr: string; events: CalendarEvent[]; onClose: () => void;
   onAddEvent: () => void; onDelete: (ev: CalendarEvent) => void;
   onEdit: (ev: CalendarEvent) => void;
   onRoutineDelete: (routineName: string, occurrenceDate: string) => void;
   onRoutineTap: (ev: CalendarEvent) => void;
-  colors: Colors; bottomInset: number;
+  colors: Colors; bottomInset: number; region: HolidayLocale;
 }) {
   const header = dateStr ? formatDayHeader(dateStr) : "";
-  const holiday = dateStr ? getHolidayForDate(dateStr) : null;
+  const holiday = dateStr ? getHolidayForDate(dateStr, region) : null;
 
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
@@ -1281,10 +1283,11 @@ function DayDetailSheet({
 // ─── Month Grid ───────────────────────────────────────────────────────────────
 
 function MonthGrid({
-  viewYear, viewMonth, eventsByDate, currentTodayStr, onDayPress, colors,
+  viewYear, viewMonth, eventsByDate, currentTodayStr, onDayPress, colors, region,
 }: {
   viewYear: number; viewMonth: number; eventsByDate: Record<string, CalendarEvent[]>;
   currentTodayStr: string; onDayPress: (dateStr: string) => void; colors: Colors;
+  region: HolidayLocale;
 }) {
   const daysInMonth = new Date(viewYear, viewMonth + 1, 0).getDate();
   const firstDayOffset = new Date(viewYear, viewMonth, 1).getDay();
@@ -1292,9 +1295,9 @@ function MonthGrid({
   while (cells.length % 7 !== 0) cells.push(null);
 
   const monthHolidays = useMemo(() => {
-    const holidays = getHolidaysForMonth(viewYear, viewMonth);
+    const holidays = getHolidaysForMonth(viewYear, viewMonth, region);
     return new Map(holidays.map((h) => [h.date, h.name]));
-  }, [viewYear, viewMonth]);
+  }, [viewYear, viewMonth, region]);
 
   return (
     <View style={[planStyles.grid, { borderColor: colors.border }]}>
@@ -1347,10 +1350,11 @@ function MonthGrid({
 // ─── Week View ────────────────────────────────────────────────────────────────
 
 function WeekView({
-  weekStart, eventsByDate, currentTodayStr, onDayPress, colors,
+  weekStart, eventsByDate, currentTodayStr, onDayPress, colors, region,
 }: {
   weekStart: Date; eventsByDate: Record<string, CalendarEvent[]>;
   currentTodayStr: string; onDayPress: (dateStr: string) => void; colors: Colors;
+  region: HolidayLocale;
 }) {
   const weekDates = Array.from({ length: 7 }, (_, i) => {
     const d = new Date(weekStart); d.setDate(weekStart.getDate() + i); return d;
@@ -1361,7 +1365,7 @@ function WeekView({
         const dateStr = toISODate(date);
         const dayEvents = eventsByDate[dateStr] ?? [];
         const isToday = dateStr === currentTodayStr;
-        const holiday = getHolidayForDate(dateStr);
+        const holiday = getHolidayForDate(dateStr, region);
         const visibleEvents = dayEvents.slice(0, 4);
         const hiddenCount = dayEvents.length - visibleEvents.length;
         return (
@@ -1405,10 +1409,11 @@ function WeekView({
 // ─── Year View ────────────────────────────────────────────────────────────────
 
 function YearView({
-  viewYear, eventsByDate, currentTodayStr, onDayPress, colors,
+  viewYear, eventsByDate, currentTodayStr, onDayPress, colors, region,
 }: {
   viewYear: number; eventsByDate: Record<string, CalendarEvent[]>;
   currentTodayStr: string; onDayPress: (dateStr: string) => void; colors: Colors;
+  region: HolidayLocale;
 }) {
   const activeDays = useMemo(() => {
     const result: Record<string, string> = {};
@@ -1426,12 +1431,12 @@ function YearView({
   const yearHolidays = useMemo(() => {
     const set = new Set<string>();
     for (let m = 0; m < 12; m++) {
-      for (const h of getHolidaysForMonth(viewYear, m)) {
+      for (const h of getHolidaysForMonth(viewYear, m, region)) {
         set.add(h.date);
       }
     }
     return set;
-  }, [viewYear]);
+  }, [viewYear, region]);
 
   return (
     <View style={yearStyles.outerGrid}>
@@ -2264,6 +2269,7 @@ export default function PlanScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const { userId, getToken } = useValoAuth();
+  const { region } = useHolidayRegion();
   const notifHabitsRef = React.useRef(true);
   const today = new Date();
   const currentTodayStr = todayStr();
@@ -3052,11 +3058,11 @@ export default function PlanScreen() {
 
           {/* Calendar grid */}
           {viewMode === "month" ? (
-            <MonthGrid viewYear={viewYear} viewMonth={viewMonth} eventsByDate={eventsByDate} currentTodayStr={currentTodayStr} onDayPress={handleDayPress} colors={colors} />
+            <MonthGrid viewYear={viewYear} viewMonth={viewMonth} eventsByDate={eventsByDate} currentTodayStr={currentTodayStr} onDayPress={handleDayPress} colors={colors} region={region} />
           ) : viewMode === "week" ? (
-            <WeekView weekStart={weekStart} eventsByDate={eventsByDate} currentTodayStr={currentTodayStr} onDayPress={handleDayPress} colors={colors} />
+            <WeekView weekStart={weekStart} eventsByDate={eventsByDate} currentTodayStr={currentTodayStr} onDayPress={handleDayPress} colors={colors} region={region} />
           ) : (
-            <YearView viewYear={viewYear} eventsByDate={eventsByDate} currentTodayStr={currentTodayStr} onDayPress={handleDayPress} colors={colors} />
+            <YearView viewYear={viewYear} eventsByDate={eventsByDate} currentTodayStr={currentTodayStr} onDayPress={handleDayPress} colors={colors} region={region} />
           )}
         </View>
 
@@ -3340,6 +3346,7 @@ export default function PlanScreen() {
         }}
         colors={colors}
         bottomInset={insets.bottom}
+        region={region}
       />
 
       <RoutineModal

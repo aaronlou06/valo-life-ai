@@ -17,6 +17,7 @@ import { setBaseUrl } from "@workspace/api-client-react";
 
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { AuthProvider, useValoAuth } from "@/contexts/AuthContext";
+import { HolidayRegionProvider } from "@/contexts/HolidayRegionContext";
 import { GOOGLE_OAUTH_PREFIX } from "@/lib/googleCalendar";
 import { installErrorLogger } from "@/lib/errorLogger";
 import { scheduleCheckinReminder, scheduleMorningBriefing } from "@/lib/notifications";
@@ -261,6 +262,7 @@ export default function RootLayout() {
       }}
     >
       <AuthProvider>
+        <HolidayRegionProvider>
         <SafeAreaProvider>
           <QueryClientProvider client={queryClient}>
             <GestureHandlerRootView style={{ flex: 1 }}>
@@ -279,6 +281,7 @@ export default function RootLayout() {
             </GestureHandlerRootView>
           </QueryClientProvider>
         </SafeAreaProvider>
+        </HolidayRegionProvider>
       </AuthProvider>
     </ErrorBoundary>
   );
