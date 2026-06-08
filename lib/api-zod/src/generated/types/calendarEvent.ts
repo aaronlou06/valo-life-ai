@@ -19,4 +19,21 @@ export interface CalendarEvent {
   type?: string | null;
   /** @nullable */
   notes?: string | null;
+  /** none | daily | weekly | monthly | custom */
+  recurrenceType?: string;
+  /**
+   * Interval in days for custom recurrence
+   * @nullable
+   */
+  recurrenceInterval?: number | null;
+  /**
+   * YYYY-MM-DD date after which recurrence stops
+   * @nullable
+   */
+  recurrenceEndDate?: string | null;
+  /**
+   * JSON array of YYYY-MM-DD strings for individually deleted occurrences
+   * @nullable
+   */
+  deletedOccurrences?: string | null;
 }

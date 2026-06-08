@@ -13,4 +13,10 @@ export interface CalendarEventInput {
   type?: string | null;
   /** @nullable */
   notes?: string | null;
+  /** none | daily | weekly | monthly | custom */
+  recurrenceType?: string;
+  /** @nullable */
+  recurrenceInterval?: number | null;
+  /** @nullable */
+  recurrenceEndDate?: string | null;
 }

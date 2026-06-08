@@ -21,6 +21,17 @@ export interface Routine {
    */
   activities?: string | null;
   isDisplayedOnCalendar: boolean;
+  /** none | daily | weekly | monthly | custom */
+  recurrenceType?: string;
+  /** @nullable */
+  recurrenceInterval?: number | null;
+  /** @nullable */
+  recurrenceEndDate?: string | null;
+  /**
+   * JSON array of ISO date strings to skip (for single-occurrence deletion)
+   * @nullable
+   */
+  skippedDates?: string | null;
   createdAt: string;
   updatedAt: string;
 }

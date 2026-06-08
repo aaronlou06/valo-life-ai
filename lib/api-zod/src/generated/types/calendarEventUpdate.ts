@@ -13,4 +13,11 @@ export interface CalendarEventUpdate {
   type?: string | null;
   /** @nullable */
   notes?: string | null;
+  recurrenceType?: string;
+  /** @nullable */
+  recurrenceInterval?: number | null;
+  /** @nullable */
+  recurrenceEndDate?: string | null;
+  /** @nullable */
+  deletedOccurrences?: string | null;
 }

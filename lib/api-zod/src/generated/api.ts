@@ -218,6 +218,24 @@ export const ListCalendarEventsResponseItem = zod.object({
   endTime: zod.string().nullish(),
   type: zod.string().nullish(),
   notes: zod.string().nullish(),
+  recurrenceType: zod
+    .string()
+    .optional()
+    .describe("none | daily | weekly | monthly | custom"),
+  recurrenceInterval: zod
+    .number()
+    .nullish()
+    .describe("Interval in days for custom recurrence"),
+  recurrenceEndDate: zod
+    .string()
+    .nullish()
+    .describe("YYYY-MM-DD date after which recurrence stops"),
+  deletedOccurrences: zod
+    .string()
+    .nullish()
+    .describe(
+      "JSON array of YYYY-MM-DD strings for individually deleted occurrences",
+    ),
 });
 export const ListCalendarEventsResponse = zod.array(
   ListCalendarEventsResponseItem,
@@ -231,6 +249,59 @@ export const CreateCalendarEventBody = zod.object({
   date: zod.string(),
   type: zod.string().nullish(),
   notes: zod.string().nullish(),
+  recurrenceType: zod
+    .string()
+    .optional()
+    .describe("none | daily | weekly | monthly | custom"),
+  recurrenceInterval: zod.number().nullish(),
+  recurrenceEndDate: zod.string().nullish(),
+});
+
+/**
+ * @summary Update a calendar event (recurrence fields, deletedOccurrences, etc.)
+ */
+export const UpdateCalendarEventParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const UpdateCalendarEventBody = zod.object({
+  title: zod.string().optional(),
+  date: zod.string().optional(),
+  type: zod.string().nullish(),
+  notes: zod.string().nullish(),
+  recurrenceType: zod.string().optional(),
+  recurrenceInterval: zod.number().nullish(),
+  recurrenceEndDate: zod.string().nullish(),
+  deletedOccurrences: zod.string().nullish(),
+});
+
+export const UpdateCalendarEventResponse = zod.object({
+  id: zod.number(),
+  userId: zod.string(),
+  date: zod.string(),
+  title: zod.string(),
+  startTime: zod.string().nullish(),
+  endTime: zod.string().nullish(),
+  type: zod.string().nullish(),
+  notes: zod.string().nullish(),
+  recurrenceType: zod
+    .string()
+    .optional()
+    .describe("none | daily | weekly | monthly | custom"),
+  recurrenceInterval: zod
+    .number()
+    .nullish()
+    .describe("Interval in days for custom recurrence"),
+  recurrenceEndDate: zod
+    .string()
+    .nullish()
+    .describe("YYYY-MM-DD date after which recurrence stops"),
+  deletedOccurrences: zod
+    .string()
+    .nullish()
+    .describe(
+      "JSON array of YYYY-MM-DD strings for individually deleted occurrences",
+    ),
 });
 
 /**
@@ -566,6 +637,18 @@ export const ListRoutinesResponseItem = zod.object({
     .nullish()
     .describe("JSON string of activity name strings"),
   isDisplayedOnCalendar: zod.boolean(),
+  recurrenceType: zod
+    .string()
+    .optional()
+    .describe("none | daily | weekly | monthly | custom"),
+  recurrenceInterval: zod.number().nullish(),
+  recurrenceEndDate: zod.string().nullish(),
+  skippedDates: zod
+    .string()
+    .nullish()
+    .describe(
+      "JSON array of ISO date strings to skip (for single-occurrence deletion)",
+    ),
   createdAt: zod.string(),
   updatedAt: zod.string(),
 });
@@ -582,6 +665,10 @@ export const CreateRoutineBody = zod.object({
   color: zod.string().optional(),
   activities: zod.string().optional(),
   isDisplayedOnCalendar: zod.boolean().optional(),
+  recurrenceType: zod.string().optional(),
+  recurrenceInterval: zod.number().nullish(),
+  recurrenceEndDate: zod.string().nullish(),
+  skippedDates: zod.string().nullish(),
 });
 
 /**
@@ -598,6 +685,10 @@ export const UpdateRoutineBody = zod.object({
   color: zod.string().optional(),
   activities: zod.string().optional(),
   isDisplayedOnCalendar: zod.boolean().optional(),
+  recurrenceType: zod.string().optional(),
+  recurrenceInterval: zod.number().nullish(),
+  recurrenceEndDate: zod.string().nullish(),
+  skippedDates: zod.string().nullish(),
 });
 
 export const UpdateRoutineResponse = zod.object({
@@ -614,6 +705,18 @@ export const UpdateRoutineResponse = zod.object({
     .nullish()
     .describe("JSON string of activity name strings"),
   isDisplayedOnCalendar: zod.boolean(),
+  recurrenceType: zod
+    .string()
+    .optional()
+    .describe("none | daily | weekly | monthly | custom"),
+  recurrenceInterval: zod.number().nullish(),
+  recurrenceEndDate: zod.string().nullish(),
+  skippedDates: zod
+    .string()
+    .nullish()
+    .describe(
+      "JSON array of ISO date strings to skip (for single-occurrence deletion)",
+    ),
   createdAt: zod.string(),
   updatedAt: zod.string(),
 });

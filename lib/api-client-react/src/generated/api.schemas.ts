@@ -208,6 +208,23 @@ export interface CalendarEvent {
   type?: string | null;
   /** @nullable */
   notes?: string | null;
+  /** none | daily | weekly | monthly | custom */
+  recurrenceType?: string;
+  /**
+   * Interval in days for custom recurrence
+   * @nullable
+   */
+  recurrenceInterval?: number | null;
+  /**
+   * YYYY-MM-DD date after which recurrence stops
+   * @nullable
+   */
+  recurrenceEndDate?: string | null;
+  /**
+   * JSON array of YYYY-MM-DD strings for individually deleted occurrences
+   * @nullable
+   */
+  deletedOccurrences?: string | null;
 }
 
 export interface CalendarEventInput {
@@ -217,6 +234,28 @@ export interface CalendarEventInput {
   type?: string | null;
   /** @nullable */
   notes?: string | null;
+  /** none | daily | weekly | monthly | custom */
+  recurrenceType?: string;
+  /** @nullable */
+  recurrenceInterval?: number | null;
+  /** @nullable */
+  recurrenceEndDate?: string | null;
+}
+
+export interface CalendarEventUpdate {
+  title?: string;
+  date?: string;
+  /** @nullable */
+  type?: string | null;
+  /** @nullable */
+  notes?: string | null;
+  recurrenceType?: string;
+  /** @nullable */
+  recurrenceInterval?: number | null;
+  /** @nullable */
+  recurrenceEndDate?: string | null;
+  /** @nullable */
+  deletedOccurrences?: string | null;
 }
 
 export interface Habit {
@@ -391,6 +430,17 @@ export interface Routine {
    */
   activities?: string | null;
   isDisplayedOnCalendar: boolean;
+  /** none | daily | weekly | monthly | custom */
+  recurrenceType?: string;
+  /** @nullable */
+  recurrenceInterval?: number | null;
+  /** @nullable */
+  recurrenceEndDate?: string | null;
+  /**
+   * JSON array of ISO date strings to skip (for single-occurrence deletion)
+   * @nullable
+   */
+  skippedDates?: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -403,6 +453,13 @@ export interface RoutineInput {
   color?: string;
   activities?: string;
   isDisplayedOnCalendar?: boolean;
+  recurrenceType?: string;
+  /** @nullable */
+  recurrenceInterval?: number | null;
+  /** @nullable */
+  recurrenceEndDate?: string | null;
+  /** @nullable */
+  skippedDates?: string | null;
 }
 
 export interface RoutineUpdate {
@@ -412,6 +469,13 @@ export interface RoutineUpdate {
   color?: string;
   activities?: string;
   isDisplayedOnCalendar?: boolean;
+  recurrenceType?: string;
+  /** @nullable */
+  recurrenceInterval?: number | null;
+  /** @nullable */
+  recurrenceEndDate?: string | null;
+  /** @nullable */
+  skippedDates?: string | null;
 }
 
 export interface HabitCompletion {

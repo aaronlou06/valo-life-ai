@@ -247,7 +247,7 @@ paths:
     patch:
       operationId: updateCalendarEvent
       tags: [calendar-events]
-      summary: Update a calendar event
+      summary: Update a calendar event (recurrence fields, deletedOccurrences, etc.)
       parameters:
         - name: id
           in: path
@@ -262,7 +262,7 @@ paths:
               $ref: "#/components/schemas/CalendarEventUpdate"
       responses:
         "200":
-          description: Updated event
+          description: Updated calendar event
           content:
             application/json:
               schema:
@@ -1035,6 +1035,18 @@ components:
           type: ["string", "null"]
         notes:
           type: ["string", "null"]
+        recurrenceType:
+          type: string
+          description: "none | daily | weekly | monthly | custom"
+        recurrenceInterval:
+          type: ["integer", "null"]
+          description: "Interval in days for custom recurrence"
+        recurrenceEndDate:
+          type: ["string", "null"]
+          description: "YYYY-MM-DD date after which recurrence stops"
+        deletedOccurrences:
+          type: ["string", "null"]
+          description: "JSON array of YYYY-MM-DD strings for individually deleted occurrences"
 
     CalendarEventInput:
       type: object
@@ -1047,6 +1059,33 @@ components:
         type:
           type: ["string", "null"]
         notes:
+          type: ["string", "null"]
+        recurrenceType:
+          type: string
+          description: "none | daily | weekly | monthly | custom"
+        recurrenceInterval:
+          type: ["integer", "null"]
+        recurrenceEndDate:
+          type: ["string", "null"]
+
+    CalendarEventUpdate:
+      type: object
+      properties:
+        title:
+          type: string
+        date:
+          type: string
+        type:
+          type: ["string", "null"]
+        notes:
+          type: ["string", "null"]
+        recurrenceType:
+          type: string
+        recurrenceInterval:
+          type: ["integer", "null"]
+        recurrenceEndDate:
+          type: ["string", "null"]
+        deletedOccurrences:
           type: ["string", "null"]
 
     Habit:
@@ -1292,6 +1331,16 @@ components:
           description: JSON string of activity name strings
         isDisplayedOnCalendar:
           type: boolean
+        recurrenceType:
+          type: string
+          description: "none | daily | weekly | monthly | custom"
+        recurrenceInterval:
+          type: ["integer", "null"]
+        recurrenceEndDate:
+          type: ["string", "null"]
+        skippedDates:
+          type: ["string", "null"]
+          description: JSON array of ISO date strings to skip (for single-occurrence deletion)
         createdAt:
           type: string
         updatedAt:
@@ -1315,6 +1364,14 @@ components:
           type: string
         isDisplayedOnCalendar:
           type: boolean
+        recurrenceType:
+          type: string
+        recurrenceInterval:
+          type: ["integer", "null"]
+        recurrenceEndDate:
+          type: ["string", "null"]
+        skippedDates:
+          type: ["string", "null"]
 
     RoutineUpdate:
       type: object
@@ -1331,6 +1388,14 @@ components:
           type: string
         isDisplayedOnCalendar:
           type: boolean
+        recurrenceType:
+          type: string
+        recurrenceInterval:
+          type: ["integer", "null"]
+        recurrenceEndDate:
+          type: ["string", "null"]
+        skippedDates:
+          type: ["string", "null"]
 
     HabitCompletion:
       type: object

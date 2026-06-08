@@ -1040,7 +1040,7 @@ export const useCreateCalendarEvent = <
 };
 
 /**
- * @summary Update a calendar event
+ * @summary Update a calendar event (recurrence fields, deletedOccurrences, etc.)
  */
 export const getUpdateCalendarEventUrl = (id: number) => {
   return `/api/calendar-events/${id}`;
@@ -1104,7 +1104,7 @@ export type UpdateCalendarEventMutationBody = BodyType<CalendarEventUpdate>;
 export type UpdateCalendarEventMutationError = ErrorType<void>;
 
 /**
- * @summary Update a calendar event
+ * @summary Update a calendar event (recurrence fields, deletedOccurrences, etc.)
  */
 export const useUpdateCalendarEvent = <
   TError = ErrorType<void>,

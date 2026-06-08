@@ -41,6 +41,7 @@ import {
   useCreateCalendarEvent,
   useUpdateCalendarEvent,
   useDeleteCalendarEvent,
+  getListCalendarEventsQueryKey,
   useListRoutines,
   useCreateRoutine,
   useUpdateRoutine,
@@ -55,7 +56,9 @@ import {
   getListRemindersQueryKey,
   type Habit,
   type Reminder,
+  type CalendarEventInput,
 } from "@workspace/api-client-react";
+import { getRecurrenceOccurrences, getRoutineOccurrences, MAX_DAYS_OUT } from "@/lib/recurrence";
 import {
   scheduleHabitReminder,
   cancelHabitReminder,
@@ -145,6 +148,10 @@ interface Routine {
   time?: string;
   activities: string[];
   color: string;
+  recurrenceType?: string;
+  recurrenceInterval?: number;
+  recurrenceEndDate?: string;
+  skippedDates?: string[] | null;
 }
 
 type Colors = ReturnType<typeof useColors>;
@@ -152,8 +159,21 @@ type CalendarEvent = {
   id: number; userId: string; date: string; title: string;
   startTime?: string | null; endTime?: string | null;
   type?: string | null; notes?: string | null;
+  recurrenceType?: string | null;
+  recurrenceInterval?: number | null;
+  recurrenceEndDate?: string | null;
+  deletedOccurrences?: string | null;
 };
+type RepeatType = "none" | "daily" | "weekly" | "monthly" | "custom";
 type RecurrenceType = "every_day" | "every_week" | "every_other_week" | "custom_days" | "every_month";
+
+const REPEAT_OPTIONS: { key: RepeatType; label: string }[] = [
+  { key: "none",    label: "Does not repeat" },
+  { key: "daily",   label: "Daily" },
+  { key: "weekly",  label: "Weekly" },
+  { key: "monthly", label: "Monthly" },
+  { key: "custom",  label: "Custom" },
+];
 
 interface WorkSchedule {
   name: string;
@@ -287,18 +307,6 @@ function typeBadgeLabel(type: string | null | undefined): string {
 
 function generateId(): string {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-}
-
-function getNextFourWeeksDates(days: number[]): string[] {
-  const results: string[] = [];
-  const base = new Date();
-  base.setHours(0, 0, 0, 0);
-  for (let i = 0; i < 28; i++) {
-    const d = new Date(base);
-    d.setDate(base.getDate() + i);
-    if (days.includes(d.getDay())) results.push(toISODate(d));
-  }
-  return results;
 }
 
 function getNextTwelveWeeksDates(days: number[]): string[] {
@@ -661,12 +669,17 @@ function ReminderSlotsSection({
 // ─── Add Event Modal ──────────────────────────────────────────────────────────
 
 function AddEventModal({
-  visible, onClose, onCreated, colors, prefilledDate = "", event,
+  visible, onClose, onCreated, colors, prefilledDate = "",
+  event: editEvent, editOccurrenceDate,
+  patchFn, createNewFn,
 }: {
   visible: boolean; onClose: () => void; onCreated: () => void; colors: Colors; prefilledDate?: string;
-  event?: CalendarEvent;
+  event?: CalendarEvent | null;
+  editOccurrenceDate?: string;
+  patchFn?: (id: number, data: Record<string, unknown>) => Promise<void>;
+  createNewFn?: (data: CalendarEventInput) => Promise<void>;
 }) {
-  const isEdit = !!event;
+  const isEdit = !!editEvent;
   const { mutateAsync: createEvent } = useCreateCalendarEvent();
   const { mutateAsync: updateEvent } = useUpdateCalendarEvent();
   const { mutateAsync: upsertReminder } = useUpsertReminder();
@@ -681,34 +694,43 @@ function AddEventModal({
   const [saving, setSaving] = useState(false);
   const [reminderEnabled, setReminderEnabled] = useState(false);
   const [reminderSlots, setReminderSlots] = useState<number[]>([3600]);
+  const [repeatType, setRepeatType] = useState<RepeatType>("none");
+  const [customInterval, setCustomInterval] = useState("7");
+  const [repeatEndDate, setRepeatEndDate] = useState("");
+
+  const isEdit = !!editEvent;
 
   useEffect(() => {
     if (visible) {
-      if (event) {
-        setTitle(event.title);
+      if (editEvent) {
+        setTitle(editEvent.title);
         // Reconstruct datetime so eventDateTime is non-null in handleSave and fireAt is computed.
         // Time is stored in notes as "HH:MM AM/PM" via extractEventTime; convert to 24-h ISO.
-        const rawTime = extractEventTime(event.notes);
-        if (rawTime) {
+        const rawTime = extractEventTime(editEvent.notes);
+        if (rawTime && !editOccurrenceDate) {
           const startPart = rawTime.split(/\s*[—–\-]\s*/)[0]!.trim();
           const mins = parseTime12ToMinutes(startPart);
           if (mins !== null) {
             const h = Math.floor(mins / 60);
             const m = mins % 60;
-            setDate(`${event.date}T${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`);
+            setDate(editOccurrenceDate ?? `${editEvent.date}T${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`);
           } else {
-            setDate(event.date);
+            setDate(editOccurrenceDate ?? editEvent.date);
           }
         } else {
-          setDate(event.date);
+          setDate(editOccurrenceDate ?? editEvent.date);
         }
-        setEventType(event.type ?? null);
-        setNotes(routineNotesText(event.notes));
+        setEventType(editEvent.type ?? null);
+        const rawNotes = editEvent.notes ?? "";
+        setNotes(rawNotes.replace(/^time:[^|]+\|/, ""));
         setSaving(false);
+        setRepeatType((editEvent.recurrenceType as RepeatType | null) ?? "none");
+        setCustomInterval(editEvent.recurrenceInterval ? String(editEvent.recurrenceInterval) : "7");
+        setRepeatEndDate(editEvent.recurrenceEndDate ?? "");
         // Load ALL reminders for this event (active + inactive) so toggle-off preserves records.
         const existing = allRemindersForModal.filter((r) => {
           const m = r.metadata as { entityId?: string } | null;
-          return r.type === "event" && m?.entityId === String(event.id);
+          return r.type === "event" && m?.entityId === String(editEvent.id);
         });
         existingEventRemindersRef.current = existing;
         const hasAny = existing.length > 0;
@@ -726,10 +748,11 @@ function AddEventModal({
         setTitle(""); setDate(prefilledDate); setEventType(null); setNotes(""); setSaving(false);
         setReminderEnabled(false); setReminderSlots([3600]);
         existingEventRemindersRef.current = [];
+        setRepeatType("none"); setCustomInterval("7"); setRepeatEndDate("");
       }
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [visible, prefilledDate, event]);
+  }, [visible, prefilledDate, editEvent, editOccurrenceDate]);
 
   async function handleSave() {
     if (!title.trim()) { Alert.alert("Required", "Please enter an event title."); return; }
@@ -739,20 +762,25 @@ function AddEventModal({
       const datePart = date.includes("T") ? date.split("T")[0]! : date;
       const timeDisplay = extractTimeDisplay(date);
       const notesVal = timeDisplay ? `time:${timeDisplay}|${notes.trim()}` : notes.trim();
-
-      let savedId: number;
-      if (isEdit && event) {
-        await updateEvent({ id: event.id, data: { title: title.trim(), date: datePart, type: eventType, notes: notesVal || null } });
-        savedId = event.id;
+      const interval = repeatType === "custom" ? Math.max(1, parseInt(customInterval, 10) || 1) : null;
+      const payload = {
+        title: title.trim(), date: datePart, type: eventType, notes: notesVal || null,
+        recurrenceType: repeatType, recurrenceInterval: interval, recurrenceEndDate: repeatEndDate || null,
+      };
+      let savedId: number | undefined;
+      if (isEdit && patchFn && editEvent) {
+        await patchFn(editEvent.id, payload);
+      } else if (isEdit && createNewFn) {
+        await createNewFn(payload as CalendarEventInput);
       } else {
-        const saved = await createEvent({ data: { title: title.trim(), date: datePart, type: eventType, notes: notesVal || null } });
-        savedId = saved.id;
+        const saved = await createEvent({ data: payload });
+        savedId = saved?.id;
       }
 
       const existingList = existingEventRemindersRef.current;
       const eventDateTime = date.includes("T") ? new Date(date) : null;
 
-      if (!reminderEnabled) {
+      if (!isEdit && !reminderEnabled) {
         // Toggle OFF: deactivate existing records without deleting so they return when re-enabled.
         for (const existing of existingList) {
           void cancelEntityReminderNotification(existing.id);
@@ -762,7 +790,7 @@ function AddEventModal({
               metadata: { entityId: String(savedId), entityType: "event", remindBeforeSeconds: m?.remindBeforeSeconds ?? 3600 } },
           });
         }
-      } else {
+      } else if (!isEdit && reminderEnabled && reminderSlots.length > 0 && savedId) {
         // Toggle ON: upsert active slots, delete removed ones.
         const existingBySeconds = new Map<number, Reminder>();
         for (const ex of existingList) {
@@ -802,6 +830,8 @@ function AddEventModal({
     } finally { setSaving(false); }
   }
 
+  const showEndDate = repeatType !== "none";
+
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : undefined}>
@@ -824,6 +854,43 @@ function AddEventModal({
               <View style={Sh.fieldBlock}>
                 <Text style={[Sh.fieldLabel, { color: colors.mutedForeground, fontFamily: "Inter_500Medium" }]}>Date & Time</Text>
                 <DatePickerField value={date} onChange={setDate} placeholder="Select date" showTime colors={colors} />
+              </View>
+              <View style={Sh.fieldBlock}>
+                <Text style={[Sh.fieldLabel, { color: colors.mutedForeground, fontFamily: "Inter_500Medium" }]}>Repeat</Text>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingVertical: 4 }}>
+                  {REPEAT_OPTIONS.map((opt) => {
+                    const active = repeatType === opt.key;
+                    return (
+                      <TouchableOpacity key={opt.key} onPress={() => setRepeatType(opt.key)}
+                        style={[Sh.typeChip, { backgroundColor: active ? colors.primary : colors.card, borderColor: active ? colors.primary : colors.border }]}>
+                        <Text style={[Sh.typeChipText, { color: active ? colors.primaryForeground : colors.foreground, fontFamily: active ? "Inter_600SemiBold" : "Inter_400Regular" }]}>{opt.label}</Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </ScrollView>
+                {repeatType === "custom" && (
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: 10, marginTop: 8 }}>
+                    <Text style={{ fontSize: 14, color: colors.foreground, fontFamily: "Inter_400Regular" }}>Every</Text>
+                    <TextInput
+                      value={customInterval}
+                      onChangeText={(v) => setCustomInterval(v.replace(/[^0-9]/g, ""))}
+                      keyboardType="number-pad"
+                      style={[Sh.textInput, { width: 60, textAlign: "center", color: colors.foreground, borderColor: colors.border, backgroundColor: colors.card, fontFamily: "Inter_400Regular", marginTop: 0 }]}
+                    />
+                    <Text style={{ fontSize: 14, color: colors.foreground, fontFamily: "Inter_400Regular" }}>days</Text>
+                  </View>
+                )}
+                {showEndDate && (
+                  <View style={{ marginTop: 10 }}>
+                    <Text style={[Sh.fieldLabel, { color: colors.mutedForeground, fontFamily: "Inter_500Medium" }]}>End date (optional — blank repeats up to 90 days)</Text>
+                    <DatePickerField value={repeatEndDate} onChange={setRepeatEndDate} placeholder="No end date" colors={colors} />
+                    {repeatEndDate ? (
+                      <TouchableOpacity onPress={() => setRepeatEndDate("")} style={{ paddingVertical: 4 }}>
+                        <Text style={{ fontSize: 12, color: colors.mutedForeground, fontFamily: "Inter_400Regular" }}>Clear end date</Text>
+                      </TouchableOpacity>
+                    ) : null}
+                  </View>
+                )}
               </View>
               <View style={Sh.fieldBlock}>
                 <Text style={[Sh.fieldLabel, { color: colors.mutedForeground, fontFamily: "Inter_500Medium" }]}>Type</Text>
@@ -856,257 +923,6 @@ function AddEventModal({
               <TouchableOpacity style={[Sh.saveBtn, { backgroundColor: colors.primary, opacity: saving ? 0.7 : 1 }]} onPress={handleSave} disabled={saving}>
                 {saving ? <ActivityIndicator color={colors.primaryForeground} size="small" /> : null}
                 <Text style={[Sh.saveBtnText, { color: colors.primaryForeground, fontFamily: "Inter_600SemiBold" }]}>{saving ? "Saving..." : (isEdit ? "Save changes" : "Save event")}</Text>
-              </TouchableOpacity>
-            </ScrollView>
-          </View>
-        </View>
-      </KeyboardAvoidingView>
-    </Modal>
-  );
-}
-
-// ─── Event Type Picker Modal ──────────────────────────────────────────────────
-
-function EventTypePickerModal({
-  visible, onClose, onOneTime, onRecurring, colors,
-}: {
-  visible: boolean; onClose: () => void; onOneTime: () => void; onRecurring: () => void; colors: Colors;
-}) {
-  return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
-      <View style={Sh.sheetOverlay}>
-        <TouchableOpacity style={{ flex: 1 }} activeOpacity={1} onPress={onClose} />
-        <View style={[Sh.bottomSheet, { backgroundColor: colors.background, paddingBottom: 28 }]}>
-          <View style={[Sh.sheetHandle, { backgroundColor: colors.border }]} />
-          <View style={Sh.sheetHeader}>
-            <Text style={[Sh.sheetTitle, { color: colors.foreground, fontFamily: "Inter_700Bold" }]}>Add Event</Text>
-            <TouchableOpacity onPress={onClose} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-              <Feather name="x" size={22} color={colors.mutedForeground} />
-            </TouchableOpacity>
-          </View>
-          <View style={{ gap: 10, paddingBottom: 4 }}>
-            <TouchableOpacity
-              style={[evStyles.typeCard, { backgroundColor: colors.card, borderColor: colors.primary }]}
-              onPress={onOneTime} activeOpacity={0.75}
-            >
-              <View style={[evStyles.typeCardIcon, { backgroundColor: colors.primary + "18" }]}>
-                <Feather name="calendar" size={22} color={colors.primary} />
-              </View>
-              <View style={{ flex: 1 }}>
-                <Text style={[evStyles.typeCardTitle, { color: colors.foreground, fontFamily: "Inter_600SemiBold" }]}>One-time event</Text>
-                <Text style={[evStyles.typeCardDesc, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>A single date with optional time</Text>
-              </View>
-              <Feather name="chevron-right" size={18} color={colors.mutedForeground} />
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[evStyles.typeCard, { backgroundColor: colors.card, borderColor: colors.border }]}
-              onPress={onRecurring} activeOpacity={0.75}
-            >
-              <View style={[evStyles.typeCardIcon, { backgroundColor: colors.muted }]}>
-                <Feather name="repeat" size={22} color={colors.foreground} />
-              </View>
-              <View style={{ flex: 1 }}>
-                <Text style={[evStyles.typeCardTitle, { color: colors.foreground, fontFamily: "Inter_600SemiBold" }]}>Recurring event</Text>
-                <Text style={[evStyles.typeCardDesc, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>Repeats on a schedule for 12 weeks</Text>
-              </View>
-              <Feather name="chevron-right" size={18} color={colors.mutedForeground} />
-            </TouchableOpacity>
-          </View>
-        </View>
-      </View>
-    </Modal>
-  );
-}
-
-// ─── Recurring Event Modal ────────────────────────────────────────────────────
-
-function RecurringEventModal({
-  visible, onClose, onCreated, colors,
-}: {
-  visible: boolean; onClose: () => void; onCreated: () => void; colors: Colors;
-}) {
-  const { mutateAsync: createEvent } = useCreateCalendarEvent();
-  const [title, setTitle]           = useState("");
-  const [eventType, setEventType]   = useState<string | null>(null);
-  const [notes, setNotes]           = useState("");
-  const [recurrence, setRecurrence] = useState<RecurrenceType>("every_week");
-  const [selectedDays, setSelectedDays] = useState<number[]>([]);
-  const [monthlyNth, setMonthlyNth] = useState(0);
-  const [monthlyWeekday, setMonthlyWeekday] = useState(1);
-  const [endDate, setEndDate]       = useState("");
-  const [noEndDate, setNoEndDate]   = useState(true);
-  const [saving, setSaving]         = useState(false);
-  const [eventTime, setEventTime]   = useState("");
-
-  useEffect(() => {
-    if (visible) {
-      setTitle(""); setEventType(null); setNotes("");
-      setRecurrence("every_week"); setSelectedDays([]);
-      setMonthlyNth(0); setMonthlyWeekday(1);
-      setEndDate(""); setNoEndDate(true); setSaving(false); setEventTime("");
-    }
-  }, [visible]);
-
-  function toggleDay(day: number) {
-    setSelectedDays((prev) => prev.includes(day) ? prev.filter((d) => d !== day) : [...prev, day]);
-  }
-
-  function generateDates(): string[] {
-    let dates: string[] = [];
-    const base = new Date(); base.setHours(0, 0, 0, 0);
-    if (recurrence === "every_day") {
-      for (let i = 0; i < 84; i++) { const d = new Date(base); d.setDate(base.getDate() + i); dates.push(toISODate(d)); }
-    } else if (recurrence === "every_week" || recurrence === "custom_days") {
-      dates = getNextTwelveWeeksDates(selectedDays);
-    } else if (recurrence === "every_other_week") {
-      dates = getEveryOtherWeekDates(selectedDays);
-    } else if (recurrence === "every_month") {
-      dates = getMonthlyNthWeekdayDates(monthlyNth, monthlyWeekday);
-    }
-    if (!noEndDate && endDate) dates = dates.filter((d) => d <= endDate);
-    return dates;
-  }
-
-  async function handleSave() {
-    if (!title.trim()) { Alert.alert("Required", "Please enter an event title."); return; }
-    const needsDays = recurrence === "every_week" || recurrence === "every_other_week" || recurrence === "custom_days";
-    if (needsDays && selectedDays.length === 0) { Alert.alert("Required", "Please select at least one day."); return; }
-    const dates = generateDates();
-    if (dates.length === 0) { Alert.alert("No dates", "No dates match your recurrence settings."); return; }
-    setSaving(true);
-    try {
-      const notesVal = eventTime ? `time:${eventTime}|${notes.trim()}` : notes.trim();
-      await Promise.all(dates.map((date) =>
-        createEvent({ data: { title: title.trim(), date, type: eventType, notes: notesVal || null } })
-      ));
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      onCreated(); onClose();
-    } catch {
-      Alert.alert("Error", "Failed to save events. Please try again.");
-    } finally { setSaving(false); }
-  }
-
-  const showDaySelector = recurrence === "every_week" || recurrence === "every_other_week" || recurrence === "custom_days";
-
-  return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
-      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : undefined}>
-        <View style={Sh.sheetOverlay}>
-          <TouchableOpacity style={{ flex: 1 }} activeOpacity={1} onPress={onClose} />
-          <View style={[Sh.bottomSheet, { backgroundColor: colors.background }]}>
-            <View style={[Sh.sheetHandle, { backgroundColor: colors.border }]} />
-            <View style={Sh.sheetHeader}>
-              <Text style={[Sh.sheetTitle, { color: colors.foreground, fontFamily: "Inter_700Bold" }]}>Recurring Event</Text>
-              <TouchableOpacity onPress={onClose} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-                <Feather name="x" size={22} color={colors.mutedForeground} />
-              </TouchableOpacity>
-            </View>
-            <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
-              <View style={Sh.fieldBlock}>
-                <Text style={[Sh.fieldLabel, { color: colors.mutedForeground, fontFamily: "Inter_500Medium" }]}>Title</Text>
-                <TextInput value={title} onChangeText={setTitle} placeholder="Event title"
-                  placeholderTextColor={colors.mutedForeground}
-                  style={[Sh.textInput, { color: colors.foreground, borderColor: colors.border, backgroundColor: colors.card, fontFamily: "Inter_400Regular" }]} />
-              </View>
-              <View style={Sh.fieldBlock}>
-                <Text style={[Sh.fieldLabel, { color: colors.mutedForeground, fontFamily: "Inter_500Medium" }]}>Type</Text>
-                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingVertical: 4 }}>
-                  {EVENT_TYPES.map((et) => {
-                    const active = eventType === et.key;
-                    return (
-                      <TouchableOpacity key={et.key} onPress={() => setEventType(active ? null : et.key)}
-                        style={[Sh.typeChip, { backgroundColor: active ? et.color : colors.card, borderColor: active ? et.color : colors.border }]}>
-                        <Text style={[Sh.typeChipText, { color: active ? "#FFFFFF" : colors.foreground, fontFamily: "Inter_500Medium" }]}>{et.label}</Text>
-                      </TouchableOpacity>
-                    );
-                  })}
-                </ScrollView>
-              </View>
-              <View style={Sh.fieldBlock}>
-                <Text style={[Sh.fieldLabel, { color: colors.mutedForeground, fontFamily: "Inter_500Medium" }]}>Repeats</Text>
-                <View style={{ gap: 6, marginTop: 4 }}>
-                  {RECURRENCE_OPTIONS.map((opt) => {
-                    const active = recurrence === opt.key;
-                    return (
-                      <TouchableOpacity key={opt.key} onPress={() => setRecurrence(opt.key as RecurrenceType)}
-                        style={[evStyles.recurrenceRow, { borderColor: active ? colors.primary : colors.border, backgroundColor: active ? colors.primary + "10" : colors.card }]}>
-                        <View style={[evStyles.recurrenceRadio, { borderColor: active ? colors.primary : colors.border }]}>
-                          {active && <View style={[evStyles.recurrenceRadioInner, { backgroundColor: colors.primary }]} />}
-                        </View>
-                        <Text style={[evStyles.recurrenceLabel, { color: colors.foreground, fontFamily: active ? "Inter_500Medium" : "Inter_400Regular" }]}>{opt.label}</Text>
-                      </TouchableOpacity>
-                    );
-                  })}
-                </View>
-              </View>
-              {showDaySelector && (
-                <View style={Sh.fieldBlock}>
-                  <Text style={[Sh.fieldLabel, { color: colors.mutedForeground, fontFamily: "Inter_500Medium" }]}>On these days</Text>
-                  <View style={[Sh.dayToggleRow, { marginTop: 6 }]}>
-                    {DAY_LETTERS.map((letter, i) => {
-                      const active = selectedDays.includes(i);
-                      return (
-                        <TouchableOpacity key={i} onPress={() => toggleDay(i)}
-                          style={[Sh.dayTogglePill, { borderColor: active ? colors.primary : colors.border, backgroundColor: active ? colors.primary : colors.card }]}>
-                          <Text style={[Sh.dayToggleText, { color: active ? colors.primaryForeground : colors.foreground, fontFamily: "Inter_500Medium" }]}>{letter}</Text>
-                        </TouchableOpacity>
-                      );
-                    })}
-                  </View>
-                </View>
-              )}
-              {recurrence === "every_month" && (
-                <View style={Sh.fieldBlock}>
-                  <Text style={[Sh.fieldLabel, { color: colors.mutedForeground, fontFamily: "Inter_500Medium" }]}>On the</Text>
-                  <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 6, marginTop: 6, marginBottom: 8 }}>
-                    {ORDINAL_LABELS.map((label, i) => {
-                      const active = monthlyNth === i;
-                      return (
-                        <TouchableOpacity key={i} onPress={() => setMonthlyNth(i)}
-                          style={[Sh.typeChip, { backgroundColor: active ? colors.primary : colors.card, borderColor: active ? colors.primary : colors.border }]}>
-                          <Text style={[Sh.typeChipText, { color: active ? colors.primaryForeground : colors.foreground, fontFamily: "Inter_500Medium" }]}>{label}</Text>
-                        </TouchableOpacity>
-                      );
-                    })}
-                  </ScrollView>
-                  <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6 }}>
-                    {FULL_DAY_NAMES.map((name, i) => {
-                      const active = monthlyWeekday === i;
-                      return (
-                        <TouchableOpacity key={i} onPress={() => setMonthlyWeekday(i)}
-                          style={[Sh.typeChip, { backgroundColor: active ? colors.primary : colors.card, borderColor: active ? colors.primary : colors.border }]}>
-                          <Text style={[Sh.typeChipText, { color: active ? colors.primaryForeground : colors.foreground, fontFamily: "Inter_500Medium" }]}>{name}</Text>
-                        </TouchableOpacity>
-                      );
-                    })}
-                  </View>
-                </View>
-              )}
-              <View style={Sh.fieldBlock}>
-                <Text style={[Sh.fieldLabel, { color: colors.mutedForeground, fontFamily: "Inter_500Medium" }]}>End</Text>
-                <TouchableOpacity style={[evStyles.toggleRow, { borderColor: colors.border }]} onPress={() => setNoEndDate((v) => !v)}>
-                  <View style={[Sh.timeToggleCheck, { borderColor: colors.primary, backgroundColor: noEndDate ? colors.primary : "transparent" }]}>
-                    {noEndDate && <Feather name="check" size={11} color={colors.primaryForeground} />}
-                  </View>
-                  <Text style={{ color: colors.foreground, fontSize: 14, fontFamily: "Inter_400Regular" }}>No end date</Text>
-                </TouchableOpacity>
-                {!noEndDate && <DatePickerField value={endDate} onChange={setEndDate} placeholder="Pick end date" colors={colors} />}
-              </View>
-              <View style={Sh.fieldBlock}>
-                <Text style={[Sh.fieldLabel, { color: colors.mutedForeground, fontFamily: "Inter_500Medium" }]}>Time (optional)</Text>
-                <TimePickerField value={eventTime} onChange={setEventTime} colors={colors} />
-              </View>
-              <View style={Sh.fieldBlock}>
-                <Text style={[Sh.fieldLabel, { color: colors.mutedForeground, fontFamily: "Inter_500Medium" }]}>Notes</Text>
-                <TextInput value={notes} onChangeText={setNotes} placeholder="Optional notes..."
-                  placeholderTextColor={colors.mutedForeground} multiline
-                  style={[Sh.textInput, Sh.textArea, { color: colors.foreground, borderColor: colors.border, backgroundColor: colors.card, fontFamily: "Inter_400Regular" }]} />
-              </View>
-              <TouchableOpacity style={[Sh.saveBtn, { backgroundColor: colors.primary, opacity: saving ? 0.7 : 1 }]} onPress={handleSave} disabled={saving}>
-                {saving ? <ActivityIndicator color={colors.primaryForeground} size="small" /> : null}
-                <Text style={[Sh.saveBtnText, { color: colors.primaryForeground, fontFamily: "Inter_600SemiBold" }]}>
-                  {saving ? "Creating events…" : "Create recurring events"}
-                </Text>
               </TouchableOpacity>
             </ScrollView>
           </View>
@@ -1308,10 +1124,12 @@ function MyScheduleCard({ schedule, onEdit, colors }: { schedule: WorkSchedule |
 // ─── Day Detail Sheet ─────────────────────────────────────────────────────────
 
 function DayDetailSheet({
-  visible, dateStr, events, onClose, onAddEvent, onDelete, onEditEvent, onRoutineTap, colors, bottomInset,
+  visible, dateStr, events, onClose, onAddEvent, onDelete, onEdit, onRoutineDelete, onRoutineTap, colors, bottomInset,
 }: {
   visible: boolean; dateStr: string; events: CalendarEvent[]; onClose: () => void;
-  onAddEvent: () => void; onDelete: (id: number) => void; onEditEvent?: (ev: CalendarEvent) => void;
+  onAddEvent: () => void; onDelete: (ev: CalendarEvent) => void;
+  onEdit: (ev: CalendarEvent) => void;
+  onRoutineDelete: (routineName: string, occurrenceDate: string) => void;
   onRoutineTap: (ev: CalendarEvent) => void;
   colors: Colors; bottomInset: number;
 }) {
@@ -1394,23 +1212,32 @@ function DayDetailSheet({
                       {!isRoutine && (
                         <>
                           <TouchableOpacity
-                            onPress={() => onEditEvent?.(ev)}
+                            onPress={() => onEdit(ev)}
                             hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                             style={{ marginLeft: 4 }}
                           >
                             <Feather name="edit-2" size={15} color={colors.mutedForeground} />
                           </TouchableOpacity>
                           <TouchableOpacity
-                            onPress={() => Alert.alert("Delete Event", `Remove "${ev.title}"?`, [
-                              { text: "Cancel", style: "cancel" },
-                              { text: "Delete", style: "destructive", onPress: () => onDelete(ev.id) },
-                            ])}
+                            onPress={() => onDelete(ev)}
                             hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                             style={{ marginLeft: 4 }}
                           >
                             <Feather name="trash-2" size={16} color={colors.mutedForeground} />
                           </TouchableOpacity>
                         </>
+                      )}
+                      {isRoutine && (
+                        <TouchableOpacity
+                          onPress={() => {
+                            const routineName = ev.title.includes(" — ") ? ev.title.split(" — ")[0]! : ev.title;
+                            onRoutineDelete(routineName, ev.date);
+                          }}
+                          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                          style={{ marginLeft: 4 }}
+                        >
+                          <Feather name="trash-2" size={16} color={colors.mutedForeground} />
+                        </TouchableOpacity>
                       )}
                     </View>
                     {timeLabel ? (
@@ -1854,6 +1681,9 @@ function RoutineModal({
   const [activities, setActivities] = useState<string[]>([""]);
   const [reminderEnabled, setReminderEnabled] = useState(false);
   const [reminderSlots, setReminderSlots] = useState<number[]>([3600]);
+  const [repeatType, setRepeatType] = useState<RepeatType>("weekly");
+  const [customInterval, setCustomInterval] = useState("7");
+  const [repeatEndDate, setRepeatEndDate] = useState("");
 
   const queryClient = useQueryClient();
   const { mutateAsync: upsertReminder } = useUpsertReminder();
@@ -1875,6 +1705,9 @@ function RoutineModal({
       if (routine) {
         setName(routine.name); setColor(routine.color); setDays([...routine.days]);
         setTime(routine.time ?? ""); setActivities(routine.activities.length > 0 ? [...routine.activities] : [""]);
+        setRepeatType((routine.recurrenceType as RepeatType | null) ?? "weekly");
+        setCustomInterval(routine.recurrenceInterval ? String(routine.recurrenceInterval) : "7");
+        setRepeatEndDate(routine.recurrenceEndDate ?? "");
         const hasAny = existing.length > 0;
         const hasActive = existing.some((r) => r.isActive);
         setReminderEnabled(hasActive);
@@ -1888,6 +1721,7 @@ function RoutineModal({
         );
       } else {
         setName(""); setColor(ROUTINE_COLORS[0]!); setDays([]); setTime(""); setActivities([""]);
+        setRepeatType("weekly"); setCustomInterval("7"); setRepeatEndDate("");
         setReminderEnabled(false); setReminderSlots([3600]);
       }
     }
@@ -1903,7 +1737,8 @@ function RoutineModal({
     if (days.length === 0) { Alert.alert("Required", "Please select at least one day."); return; }
     // Generate a stable new ID at save time (not at mount) so each creation gets a fresh ID.
     const id = routine?.id ?? generateId();
-    const r: Routine = { id, name: name.trim(), color, days, time: time || undefined, activities: activities.map((a) => a.trim()).filter(Boolean) };
+    const interval = repeatType === "custom" ? Math.max(1, parseInt(customInterval, 10) || 1) : undefined;
+    const r: Routine = { id, name: name.trim(), color, days, time: time || undefined, activities: activities.map((a) => a.trim()).filter(Boolean), recurrenceType: repeatType, recurrenceInterval: interval, recurrenceEndDate: repeatEndDate || undefined };
     onSave(r);
 
     const existingList = existingRemindersRef.current;
@@ -1995,6 +1830,43 @@ function RoutineModal({
             <View style={Sh.fieldBlock}>
               <Text style={[Sh.fieldLabel, { color: colors.mutedForeground, fontFamily: "Inter_500Medium" }]}>Time (optional)</Text>
               <TimePickerField value={time} onChange={setTime} colors={colors} />
+            </View>
+            <View style={Sh.fieldBlock}>
+              <Text style={[Sh.fieldLabel, { color: colors.mutedForeground, fontFamily: "Inter_500Medium" }]}>Repeat</Text>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingVertical: 4 }}>
+                {REPEAT_OPTIONS.map((opt) => {
+                  const active = repeatType === opt.key;
+                  return (
+                    <TouchableOpacity key={opt.key} onPress={() => setRepeatType(opt.key)}
+                      style={[Sh.typeChip, { backgroundColor: active ? colors.primary : colors.card, borderColor: active ? colors.primary : colors.border }]}>
+                      <Text style={[Sh.typeChipText, { color: active ? colors.primaryForeground : colors.foreground, fontFamily: active ? "Inter_600SemiBold" : "Inter_400Regular" }]}>{opt.label}</Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </ScrollView>
+              {repeatType === "custom" && (
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 10, marginTop: 8 }}>
+                  <Text style={{ fontSize: 14, color: colors.foreground, fontFamily: "Inter_400Regular" }}>Every</Text>
+                  <TextInput
+                    value={customInterval}
+                    onChangeText={(v) => setCustomInterval(v.replace(/[^0-9]/g, ""))}
+                    keyboardType="number-pad"
+                    style={[Sh.textInput, { width: 60, textAlign: "center", color: colors.foreground, borderColor: colors.border, backgroundColor: colors.card, fontFamily: "Inter_400Regular", marginTop: 0 }]}
+                  />
+                  <Text style={{ fontSize: 14, color: colors.foreground, fontFamily: "Inter_400Regular" }}>days</Text>
+                </View>
+              )}
+              {repeatType !== "none" && (
+                <View style={{ marginTop: 10 }}>
+                  <Text style={[Sh.fieldLabel, { color: colors.mutedForeground, fontFamily: "Inter_500Medium" }]}>End date (optional)</Text>
+                  <DatePickerField value={repeatEndDate} onChange={setRepeatEndDate} placeholder="No end date" colors={colors} />
+                  {repeatEndDate ? (
+                    <TouchableOpacity onPress={() => setRepeatEndDate("")} style={{ paddingVertical: 4 }}>
+                      <Text style={{ fontSize: 12, color: colors.mutedForeground, fontFamily: "Inter_400Regular" }}>Clear end date</Text>
+                    </TouchableOpacity>
+                  ) : null}
+                </View>
+              )}
             </View>
             <View style={Sh.fieldBlock}>
               <Text style={[Sh.fieldLabel, { color: colors.mutedForeground, fontFamily: "Inter_500Medium" }]}>Activities</Text>
@@ -2417,11 +2289,10 @@ export default function PlanScreen() {
   const [weekStart, setWeekStart] = useState(() => getWeekStart(today));
   const [selectedDate, setSelectedDate] = useState<string>("");
   const [showDayDetail, setShowDayDetail] = useState(false);
-  const [showEventTypePicker, setShowEventTypePicker] = useState(false);
   const [showAddEvent, setShowAddEvent] = useState(false);
-  const [showRecurringEvent, setShowRecurringEvent] = useState(false);
   const [addEventDate, setAddEventDate] = useState("");
   const [editingEvent, setEditingEvent] = useState<CalendarEvent | null>(null);
+  const [editEventOccurrenceDate, setEditEventOccurrenceDate] = useState<string | undefined>(undefined);
 
   // ── Schedule / routines state ──
   const [schedule, setSchedule] = useState<WorkSchedule | null>(null);
@@ -2478,6 +2349,7 @@ export default function PlanScreen() {
   const queryClient = useQueryClient();
   const { data: events = [], isFetching, refetch } = useListCalendarEvents();
   const { mutateAsync: createEvent } = useCreateCalendarEvent();
+  const { mutateAsync: patchEvent } = useUpdateCalendarEvent();
   const { mutateAsync: deleteEvent } = useDeleteCalendarEvent();
   const { data: dbRoutines = [], refetch: refetchRoutines } = useListRoutines();
   const createRoutineMutation = useCreateRoutine();
@@ -2493,6 +2365,10 @@ export default function PlanScreen() {
       time: r.scheduledTime ?? undefined,
       activities: (() => { try { return JSON.parse(r.activities ?? "[]") as string[]; } catch { return []; } })(),
       color: r.color,
+      recurrenceType: r.recurrenceType ?? "none",
+      recurrenceInterval: r.recurrenceInterval ?? undefined,
+      recurrenceEndDate: r.recurrenceEndDate ?? undefined,
+      skippedDates: (() => { try { return r.skippedDates ? (JSON.parse(r.skippedDates) as string[]) : null; } catch { return null; } })(),
     })),
     [dbRoutines],
   );
@@ -2558,40 +2434,93 @@ export default function PlanScreen() {
   // ── Derived data ──
   const eventsByDate = useMemo(() => {
     const map: Record<string, CalendarEvent[]> = {};
+
+    // ── Calendar events (skip old materialized routine rows) ──
     for (const e of events) {
-      const key = e.date.includes("T") ? e.date.split("T")[0]! : e.date;
-      if (!map[key]) map[key] = [];
-      map[key]!.push(e as CalendarEvent);
+      const ev = e as CalendarEvent;
+      // Old routine events were materialized as type="routine" individual rows.
+      // Routines are now expanded directly from the routines array below.
+      if (ev.type === "routine") continue;
+
+      const baseKey = ev.date.includes("T") ? ev.date.split("T")[0]! : ev.date;
+      const rType = ev.recurrenceType ?? "none";
+
+      if (rType === "none") {
+        if (!map[baseKey]) map[baseKey] = [];
+        map[baseKey]!.push(ev);
+      } else {
+        const deleted: string[] = ev.deletedOccurrences ? (JSON.parse(ev.deletedOccurrences) as string[]) : [];
+        const occurrences = getRecurrenceOccurrences(
+          baseKey, rType,
+          ev.recurrenceInterval ?? undefined,
+          ev.recurrenceEndDate ?? undefined,
+          deleted,
+        );
+        for (const dateStr of occurrences) {
+          if (!map[dateStr]) map[dateStr] = [];
+          map[dateStr]!.push({ ...ev, date: dateStr });
+        }
+      }
     }
+
+    // ── Routines: expand using recurrenceType over a ±90-day window so backward
+    //    calendar navigation also shows routine occurrences. ──
+    const routineWindowStart = new Date();
+    routineWindowStart.setHours(0, 0, 0, 0);
+    routineWindowStart.setDate(routineWindowStart.getDate() - MAX_DAYS_OUT);
+    const routineWindowEnd = new Date();
+    routineWindowEnd.setHours(0, 0, 0, 0);
+    routineWindowEnd.setDate(routineWindowEnd.getDate() + MAX_DAYS_OUT);
+
+    for (const r of routines) {
+      const suffix = r.activities.length > 0
+        ? ` — ${r.activities.slice(0, 2).join(", ")}${r.activities.length > 2 ? "..." : ""}`
+        : "";
+      const evNotes = `routineColor:${r.color}|${r.activities.join(", ")}`;
+      const occurrences = getRoutineOccurrences(r, routineWindowStart, routineWindowEnd, r.skippedDates);
+      for (const dateStr of occurrences) {
+        if (!map[dateStr]) map[dateStr] = [];
+        map[dateStr]!.push({
+          id: -1,
+          userId: "",
+          date: dateStr,
+          title: r.name + suffix,
+          type: "routine",
+          notes: evNotes,
+          recurrenceType: r.recurrenceType,
+          recurrenceInterval: r.recurrenceInterval ?? null,
+          recurrenceEndDate: r.recurrenceEndDate ?? null,
+        });
+      }
+    }
+
     return map;
-  }, [events]);
+  }, [events, routines]);
 
   const upcomingEvents = useMemo(() => {
     const d = new Date();
     d.setDate(d.getDate() + 7);
     const maxDate = toISODate(d);
 
-    // Build a set of titles that appear more than once — those are recurring user events
-    const titleCounts = new Map<string, number>();
-    for (const ev of events) {
-      if (ev.type !== "routine" && ev.type !== "habit" && ev.type !== "google" && ev.type !== "work") {
-        titleCounts.set(ev.title, (titleCounts.get(ev.title) ?? 0) + 1);
+    const result: CalendarEvent[] = [];
+    for (const e of events) {
+      const ev = e as CalendarEvent;
+      if (ev.type === "routine" || ev.type === "habit" || ev.type === "google" || ev.type === "work") continue;
+      const rType = ev.recurrenceType ?? "none";
+      if (rType === "none") {
+        const date = ev.date.includes("T") ? ev.date.split("T")[0]! : ev.date;
+        if (date >= currentTodayStr && date <= maxDate) result.push(ev);
+      } else {
+        const deleted: string[] = ev.deletedOccurrences ? (JSON.parse(ev.deletedOccurrences) as string[]) : [];
+        const occurrences = getRecurrenceOccurrences(
+          ev.date.includes("T") ? ev.date.split("T")[0]! : ev.date,
+          rType, ev.recurrenceInterval ?? undefined, ev.recurrenceEndDate ?? undefined, deleted,
+        );
+        const nextOcc = occurrences.find((o) => o >= currentTodayStr && o <= maxDate);
+        if (nextOcc) result.push({ ...ev, date: nextOcc });
       }
     }
-    const recurringTitles = new Set(
-      [...titleCounts.entries()].filter(([, n]) => n > 1).map(([t]) => t),
-    );
-
-    return [...events]
-      .filter((e) => {
-        const date = e.date.includes("T") ? e.date.split("T")[0]! : e.date;
-        if (date < currentTodayStr || date > maxDate) return false;
-        // Strip all routine-like, repeated, and work-schedule entries
-        if (e.type === "routine" || e.type === "habit" || e.type === "google" || e.type === "work") return false;
-        if (recurringTitles.has(e.title)) return false;
-        return true;
-      })
-      .sort((a, b) => a.date.localeCompare(b.date));
+    return result.sort((a, b) => a.date.localeCompare(b.date));
   }, [events, currentTodayStr]);
 
   const upcomingGoogleEvents = useMemo(() => {
@@ -2729,39 +2658,23 @@ export default function PlanScreen() {
     : formatWeekLabel(weekStart);
 
   // ── Routine handlers ──
-  function getRoutineEvents(routineName: string): CalendarEvent[] {
-    return events.filter(
-      (e) => e.type === "routine" &&
-        (e.notes ?? "").startsWith("routineColor:") &&
-        (e.title === routineName || e.title.startsWith(routineName + " —")),
-    );
-  }
-
-  async function purgeRoutineEvents(routineName: string): Promise<void> {
-    const matches = getRoutineEvents(routineName);
-    if (matches.length === 0) return;
-    await Promise.all(matches.map((e) => deleteEvent({ id: e.id })));
-  }
-
   async function handleSaveRoutine(r: Routine) {
     const existing = routines.find((x) => x.id === r.id);
-    const payload = { id: r.id, name: r.name, days: JSON.stringify(r.days), scheduledTime: r.time, color: r.color, activities: JSON.stringify(r.activities) };
+    const payload = {
+      id: r.id, name: r.name, days: JSON.stringify(r.days), scheduledTime: r.time,
+      color: r.color, activities: JSON.stringify(r.activities),
+      recurrenceType: r.recurrenceType ?? "none",
+      recurrenceInterval: r.recurrenceInterval,
+      recurrenceEndDate: r.recurrenceEndDate,
+    };
     if (existing) {
       await updateRoutineMutation.mutateAsync({ id: r.id, data: payload }).catch(() => {});
-      await purgeRoutineEvents(existing.name).catch(() => {});
     } else {
       await createRoutineMutation.mutateAsync({ data: payload }).catch(() => {});
     }
     queryClient.invalidateQueries({ queryKey: getListRoutinesQueryKey() });
-    const dates = getNextFourWeeksDates(r.days);
-    const suffix = r.activities.length > 0 ? ` — ${r.activities.slice(0, 2).join(", ")}${r.activities.length > 2 ? "..." : ""}` : "";
-    const activityStr = r.activities.join(", ");
-    const evNotes = `routineColor:${r.color}|${activityStr}`;
-    try {
-      await Promise.all(dates.map((date) => createEvent({ data: { title: r.name + suffix, date, type: "routine", notes: evNotes } })));
-      refetch();
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    } catch {}
+    refetchRoutines();
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
   }
 
   async function handleDeleteRoutine(r: Routine) {
@@ -2776,21 +2689,100 @@ export default function PlanScreen() {
     }
     await deleteRoutineMutation.mutateAsync({ id: r.id }).catch(() => {});
     queryClient.invalidateQueries({ queryKey: getListRoutinesQueryKey() });
-    try { await purgeRoutineEvents(r.name); refetch(); Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success); } catch {}
+    refetchRoutines();
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
   }
 
-  async function handleDeleteEvent(id: number) {
-    // Cancel notifications and delete reminder records for this event.
-    const eventReminders = reminders.filter((rem) => {
-      const m = rem.metadata as { entityId?: string } | null;
-      return rem.type === "event" && m?.entityId === String(id);
-    });
-    for (const rem of eventReminders) {
-      void cancelEntityReminderNotification(rem.id);
-      void deleteReminderMutation.mutateAsync({ id: rem.id }).catch(() => {});
+  async function handleStopRoutineFromDate(r: Routine, fromDate: string) {
+    const prevDay = new Date(fromDate + "T00:00:00");
+    prevDay.setDate(prevDay.getDate() - 1);
+    const endDate = toISODate(prevDay);
+    await updateRoutineMutation.mutateAsync({ id: r.id, data: { recurrenceEndDate: endDate } }).catch(() => {});
+    queryClient.invalidateQueries({ queryKey: getListRoutinesQueryKey() });
+    refetchRoutines();
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+  }
+
+  async function handleSkipRoutineOccurrence(r: Routine, dateStr: string) {
+    const existing = r.skippedDates ? [...r.skippedDates] : [];
+    if (!existing.includes(dateStr)) existing.push(dateStr);
+    await updateRoutineMutation.mutateAsync({ id: r.id, data: { skippedDates: JSON.stringify(existing) } }).catch(() => {});
+    queryClient.invalidateQueries({ queryKey: getListRoutinesQueryKey() });
+    refetchRoutines();
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+  }
+
+  function handleDeleteEvent(ev: CalendarEvent) {
+    const isRecurring = ev.recurrenceType && ev.recurrenceType !== "none";
+    if (!isRecurring) {
+      Alert.alert("Delete Event", `Remove "${ev.title}"?`, [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Delete", style: "destructive", onPress: async () => {
+            const eventReminders = reminders.filter((rem) => {
+              const m = rem.metadata as { entityId?: string } | null;
+              return rem.type === "event" && m?.entityId === String(ev.id);
+            });
+            for (const rem of eventReminders) {
+              void cancelEntityReminderNotification(rem.id);
+              void deleteReminderMutation.mutateAsync({ id: rem.id }).catch(() => {});
+            }
+            try { await deleteEvent({ id: ev.id }); refetch(); Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success); }
+            catch { Alert.alert("Error", "Failed to delete event. Please try again."); }
+          },
+        },
+      ]);
+      return;
     }
-    try { await deleteEvent({ id }); refetch(); Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success); }
-    catch { Alert.alert("Error", "Failed to delete event. Please try again."); }
+    Alert.alert("Delete Recurring Event", "Which occurrences do you want to remove?", [
+      { text: "Cancel", style: "cancel" },
+      {
+        text: "This occurrence",
+        onPress: async () => {
+          try {
+            const existing: string[] = ev.deletedOccurrences ? (JSON.parse(ev.deletedOccurrences) as string[]) : [];
+            const occDate = ev.date.includes("T") ? ev.date.split("T")[0]! : ev.date;
+            if (!existing.includes(occDate)) existing.push(occDate);
+            await patchEvent({ id: ev.id, data: { deletedOccurrences: JSON.stringify(existing) } });
+            queryClient.invalidateQueries({ queryKey: getListCalendarEventsQueryKey() });
+            refetch();
+            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+          } catch { Alert.alert("Error", "Failed to delete occurrence."); }
+        },
+      },
+      {
+        text: "This and all future",
+        style: "destructive",
+        onPress: async () => {
+          try {
+            const occDate = ev.date.includes("T") ? ev.date.split("T")[0]! : ev.date;
+            const prevDay = new Date(occDate + "T00:00:00");
+            prevDay.setDate(prevDay.getDate() - 1);
+            const endDate = toISODate(prevDay);
+            await patchEvent({ id: ev.id, data: { recurrenceEndDate: endDate } });
+            queryClient.invalidateQueries({ queryKey: getListCalendarEventsQueryKey() });
+            refetch();
+            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+          } catch { Alert.alert("Error", "Failed to update event."); }
+        },
+      },
+      {
+        text: "All occurrences",
+        style: "destructive",
+        onPress: async () => {
+          const eventReminders = reminders.filter((rem) => {
+            const m = rem.metadata as { entityId?: string } | null;
+            return rem.type === "event" && m?.entityId === String(ev.id);
+          });
+          for (const rem of eventReminders) {
+            void cancelEntityReminderNotification(rem.id);
+            void deleteReminderMutation.mutateAsync({ id: rem.id }).catch(() => {});
+          }
+          try { await deleteEvent({ id: ev.id }); refetch(); Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success); }
+          catch { Alert.alert("Error", "Failed to delete event."); }
+        },
+      },
+    ]);
   }
 
   async function handleSaveSchedule(s: WorkSchedule) {
@@ -2832,7 +2824,7 @@ export default function PlanScreen() {
             </TouchableOpacity>
             <TouchableOpacity
               style={[planStyles.headerIconBtn, { backgroundColor: colors.primary }]}
-              onPress={() => { setAddEventDate(""); setShowEventTypePicker(true); }}
+              onPress={() => { setAddEventDate(""); setShowAddEvent(true); }}
             >
               <Feather name="plus" size={17} color={colors.primaryForeground} />
             </TouchableOpacity>
@@ -3229,28 +3221,16 @@ export default function PlanScreen() {
       </ScrollView>
 
       {/* ── Modals ─────────────────────────────────────────────────────── */}
-      <EventTypePickerModal
-        visible={showEventTypePicker}
-        onClose={() => setShowEventTypePicker(false)}
-        onOneTime={() => { setShowEventTypePicker(false); setTimeout(() => setShowAddEvent(true), 250); }}
-        onRecurring={() => { setShowEventTypePicker(false); setTimeout(() => setShowRecurringEvent(true), 250); }}
-        colors={colors}
-      />
-
       <AddEventModal
         visible={showAddEvent}
-        onClose={() => { setShowAddEvent(false); setEditingEvent(null); }}
-        onCreated={() => refetch()}
+        onClose={() => { setShowAddEvent(false); setEditingEvent(null); setEditEventOccurrenceDate(undefined); }}
+        onCreated={() => { refetch(); queryClient.invalidateQueries({ queryKey: getListCalendarEventsQueryKey() }); }}
         colors={colors}
         prefilledDate={addEventDate}
-        event={editingEvent ?? undefined}
-      />
-
-      <RecurringEventModal
-        visible={showRecurringEvent}
-        onClose={() => setShowRecurringEvent(false)}
-        onCreated={() => refetch()}
-        colors={colors}
+        event={editingEvent}
+        editOccurrenceDate={editEventOccurrenceDate}
+        patchFn={editingEvent ? async (id, data) => { await patchEvent({ id, data }); } : undefined}
+        createNewFn={editingEvent ? async (data) => { await createEvent({ data: data as CalendarEventInput }); } : undefined}
       />
 
       <ScheduleSetupModal
@@ -3279,10 +3259,78 @@ export default function PlanScreen() {
         onClose={() => setShowDayDetail(false)}
         onAddEvent={() => openAddForDate(selectedDate)}
         onDelete={handleDeleteEvent}
-        onEditEvent={(ev) => {
-          setShowDayDetail(false);
-          setEditingEvent(ev);
-          setTimeout(() => setShowAddEvent(true), 220);
+        onEdit={(ev) => {
+          const isRecurring = ev.recurrenceType && ev.recurrenceType !== "none";
+          if (!isRecurring) {
+            setEditingEvent(ev);
+            setEditEventOccurrenceDate(undefined);
+            setShowDayDetail(false);
+            setTimeout(() => setShowAddEvent(true), 200);
+            return;
+          }
+          const occDate = ev.date.includes("T") ? ev.date.split("T")[0]! : ev.date;
+          Alert.alert("Edit Recurring Event", "Which occurrences would you like to edit?", [
+            { text: "Cancel", style: "cancel" },
+            {
+              text: "This occurrence only",
+              onPress: () => {
+                const existingDeleted: string[] = ev.deletedOccurrences
+                  ? (JSON.parse(ev.deletedOccurrences) as string[]) : [];
+                if (!existingDeleted.includes(occDate)) existingDeleted.push(occDate);
+                patchEvent({ id: ev.id, data: { deletedOccurrences: JSON.stringify(existingDeleted) } })
+                  .then(() => { queryClient.invalidateQueries({ queryKey: getListCalendarEventsQueryKey() }); refetch(); })
+                  .catch(() => {});
+                setEditingEvent({ ...ev, recurrenceType: "none", date: occDate });
+                setEditEventOccurrenceDate(occDate);
+                setShowDayDetail(false);
+                setTimeout(() => setShowAddEvent(true), 200);
+              },
+            },
+            {
+              text: "This and all future",
+              onPress: () => {
+                const prevDay = new Date(occDate + "T00:00:00");
+                prevDay.setDate(prevDay.getDate() - 1);
+                const endDate = toISODate(prevDay);
+                patchEvent({ id: ev.id, data: { recurrenceEndDate: endDate } })
+                  .then(() => { queryClient.invalidateQueries({ queryKey: getListCalendarEventsQueryKey() }); refetch(); })
+                  .catch(() => {});
+                setEditingEvent({ ...ev, date: occDate });
+                setEditEventOccurrenceDate(occDate);
+                setShowDayDetail(false);
+                setTimeout(() => setShowAddEvent(true), 200);
+              },
+            },
+            {
+              text: "All occurrences",
+              onPress: () => {
+                setEditingEvent(ev);
+                setEditEventOccurrenceDate(undefined);
+                setShowDayDetail(false);
+                setTimeout(() => setShowAddEvent(true), 200);
+              },
+            },
+          ]);
+        }}
+        onRoutineDelete={(routineName, occurrenceDate) => {
+          const routine = routines.find((r) => r.name === routineName);
+          if (!routine) return;
+          Alert.alert("Remove Routine Occurrence", `"${routineName}" repeats on this day. What would you like to remove?`, [
+            { text: "Cancel", style: "cancel" },
+            {
+              text: "Just this occurrence",
+              onPress: () => handleSkipRoutineOccurrence(routine, occurrenceDate),
+            },
+            {
+              text: "Stop from this date",
+              onPress: () => handleStopRoutineFromDate(routine, occurrenceDate),
+            },
+            {
+              text: "Delete entire routine",
+              style: "destructive",
+              onPress: () => handleDeleteRoutine(routine),
+            },
+          ]);
         }}
         onRoutineTap={(ev) => {
           const routine = routines.find((r) => ev.title === r.name || ev.title.startsWith(r.name + " —"));

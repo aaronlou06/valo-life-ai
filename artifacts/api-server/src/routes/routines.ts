@@ -13,9 +13,14 @@ router.get("/routines", requireAuth, async (req, res): Promise<void> => {
 
 router.post("/routines", requireAuth, async (req, res): Promise<void> => {
   const userId = (req as AuthenticatedRequest).userId;
-  const { id, name, days, scheduledTime, color, activities, isDisplayedOnCalendar } = req.body as {
+  const {
+    id, name, days, scheduledTime, color, activities, isDisplayedOnCalendar,
+    recurrenceType, recurrenceInterval, recurrenceEndDate, skippedDates,
+  } = req.body as {
     id?: string; name?: string; days?: string; scheduledTime?: string;
     color?: string; activities?: string; isDisplayedOnCalendar?: boolean;
+    recurrenceType?: string; recurrenceInterval?: number | null; recurrenceEndDate?: string | null;
+    skippedDates?: string | null;
   };
   if (!id || !name) { res.status(400).json({ error: "id and name are required" }); return; }
   const [row] = await db
@@ -29,6 +34,10 @@ router.post("/routines", requireAuth, async (req, res): Promise<void> => {
       color: color ?? "#C17B3F",
       activities: activities ?? "[]",
       isDisplayedOnCalendar: isDisplayedOnCalendar ?? true,
+      recurrenceType: recurrenceType ?? "none",
+      recurrenceInterval: recurrenceInterval ?? null,
+      recurrenceEndDate: recurrenceEndDate ?? null,
+      skippedDates: skippedDates ?? null,
     })
     .onConflictDoUpdate({
       target: routinesTable.id,
@@ -39,6 +48,10 @@ router.post("/routines", requireAuth, async (req, res): Promise<void> => {
         color: color ?? "#C17B3F",
         activities: activities ?? "[]",
         isDisplayedOnCalendar: isDisplayedOnCalendar ?? true,
+        recurrenceType: recurrenceType ?? "none",
+        recurrenceInterval: recurrenceInterval ?? null,
+        recurrenceEndDate: recurrenceEndDate ?? null,
+        skippedDates: skippedDates ?? null,
         updatedAt: new Date(),
       },
     })
@@ -49,9 +62,14 @@ router.post("/routines", requireAuth, async (req, res): Promise<void> => {
 router.patch("/routines/:id", requireAuth, async (req, res): Promise<void> => {
   const userId = (req as AuthenticatedRequest).userId;
   const routineId = Array.isArray(req.params.id) ? req.params.id[0]! : req.params.id!;
-  const { name, days, scheduledTime, color, activities, isDisplayedOnCalendar } = req.body as {
+  const {
+    name, days, scheduledTime, color, activities, isDisplayedOnCalendar,
+    recurrenceType, recurrenceInterval, recurrenceEndDate, skippedDates,
+  } = req.body as {
     name?: string; days?: string; scheduledTime?: string;
     color?: string; activities?: string; isDisplayedOnCalendar?: boolean;
+    recurrenceType?: string; recurrenceInterval?: number | null; recurrenceEndDate?: string | null;
+    skippedDates?: string | null;
   };
   const updates: Record<string, unknown> = { updatedAt: new Date() };
   if (name !== undefined) updates.name = name;
@@ -60,6 +78,11 @@ router.patch("/routines/:id", requireAuth, async (req, res): Promise<void> => {
   if (color !== undefined) updates.color = color;
   if (activities !== undefined) updates.activities = activities;
   if (isDisplayedOnCalendar !== undefined) updates.isDisplayedOnCalendar = isDisplayedOnCalendar;
+  if (recurrenceType !== undefined) updates.recurrenceType = recurrenceType;
+  if (recurrenceInterval !== undefined) updates.recurrenceInterval = recurrenceInterval;
+  if (recurrenceEndDate !== undefined) updates.recurrenceEndDate = recurrenceEndDate;
+  if (skippedDates !== undefined) updates.skippedDates = skippedDates;
+
   const [row] = await db
     .update(routinesTable)
     .set(updates)

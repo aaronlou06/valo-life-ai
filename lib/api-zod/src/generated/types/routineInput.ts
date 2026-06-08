@@ -14,4 +14,11 @@ export interface RoutineInput {
   color?: string;
   activities?: string;
   isDisplayedOnCalendar?: boolean;
+  recurrenceType?: string;
+  /** @nullable */
+  recurrenceInterval?: number | null;
+  /** @nullable */
+  recurrenceEndDate?: string | null;
+  /** @nullable */
+  skippedDates?: string | null;
 }

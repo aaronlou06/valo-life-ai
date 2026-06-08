@@ -1,4 +1,4 @@
-import { pgTable, serial, text, timestamp } from "drizzle-orm/pg-core";
+import { pgTable, serial, text, integer, timestamp } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 
@@ -12,6 +12,10 @@ export const calendarEventsTable = pgTable("calendar_events", {
   location: text("location"),
   type: text("type"),
   notes: text("notes"),
+  recurrenceType: text("recurrence_type").notNull().default("none"),
+  recurrenceInterval: integer("recurrence_interval"),
+  recurrenceEndDate: text("recurrence_end_date"),
+  deletedOccurrences: text("deleted_occurrences"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
