@@ -1321,6 +1321,7 @@ function WeekView({
         const dateStr = toISODate(date);
         const dayEvents = eventsByDate[dateStr] ?? [];
         const isToday = dateStr === currentTodayStr;
+        const holiday = getHolidayForDate(dateStr);
         const visibleEvents = dayEvents.slice(0, 4);
         const hiddenCount = dayEvents.length - visibleEvents.length;
         return (
@@ -1338,6 +1339,11 @@ function WeekView({
                 {date.getDate()}
               </Text>
             </View>
+            {holiday && (
+              <View style={[planStyles.cellPill, { backgroundColor: HOLIDAY_COLOR, marginBottom: 2 }]}>
+                <Text style={planStyles.cellPillText} numberOfLines={1}>{holiday.name}</Text>
+              </View>
+            )}
             {visibleEvents.map((ev) => {
               const color = eventColor(ev);
               return (
