@@ -181,7 +181,8 @@ function buildContextString(data: Record<string, unknown>): string {
   lines.push(
     "\nREMINDER MANAGEMENT INSTRUCTIONS: When the user mentions reminders (e.g. 'remind me 2 days before my dentist', 'turn off reminders for gym', 'what reminders do I have'), use the reminders API. " +
     "To create: POST /api/reminders { type: 'event'|'routine', label, scheduledTime (HH:MM), isActive: true, metadata: { entityId, entityType, remindBeforeSeconds } }. " +
-    "To deactivate without deleting (so they return when re-enabled): POST the same metadata with isActive: false. " +
+    "To deactivate without deleting (records are preserved and return when re-enabled): PATCH /api/reminders/{id} { isActive: false }. " +
+    "To re-enable: PATCH /api/reminders/{id} { isActive: true }. " +
     "To delete permanently: DELETE /api/reminders/{id}. " +
     "After any change, confirm by restating the entity name and the offset in plain language (e.g. 'Done — I have set a reminder 2 days before your dentist appointment').",
   );

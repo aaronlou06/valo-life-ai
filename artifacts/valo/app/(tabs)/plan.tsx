@@ -39,6 +39,7 @@ import {
   getListHabitsQueryKey,
   useListCalendarEvents,
   useCreateCalendarEvent,
+  useUpdateCalendarEvent,
   useDeleteCalendarEvent,
   useListRoutines,
   useCreateRoutine,
@@ -660,12 +661,19 @@ function ReminderSlotsSection({
 // ─── Add Event Modal ──────────────────────────────────────────────────────────
 
 function AddEventModal({
-  visible, onClose, onCreated, colors, prefilledDate = "",
+  visible, onClose, onCreated, colors, prefilledDate = "", event,
 }: {
   visible: boolean; onClose: () => void; onCreated: () => void; colors: Colors; prefilledDate?: string;
+  event?: CalendarEvent;
 }) {
+  const isEdit = !!event;
   const { mutateAsync: createEvent } = useCreateCalendarEvent();
+  const { mutateAsync: updateEvent } = useUpdateCalendarEvent();
   const { mutateAsync: upsertReminder } = useUpsertReminder();
+  const { mutateAsync: deleteReminder } = useDeleteReminder();
+  const { data: allRemindersForModal = [] } = useListReminders();
+  const queryClient = useQueryClient();
+  const existingEventRemindersRef = useRef<Reminder[]>([]);
   const [title, setTitle] = useState("");
   const [date, setDate] = useState("");
   const [eventType, setEventType] = useState<string | null>(null);
@@ -676,10 +684,37 @@ function AddEventModal({
 
   useEffect(() => {
     if (visible) {
-      setTitle(""); setDate(prefilledDate); setEventType(null); setNotes(""); setSaving(false);
-      setReminderEnabled(false); setReminderSlots([3600]);
+      if (event) {
+        setTitle(event.title);
+        setDate(event.date);
+        setEventType(event.type ?? null);
+        setNotes(routineNotesText(event.notes));
+        setSaving(false);
+        // Load ALL reminders for this event (active + inactive) so toggle-off preserves records.
+        const existing = allRemindersForModal.filter((r) => {
+          const m = r.metadata as { entityId?: string } | null;
+          return r.type === "event" && m?.entityId === String(event.id);
+        });
+        existingEventRemindersRef.current = existing;
+        const hasAny = existing.length > 0;
+        const hasActive = existing.some((r) => r.isActive);
+        setReminderEnabled(hasActive);
+        setReminderSlots(
+          hasAny
+            ? existing.map((r) => {
+                const m = r.metadata as { remindBeforeSeconds?: number } | null;
+                return m?.remindBeforeSeconds ?? 3600;
+              })
+            : [3600],
+        );
+      } else {
+        setTitle(""); setDate(prefilledDate); setEventType(null); setNotes(""); setSaving(false);
+        setReminderEnabled(false); setReminderSlots([3600]);
+        existingEventRemindersRef.current = [];
+      }
     }
-  }, [visible, prefilledDate]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [visible, prefilledDate, event]);
 
   async function handleSave() {
     if (!title.trim()) { Alert.alert("Required", "Please enter an event title."); return; }
@@ -689,9 +724,43 @@ function AddEventModal({
       const datePart = date.includes("T") ? date.split("T")[0]! : date;
       const timeDisplay = extractTimeDisplay(date);
       const notesVal = timeDisplay ? `time:${timeDisplay}|${notes.trim()}` : notes.trim();
-      const saved = await createEvent({ data: { title: title.trim(), date: datePart, type: eventType, notes: notesVal || null } });
-      if (reminderEnabled && reminderSlots.length > 0 && saved?.id) {
-        const eventDateTime = date.includes("T") ? new Date(date) : null;
+
+      let savedId: number;
+      if (isEdit && event) {
+        await updateEvent({ id: event.id, data: { title: title.trim(), date: datePart, type: eventType, notes: notesVal || null } });
+        savedId = event.id;
+      } else {
+        const saved = await createEvent({ data: { title: title.trim(), date: datePart, type: eventType, notes: notesVal || null } });
+        savedId = saved.id;
+      }
+
+      const existingList = existingEventRemindersRef.current;
+      const eventDateTime = date.includes("T") ? new Date(date) : null;
+
+      if (!reminderEnabled) {
+        // Toggle OFF: deactivate existing records without deleting so they return when re-enabled.
+        for (const existing of existingList) {
+          void cancelEntityReminderNotification(existing.id);
+          const m = existing.metadata as { remindBeforeSeconds?: number } | null;
+          void upsertReminder({
+            data: { type: "event", label: title.trim(), scheduledTime: "00:00", isActive: false,
+              metadata: { entityId: String(savedId), entityType: "event", remindBeforeSeconds: m?.remindBeforeSeconds ?? 3600 } },
+          }).catch(() => {});
+        }
+      } else {
+        // Toggle ON: upsert active slots, delete removed ones.
+        const existingBySeconds = new Map<number, Reminder>();
+        for (const ex of existingList) {
+          const m = ex.metadata as { remindBeforeSeconds?: number } | null;
+          if (m?.remindBeforeSeconds != null) existingBySeconds.set(m.remindBeforeSeconds, ex);
+        }
+        const currentSlotSet = new Set(reminderSlots);
+        for (const [secs, existing] of existingBySeconds) {
+          if (!currentSlotSet.has(secs)) {
+            void cancelEntityReminderNotification(existing.id);
+            void deleteReminder({ id: existing.id }).catch(() => {});
+          }
+        }
         for (const remindBeforeSeconds of reminderSlots) {
           const fireAt = eventDateTime ? new Date(eventDateTime.getTime() - remindBeforeSeconds * 1000) : null;
           const scheduledTime = fireAt
@@ -700,7 +769,7 @@ function AddEventModal({
           try {
             const reminder = await upsertReminder({
               data: { type: "event", label: title.trim(), scheduledTime, isActive: true,
-                metadata: { entityId: String(saved.id), entityType: "event", remindBeforeSeconds } },
+                metadata: { entityId: String(savedId), entityType: "event", remindBeforeSeconds } },
             });
             if (reminder?.id && fireAt && fireAt > new Date()) {
               void scheduleEventReminderNotification(reminder.id, title.trim(), fireAt);
@@ -708,6 +777,8 @@ function AddEventModal({
           } catch {}
         }
       }
+      queryClient.invalidateQueries({ queryKey: getListRemindersQueryKey() });
+
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       onCreated();
       onClose();
@@ -724,7 +795,7 @@ function AddEventModal({
           <View style={[Sh.bottomSheet, { backgroundColor: colors.background }]}>
             <View style={[Sh.sheetHandle, { backgroundColor: colors.border }]} />
             <View style={Sh.sheetHeader}>
-              <Text style={[Sh.sheetTitle, { color: colors.foreground, fontFamily: "Inter_700Bold" }]}>New Event</Text>
+              <Text style={[Sh.sheetTitle, { color: colors.foreground, fontFamily: "Inter_700Bold" }]}>{isEdit ? "Edit Event" : "New Event"}</Text>
               <TouchableOpacity onPress={onClose} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
                 <Feather name="x" size={22} color={colors.mutedForeground} />
               </TouchableOpacity>
@@ -769,7 +840,7 @@ function AddEventModal({
               />
               <TouchableOpacity style={[Sh.saveBtn, { backgroundColor: colors.primary, opacity: saving ? 0.7 : 1 }]} onPress={handleSave} disabled={saving}>
                 {saving ? <ActivityIndicator color={colors.primaryForeground} size="small" /> : null}
-                <Text style={[Sh.saveBtnText, { color: colors.primaryForeground, fontFamily: "Inter_600SemiBold" }]}>{saving ? "Saving..." : "Save event"}</Text>
+                <Text style={[Sh.saveBtnText, { color: colors.primaryForeground, fontFamily: "Inter_600SemiBold" }]}>{saving ? "Saving..." : (isEdit ? "Save changes" : "Save event")}</Text>
               </TouchableOpacity>
             </ScrollView>
           </View>
@@ -1222,10 +1293,10 @@ function MyScheduleCard({ schedule, onEdit, colors }: { schedule: WorkSchedule |
 // ─── Day Detail Sheet ─────────────────────────────────────────────────────────
 
 function DayDetailSheet({
-  visible, dateStr, events, onClose, onAddEvent, onDelete, onRoutineTap, colors, bottomInset,
+  visible, dateStr, events, onClose, onAddEvent, onDelete, onEditEvent, onRoutineTap, colors, bottomInset,
 }: {
   visible: boolean; dateStr: string; events: CalendarEvent[]; onClose: () => void;
-  onAddEvent: () => void; onDelete: (id: number) => void;
+  onAddEvent: () => void; onDelete: (id: number) => void; onEditEvent?: (ev: CalendarEvent) => void;
   onRoutineTap: (ev: CalendarEvent) => void;
   colors: Colors; bottomInset: number;
 }) {
@@ -1306,16 +1377,25 @@ function DayDetailSheet({
                         </View>
                       )}
                       {!isRoutine && (
-                        <TouchableOpacity
-                          onPress={() => Alert.alert("Delete Event", `Remove "${ev.title}"?`, [
-                            { text: "Cancel", style: "cancel" },
-                            { text: "Delete", style: "destructive", onPress: () => onDelete(ev.id) },
-                          ])}
-                          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                          style={{ marginLeft: 4 }}
-                        >
-                          <Feather name="trash-2" size={16} color={colors.mutedForeground} />
-                        </TouchableOpacity>
+                        <>
+                          <TouchableOpacity
+                            onPress={() => onEditEvent?.(ev)}
+                            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                            style={{ marginLeft: 4 }}
+                          >
+                            <Feather name="edit-2" size={15} color={colors.mutedForeground} />
+                          </TouchableOpacity>
+                          <TouchableOpacity
+                            onPress={() => Alert.alert("Delete Event", `Remove "${ev.title}"?`, [
+                              { text: "Cancel", style: "cancel" },
+                              { text: "Delete", style: "destructive", onPress: () => onDelete(ev.id) },
+                            ])}
+                            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                            style={{ marginLeft: 4 }}
+                          >
+                            <Feather name="trash-2" size={16} color={colors.mutedForeground} />
+                          </TouchableOpacity>
+                        </>
                       )}
                     </View>
                     {timeLabel ? (
@@ -2326,6 +2406,7 @@ export default function PlanScreen() {
   const [showAddEvent, setShowAddEvent] = useState(false);
   const [showRecurringEvent, setShowRecurringEvent] = useState(false);
   const [addEventDate, setAddEventDate] = useState("");
+  const [editingEvent, setEditingEvent] = useState<CalendarEvent | null>(null);
 
   // ── Schedule / routines state ──
   const [schedule, setSchedule] = useState<WorkSchedule | null>(null);
@@ -3143,10 +3224,11 @@ export default function PlanScreen() {
 
       <AddEventModal
         visible={showAddEvent}
-        onClose={() => setShowAddEvent(false)}
+        onClose={() => { setShowAddEvent(false); setEditingEvent(null); }}
         onCreated={() => refetch()}
         colors={colors}
         prefilledDate={addEventDate}
+        event={editingEvent ?? undefined}
       />
 
       <RecurringEventModal
@@ -3182,6 +3264,11 @@ export default function PlanScreen() {
         onClose={() => setShowDayDetail(false)}
         onAddEvent={() => openAddForDate(selectedDate)}
         onDelete={handleDeleteEvent}
+        onEditEvent={(ev) => {
+          setShowDayDetail(false);
+          setEditingEvent(ev);
+          setTimeout(() => setShowAddEvent(true), 220);
+        }}
         onRoutineTap={(ev) => {
           const routine = routines.find((r) => ev.title === r.name || ev.title.startsWith(r.name + " —"));
           if (!routine) return;

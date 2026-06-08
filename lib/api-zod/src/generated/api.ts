@@ -234,6 +234,31 @@ export const CreateCalendarEventBody = zod.object({
 });
 
 /**
+ * @summary Update a calendar event
+ */
+export const UpdateCalendarEventParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const UpdateCalendarEventBody = zod.object({
+  title: zod.string().optional(),
+  date: zod.string().optional(),
+  type: zod.string().nullish(),
+  notes: zod.string().nullish(),
+});
+
+export const UpdateCalendarEventResponse = zod.object({
+  id: zod.number(),
+  userId: zod.string(),
+  date: zod.string(),
+  title: zod.string(),
+  startTime: zod.string().nullish(),
+  endTime: zod.string().nullish(),
+  type: zod.string().nullish(),
+  notes: zod.string().nullish(),
+});
+
+/**
  * @summary Delete a calendar event
  */
 export const DeleteCalendarEventParams = zod.object({
@@ -620,8 +645,19 @@ export const ListHabitCompletionsResponse = zod.array(
 );
 
 /**
- * @summary List all reminders for the authenticated user
+ * @summary List reminders for the authenticated user, optionally filtered by entity
  */
+export const ListRemindersQueryParams = zod.object({
+  entity_type: zod.coerce
+    .string()
+    .optional()
+    .describe("Filter by entity type (e.g. 'event' or 'routine')"),
+  entity_id: zod.coerce
+    .string()
+    .optional()
+    .describe("Filter by entity ID stored in metadata.entityId"),
+});
+
 export const ListRemindersResponseItem = zod.object({
   id: zod.number(),
   userId: zod.string(),
@@ -647,6 +683,32 @@ export const UpsertReminderBody = zod.object({
 });
 
 export const UpsertReminderResponse = zod.object({
+  id: zod.number(),
+  userId: zod.string(),
+  type: zod.string(),
+  label: zod.string(),
+  scheduledTime: zod.string().describe("HH:MM 24-hour time string"),
+  isActive: zod.boolean(),
+  metadata: zod.record(zod.string(), zod.unknown()).nullish(),
+  createdAt: zod.string(),
+  updatedAt: zod.string(),
+});
+
+/**
+ * @summary Partially update a reminder (e.g. toggle isActive)
+ */
+export const UpdateReminderParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const UpdateReminderBody = zod.object({
+  isActive: zod.boolean().optional(),
+  label: zod.string().optional(),
+  scheduledTime: zod.string().optional(),
+  metadata: zod.record(zod.string(), zod.unknown()).nullish(),
+});
+
+export const UpdateReminderResponse = zod.object({
   id: zod.number(),
   userId: zod.string(),
   type: zod.string(),

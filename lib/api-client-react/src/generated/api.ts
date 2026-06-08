@@ -21,6 +21,7 @@ import type {
   AnalyzeImageResult,
   CalendarEvent,
   CalendarEventInput,
+  CalendarEventUpdate,
   DailyLog,
   DailyLogInput,
   DailyLogOrNull,
@@ -36,6 +37,7 @@ import type {
   InsightEntry,
   InsightPattern,
   ListDailyLogHistoryParams,
+  ListRemindersParams,
   LogEntry,
   LogEntryInput,
   MoodEntry,
@@ -44,6 +46,7 @@ import type {
   OnboardingStatus,
   Reminder,
   ReminderInput,
+  ReminderUpdate,
   Routine,
   RoutineInput,
   RoutineUpdate,
@@ -1034,6 +1037,93 @@ export const useCreateCalendarEvent = <
   TContext
 > => {
   return useMutation(getCreateCalendarEventMutationOptions(options));
+};
+
+/**
+ * @summary Update a calendar event
+ */
+export const getUpdateCalendarEventUrl = (id: number) => {
+  return `/api/calendar-events/${id}`;
+};
+
+export const updateCalendarEvent = async (
+  id: number,
+  calendarEventUpdate: CalendarEventUpdate,
+  options?: RequestInit,
+): Promise<CalendarEvent> => {
+  return customFetch<CalendarEvent>(getUpdateCalendarEventUrl(id), {
+    ...options,
+    method: "PATCH",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(calendarEventUpdate),
+  });
+};
+
+export const getUpdateCalendarEventMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateCalendarEvent>>,
+    TError,
+    { id: number; data: BodyType<CalendarEventUpdate> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof updateCalendarEvent>>,
+  TError,
+  { id: number; data: BodyType<CalendarEventUpdate> },
+  TContext
+> => {
+  const mutationKey = ["updateCalendarEvent"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof updateCalendarEvent>>,
+    { id: number; data: BodyType<CalendarEventUpdate> }
+  > = (props) => {
+    const { id, data } = props ?? {};
+
+    return updateCalendarEvent(id, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type UpdateCalendarEventMutationResult = NonNullable<
+  Awaited<ReturnType<typeof updateCalendarEvent>>
+>;
+export type UpdateCalendarEventMutationBody = BodyType<CalendarEventUpdate>;
+export type UpdateCalendarEventMutationError = ErrorType<void>;
+
+/**
+ * @summary Update a calendar event
+ */
+export const useUpdateCalendarEvent = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateCalendarEvent>>,
+    TError,
+    { id: number; data: BodyType<CalendarEventUpdate> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof updateCalendarEvent>>,
+  TError,
+  { id: number; data: BodyType<CalendarEventUpdate> },
+  TContext
+> => {
+  return useMutation(getUpdateCalendarEventMutationOptions(options));
 };
 
 /**
@@ -2896,43 +2986,59 @@ export function useListHabitCompletions<
 }
 
 /**
- * @summary List all reminders for the authenticated user
+ * @summary List reminders for the authenticated user, optionally filtered by entity
  */
-export const getListRemindersUrl = () => {
-  return `/api/reminders`;
+export const getListRemindersUrl = (params?: ListRemindersParams) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/reminders?${stringifiedParams}`
+    : `/api/reminders`;
 };
 
 export const listReminders = async (
+  params?: ListRemindersParams,
   options?: RequestInit,
 ): Promise<Reminder[]> => {
-  return customFetch<Reminder[]>(getListRemindersUrl(), {
+  return customFetch<Reminder[]>(getListRemindersUrl(params), {
     ...options,
     method: "GET",
   });
 };
 
-export const getListRemindersQueryKey = () => {
-  return [`/api/reminders`] as const;
+export const getListRemindersQueryKey = (params?: ListRemindersParams) => {
+  return [`/api/reminders`, ...(params ? [params] : [])] as const;
 };
 
 export const getListRemindersQueryOptions = <
   TData = Awaited<ReturnType<typeof listReminders>>,
   TError = ErrorType<unknown>,
->(options?: {
-  query?: UseQueryOptions<
-    Awaited<ReturnType<typeof listReminders>>,
-    TError,
-    TData
-  >;
-  request?: SecondParameter<typeof customFetch>;
-}) => {
+>(
+  params?: ListRemindersParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listReminders>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
   const { query: queryOptions, request: requestOptions } = options ?? {};
 
-  const queryKey = queryOptions?.queryKey ?? getListRemindersQueryKey();
+  const queryKey = queryOptions?.queryKey ?? getListRemindersQueryKey(params);
 
   const queryFn: QueryFunction<Awaited<ReturnType<typeof listReminders>>> = ({
     signal,
-  }) => listReminders({ signal, ...requestOptions });
+  }) => listReminders(params, { signal, ...requestOptions });
 
   return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
     Awaited<ReturnType<typeof listReminders>>,
@@ -2947,21 +3053,24 @@ export type ListRemindersQueryResult = NonNullable<
 export type ListRemindersQueryError = ErrorType<unknown>;
 
 /**
- * @summary List all reminders for the authenticated user
+ * @summary List reminders for the authenticated user, optionally filtered by entity
  */
 
 export function useListReminders<
   TData = Awaited<ReturnType<typeof listReminders>>,
   TError = ErrorType<unknown>,
->(options?: {
-  query?: UseQueryOptions<
-    Awaited<ReturnType<typeof listReminders>>,
-    TError,
-    TData
-  >;
-  request?: SecondParameter<typeof customFetch>;
-}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
-  const queryOptions = getListRemindersQueryOptions(options);
+>(
+  params?: ListRemindersParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listReminders>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getListRemindersQueryOptions(params, options);
 
   const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
     queryKey: QueryKey;
@@ -3054,6 +3163,93 @@ export const useUpsertReminder = <
   TContext
 > => {
   return useMutation(getUpsertReminderMutationOptions(options));
+};
+
+/**
+ * @summary Partially update a reminder (e.g. toggle isActive)
+ */
+export const getUpdateReminderUrl = (id: number) => {
+  return `/api/reminders/${id}`;
+};
+
+export const updateReminder = async (
+  id: number,
+  reminderUpdate: ReminderUpdate,
+  options?: RequestInit,
+): Promise<Reminder> => {
+  return customFetch<Reminder>(getUpdateReminderUrl(id), {
+    ...options,
+    method: "PATCH",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(reminderUpdate),
+  });
+};
+
+export const getUpdateReminderMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateReminder>>,
+    TError,
+    { id: number; data: BodyType<ReminderUpdate> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof updateReminder>>,
+  TError,
+  { id: number; data: BodyType<ReminderUpdate> },
+  TContext
+> => {
+  const mutationKey = ["updateReminder"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof updateReminder>>,
+    { id: number; data: BodyType<ReminderUpdate> }
+  > = (props) => {
+    const { id, data } = props ?? {};
+
+    return updateReminder(id, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type UpdateReminderMutationResult = NonNullable<
+  Awaited<ReturnType<typeof updateReminder>>
+>;
+export type UpdateReminderMutationBody = BodyType<ReminderUpdate>;
+export type UpdateReminderMutationError = ErrorType<void>;
+
+/**
+ * @summary Partially update a reminder (e.g. toggle isActive)
+ */
+export const useUpdateReminder = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateReminder>>,
+    TError,
+    { id: number; data: BodyType<ReminderUpdate> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof updateReminder>>,
+  TError,
+  { id: number; data: BodyType<ReminderUpdate> },
+  TContext
+> => {
+  return useMutation(getUpdateReminderMutationOptions(options));
 };
 
 /**

@@ -244,6 +244,31 @@ paths:
                 $ref: "#/components/schemas/CalendarEvent"
 
   /calendar-events/{id}:
+    patch:
+      operationId: updateCalendarEvent
+      tags: [calendar-events]
+      summary: Update a calendar event
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CalendarEventUpdate"
+      responses:
+        "200":
+          description: Updated event
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CalendarEvent"
+        "404":
+          description: Not found
     delete:
       operationId: deleteCalendarEvent
       tags: [calendar-events]
@@ -634,7 +659,20 @@ paths:
     get:
       operationId: listReminders
       tags: [habits]
-      summary: List all reminders for the authenticated user
+      summary: List reminders for the authenticated user, optionally filtered by entity
+      parameters:
+        - name: entity_type
+          in: query
+          required: false
+          schema:
+            type: string
+          description: "Filter by entity type (e.g. 'event' or 'routine')"
+        - name: entity_id
+          in: query
+          required: false
+          schema:
+            type: string
+          description: "Filter by entity ID stored in metadata.entityId"
       responses:
         "200":
           description: List of reminders
@@ -663,6 +701,31 @@ paths:
                 $ref: "#/components/schemas/Reminder"
 
   /reminders/{id}:
+    patch:
+      operationId: updateReminder
+      tags: [habits]
+      summary: Partially update a reminder (e.g. toggle isActive)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReminderUpdate"
+      responses:
+        "200":
+          description: Updated reminder
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Reminder"
+        "404":
+          description: Not found
     delete:
       operationId: deleteReminder
       tags: [habits]
@@ -1335,6 +1398,32 @@ components:
           description: "HH:MM 24-hour time string"
         isActive:
           type: boolean
+        metadata:
+          type: object
+          nullable: true
+          additionalProperties: true
+
+    CalendarEventUpdate:
+      type: object
+      properties:
+        title:
+          type: string
+        date:
+          type: string
+        type:
+          type: ["string", "null"]
+        notes:
+          type: ["string", "null"]
+
+    ReminderUpdate:
+      type: object
+      properties:
+        isActive:
+          type: boolean
+        label:
+          type: string
+        scheduledTime:
+          type: string
         metadata:
           type: object
           nullable: true

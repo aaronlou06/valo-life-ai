@@ -455,6 +455,24 @@ export interface ReminderInput {
   metadata?: ReminderInputMetadata;
 }
 
+export interface CalendarEventUpdate {
+  title?: string;
+  date?: string;
+  /** @nullable */
+  type?: string | null;
+  /** @nullable */
+  notes?: string | null;
+}
+
+export type ReminderUpdateMetadata = { [key: string]: unknown } | null;
+
+export interface ReminderUpdate {
+  isActive?: boolean;
+  label?: string;
+  scheduledTime?: string;
+  metadata?: ReminderUpdateMetadata;
+}
+
 export interface InsightPattern {
   id: number;
   userId: string;
@@ -487,4 +505,15 @@ export type SaveOnboarding200 = {
 
 export type UpdateSettings200 = {
   ok: boolean;
+};
+
+export type ListRemindersParams = {
+  /**
+   * Filter by entity type (e.g. 'event' or 'routine')
+   */
+  entity_type?: string;
+  /**
+   * Filter by entity ID stored in metadata.entityId
+   */
+  entity_id?: string;
 };

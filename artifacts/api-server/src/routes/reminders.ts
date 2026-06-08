@@ -7,11 +7,25 @@ const router: IRouter = Router();
 
 router.get("/reminders", requireAuth, async (req, res): Promise<void> => {
   const userId = (req as AuthenticatedRequest).userId;
-  const reminders = await db
+  const entityType = typeof req.query.entity_type === "string" ? req.query.entity_type : undefined;
+  const entityId = typeof req.query.entity_id === "string" ? req.query.entity_id : undefined;
+  const all = await db
     .select()
     .from(remindersTable)
     .where(eq(remindersTable.userId, userId));
-  res.json(reminders);
+  if (entityType || entityId) {
+    const filtered = all.filter((r) => {
+      if (entityType && r.type !== entityType) return false;
+      if (entityId) {
+        const m = r.metadata as { entityId?: string } | null;
+        if (m?.entityId !== entityId) return false;
+      }
+      return true;
+    });
+    res.json(filtered);
+    return;
+  }
+  res.json(all);
 });
 
 router.post("/reminders", requireAuth, async (req, res): Promise<void> => {
@@ -111,6 +125,28 @@ router.post("/reminders", requireAuth, async (req, res): Promise<void> => {
     })
     .returning();
   res.json(reminder);
+});
+
+router.patch("/reminders/:id", requireAuth, async (req, res): Promise<void> => {
+  const userId = (req as AuthenticatedRequest).userId;
+  const rawId = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+  const id = parseInt(rawId!, 10);
+  if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
+  const { isActive, label, scheduledTime, metadata } = req.body as {
+    isActive?: boolean; label?: string; scheduledTime?: string; metadata?: Record<string, unknown> | null;
+  };
+  const updateData: Record<string, unknown> = { updatedAt: new Date() };
+  if (isActive !== undefined) updateData.isActive = isActive;
+  if (label !== undefined) updateData.label = label;
+  if (scheduledTime !== undefined) updateData.scheduledTime = scheduledTime;
+  if (metadata !== undefined) updateData.metadata = metadata;
+  const [updated] = await db
+    .update(remindersTable)
+    .set(updateData)
+    .where(and(eq(remindersTable.id, id), eq(remindersTable.userId, userId)))
+    .returning();
+  if (!updated) { res.status(404).json({ error: "Not found" }); return; }
+  res.json(updated);
 });
 
 router.delete("/reminders/:id", requireAuth, async (req, res): Promise<void> => {

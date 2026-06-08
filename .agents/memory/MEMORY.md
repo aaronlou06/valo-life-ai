@@ -1,2 +1,3 @@
 - [Tab structure](tab-structure.md) — 5 active tabs: checkin, plan, health, insights, profile. Old screens deleted. All routes point to checkin, not today.
 - [Auth routes](auth-routes.md) — custom session auth (not Clerk). change-password and delete-account added to auth.ts.
+- [Multi-reminder event editing](multi-reminder-event-editing.md) — AddEventModal supports edit mode via event? prop; PATCH /reminders/:id added for isActive toggle-off semantics.
