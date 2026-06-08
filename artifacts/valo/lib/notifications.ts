@@ -254,3 +254,120 @@ export async function cancelMorningBriefing(): Promise<void> {
     // ignore
   }
 }
+
+const ENTITY_REMINDER_PREFIX = "valo.entity-reminder.";
+
+/**
+ * Schedules a one-time notification for an event reminder.
+ * Silently skips if fireAt is in the past or expo-notifications is unavailable.
+ */
+export async function scheduleEventReminderNotification(
+  reminderId: number,
+  entityTitle: string,
+  fireAt: Date,
+): Promise<void> {
+  if (!isNativePlatform()) {
+    console.log(`[notifications] skipping event reminder ${reminderId} (not native)`);
+    return;
+  }
+  try {
+    if (fireAt <= new Date()) return;
+    await cancelEntityReminderNotification(reminderId);
+    const granted = await requestNotificationPermissions();
+    if (!granted) return;
+    const Notifications = await _ensureHandler();
+    await Notifications.scheduleNotificationAsync({
+      identifier: `${ENTITY_REMINDER_PREFIX}${reminderId}`,
+      content: {
+        title: "Reminder",
+        body: entityTitle,
+        data: { type: "entity-reminder", reminderId },
+      },
+      trigger: {
+        type: Notifications.SchedulableTriggerInputTypes.DATE,
+        date: fireAt,
+      },
+    });
+  } catch {
+    // never surface to user
+  }
+}
+
+/**
+ * Schedules weekly repeating notifications for a routine reminder.
+ * Computes the correct fire day/time from the routine scheduled time minus the offset.
+ * Silently skips if expo-notifications is unavailable or no time/days are set.
+ */
+export async function scheduleRoutineReminderNotification(
+  reminderId: number,
+  entityTitle: string,
+  routineTimeHHMM: string,
+  remindBeforeSeconds: number,
+  daysOfWeek: number[],
+): Promise<void> {
+  if (!isNativePlatform()) {
+    console.log(`[notifications] skipping routine reminder ${reminderId} (not native)`);
+    return;
+  }
+  if (!routineTimeHHMM || daysOfWeek.length === 0) return;
+  try {
+    await cancelEntityReminderNotification(reminderId);
+    const granted = await requestNotificationPermissions();
+    if (!granted) return;
+    const Notifications = await _ensureHandler();
+    const parsed = parseHHMM(routineTimeHHMM);
+    if (!parsed) return;
+
+    const routineMinutes = parsed.hour * 60 + parsed.minute;
+    const totalOffsetMinutes = Math.floor(remindBeforeSeconds / 60);
+    const rawFireMinutes = routineMinutes - totalOffsetMinutes;
+    const fireMinutes = ((rawFireMinutes % 1440) + 1440) % 1440;
+    const fireHour = Math.floor(fireMinutes / 60);
+    const fireMinute = fireMinutes % 60;
+    const dayShift = rawFireMinutes < 0 ? Math.ceil(-rawFireMinutes / 1440) : 0;
+
+    for (const day of daysOfWeek) {
+      const fireDay = ((day - dayShift) % 7 + 7) % 7;
+      await Notifications.scheduleNotificationAsync({
+        identifier: `${ENTITY_REMINDER_PREFIX}${reminderId}.d${day}`,
+        content: {
+          title: "Routine reminder",
+          body: entityTitle,
+          data: { type: "routine-reminder", reminderId },
+        },
+        trigger: {
+          type: Notifications.SchedulableTriggerInputTypes.CALENDAR,
+          weekday: fireDay + 1,
+          hour: fireHour,
+          minute: fireMinute,
+          repeats: true,
+        },
+      });
+    }
+  } catch {
+    // never surface to user
+  }
+}
+
+/**
+ * Cancels all scheduled notifications for an entity reminder
+ * (handles both one-time event and per-day routine variants).
+ */
+export async function cancelEntityReminderNotification(reminderId: number): Promise<void> {
+  if (!isNativePlatform()) return;
+  try {
+    const Notifications = await _ensureHandler();
+    const base = `${ENTITY_REMINDER_PREFIX}${reminderId}`;
+    const all = await Notifications.getAllScheduledNotificationsAsync();
+    const matching = all.filter(
+      (n) => n.identifier === base || n.identifier.startsWith(`${base}.`),
+    );
+    await Promise.all(
+      matching.map((n) =>
+        Notifications.cancelScheduledNotificationAsync(n.identifier).catch(() => {}),
+      ),
+    );
+  } catch {
+    // ignore
+  }
+}

@@ -8,6 +8,7 @@ import {
   insightsTable,
   logEntriesTable,
   moodEntriesTable,
+  remindersTable,
   userProfilesTable,
 } from "@workspace/db";
 
@@ -43,6 +44,21 @@ function fmtTime(dt: Date | null | undefined): string {
     minute: "2-digit",
     hour12: true,
   });
+}
+
+function fmtReminderSecs(secs: number): string {
+  if (secs >= 7 * 86400) return "7 days";
+  if (secs >= 5 * 86400) return "5 days";
+  if (secs >= 3 * 86400) return "3 days";
+  if (secs >= 2 * 86400) return "2 days";
+  if (secs >= 86400) return "1 day";
+  if (secs >= 12 * 3600) return "12 hours";
+  if (secs >= 8 * 3600) return "8 hours";
+  if (secs >= 4 * 3600) return "4 hours";
+  if (secs >= 2 * 3600) return "2 hours";
+  if (secs >= 3600) return "1 hour";
+  if (secs >= 1800) return "30 min";
+  return "15 min";
 }
 
 export function computeReadiness(
@@ -144,6 +160,9 @@ function buildContextString(data: Record<string, unknown>): string {
   const calTomorrow = data.calendar_tomorrow_str as string | null;
   if (calTomorrow) lines.push(`- Tomorrow calendar: ${calTomorrow}`);
 
+  const entityReminders = data.entity_reminders_str as string | null;
+  if (entityReminders) lines.push(`- Active reminders: ${entityReminders}`);
+
   const motivation = data.user_motivation as string | null;
   if (motivation) {
     lines.push(`- Motivation language (use verbatim when encouraging): "${motivation}"`);
@@ -181,6 +200,7 @@ export async function buildVapiContext(userId: string): Promise<Record<string, u
     calendarTomorrow,
     latestInsight,
     todayLogEntries,
+    entityReminderRows,
   ] = await Promise.all([
     db
       .select()
@@ -250,10 +270,36 @@ export async function buildVapiContext(userId: string): Promise<Record<string, u
       .from(logEntriesTable)
       .where(and(eq(logEntriesTable.userId, userId), eq(logEntriesTable.date, today)))
       .orderBy(asc(logEntriesTable.createdAt)),
+
+    db
+      .select()
+      .from(remindersTable)
+      .where(and(eq(remindersTable.userId, userId), eq(remindersTable.isActive, true))),
   ]);
 
   const log = todayLogRows[0];
   const profile = profileRows[0];
+
+  // ── Entity reminders ─────────────────────────────────────────────────────────
+  const activeEntityReminders = entityReminderRows.filter(
+    (r) => r.type === "event" || r.type === "routine",
+  );
+  const reminderByEntity = new Map<string, { label: string; type: string; offsets: string[] }>();
+  for (const r of activeEntityReminders) {
+    const m = r.metadata as { entityId?: string; remindBeforeSeconds?: number } | null;
+    const entityId = m?.entityId ?? String(r.id);
+    const key = `${r.type}:${entityId}`;
+    if (!reminderByEntity.has(key)) {
+      reminderByEntity.set(key, { label: r.label, type: r.type, offsets: [] });
+    }
+    reminderByEntity.get(key)!.offsets.push(fmtReminderSecs(m?.remindBeforeSeconds ?? 0));
+  }
+  const entity_reminders_str =
+    reminderByEntity.size > 0
+      ? Array.from(reminderByEntity.values())
+          .map((e) => `"${e.label}" (${e.type}): ${e.offsets.join(", ")} before`)
+          .join("; ")
+      : null;
 
   // ── 30-day averages ──────────────────────────────────────────────────────
   const sleep_avg_30d = numAvg(logs30.filter((l) => l.sleepHours != null).map((l) => l.sleepHours!));
@@ -446,6 +492,9 @@ export async function buildVapiContext(userId: string): Promise<Record<string, u
 
     // ── AI insight ───────────────────────────────────────────────────────
     latest_pattern,
+
+    // ── Entity reminders ─────────────────────────────────────────────────
+    entity_reminders_str,
   };
 
   // context_string is built last — it references the fields above

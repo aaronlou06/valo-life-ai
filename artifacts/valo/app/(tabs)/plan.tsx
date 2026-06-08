@@ -7,6 +7,7 @@ import {
   RefreshControl,
   TouchableOpacity,
   Modal,
+  Switch,
   TextInput,
   Alert,
   KeyboardAvoidingView,
@@ -57,6 +58,9 @@ import {
 import {
   scheduleHabitReminder,
   cancelHabitReminder,
+  scheduleEventReminderNotification,
+  scheduleRoutineReminderNotification,
+  cancelEntityReminderNotification,
 } from "@/lib/notifications";
 import { useQueryClient } from "@tanstack/react-query";
 
@@ -114,6 +118,22 @@ const RECURRENCE_OPTIONS = [
   { key: "custom_days",      label: "Custom days" },
   { key: "every_month",      label: "Every month on the…" },
 ] as const;
+
+const REMINDER_OFFSETS = [
+  { label: "15 min",  seconds: 15 * 60 },
+  { label: "30 min",  seconds: 30 * 60 },
+  { label: "1 hr",    seconds: 60 * 60 },
+  { label: "2 hr",    seconds: 2 * 60 * 60 },
+  { label: "4 hr",    seconds: 4 * 60 * 60 },
+  { label: "8 hr",    seconds: 8 * 60 * 60 },
+  { label: "12 hr",   seconds: 12 * 60 * 60 },
+  { label: "1 day",   seconds: 24 * 60 * 60 },
+  { label: "2 days",  seconds: 2 * 24 * 60 * 60 },
+  { label: "3 days",  seconds: 3 * 24 * 60 * 60 },
+  { label: "5 days",  seconds: 5 * 24 * 60 * 60 },
+  { label: "7 days",  seconds: 7 * 24 * 60 * 60 },
+] as const;
+const MAX_REMINDERS = 5;
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -572,6 +592,71 @@ function TimePickerField({ value, onChange, colors }: { value: string; onChange:
   );
 }
 
+// ─── Reminder Slots Section ───────────────────────────────────────────────────
+
+function ReminderSlotsSection({
+  enabled, onToggle, slots, onAddSlot, onRemoveSlot, onChangeSlot, colors,
+}: {
+  enabled: boolean;
+  onToggle: (v: boolean) => void;
+  slots: number[];
+  onAddSlot: () => void;
+  onRemoveSlot: (idx: number) => void;
+  onChangeSlot: (idx: number, seconds: number) => void;
+  colors: Colors;
+}) {
+  return (
+    <View style={Sh.fieldBlock}>
+      <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: enabled ? 10 : 0 }}>
+        <Text style={[Sh.fieldLabel, { color: colors.mutedForeground, fontFamily: "Inter_500Medium", marginBottom: 0 }]}>Reminders</Text>
+        <Switch
+          value={enabled}
+          onValueChange={onToggle}
+          trackColor={{ false: colors.border, true: colors.primary }}
+          thumbColor="#FFFFFF"
+        />
+      </View>
+      {enabled && (
+        <View style={{ gap: 10 }}>
+          {slots.map((secs, idx) => (
+            <View key={idx} style={{ gap: 4 }}>
+              <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
+                <Text style={{ fontSize: 12, color: colors.mutedForeground, fontFamily: "Inter_400Regular" }}>Remind me before</Text>
+                <TouchableOpacity onPress={() => onRemoveSlot(idx)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                  <Feather name="x" size={15} color={colors.mutedForeground} />
+                </TouchableOpacity>
+              </View>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 6, paddingVertical: 2 }}>
+                {REMINDER_OFFSETS.map((o) => {
+                  const active = secs === o.seconds;
+                  return (
+                    <TouchableOpacity
+                      key={o.seconds}
+                      onPress={() => onChangeSlot(idx, o.seconds)}
+                      style={[Sh.typeChip, { backgroundColor: active ? colors.primary : colors.card, borderColor: active ? colors.primary : colors.border }]}
+                    >
+                      <Text style={[Sh.typeChipText, { color: active ? colors.primaryForeground : colors.foreground, fontFamily: "Inter_500Medium" }]}>{o.label}</Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </ScrollView>
+            </View>
+          ))}
+          {slots.length < MAX_REMINDERS && (
+            <TouchableOpacity
+              style={[Sh.addActivityBtn, { borderColor: colors.border }]}
+              onPress={onAddSlot}
+            >
+              <Feather name="plus" size={14} color={colors.mutedForeground} />
+              <Text style={[Sh.addActivityText, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>Add reminder</Text>
+            </TouchableOpacity>
+          )}
+        </View>
+      )}
+    </View>
+  );
+}
+
 // ─── Add Event Modal ──────────────────────────────────────────────────────────
 
 function AddEventModal({
@@ -580,14 +665,20 @@ function AddEventModal({
   visible: boolean; onClose: () => void; onCreated: () => void; colors: Colors; prefilledDate?: string;
 }) {
   const { mutateAsync: createEvent } = useCreateCalendarEvent();
+  const { mutateAsync: upsertReminder } = useUpsertReminder();
   const [title, setTitle] = useState("");
   const [date, setDate] = useState("");
   const [eventType, setEventType] = useState<string | null>(null);
   const [notes, setNotes] = useState("");
   const [saving, setSaving] = useState(false);
+  const [reminderEnabled, setReminderEnabled] = useState(false);
+  const [reminderSlots, setReminderSlots] = useState<number[]>([3600]);
 
   useEffect(() => {
-    if (visible) { setTitle(""); setDate(prefilledDate); setEventType(null); setNotes(""); setSaving(false); }
+    if (visible) {
+      setTitle(""); setDate(prefilledDate); setEventType(null); setNotes(""); setSaving(false);
+      setReminderEnabled(false); setReminderSlots([3600]);
+    }
   }, [visible, prefilledDate]);
 
   async function handleSave() {
@@ -598,7 +689,25 @@ function AddEventModal({
       const datePart = date.includes("T") ? date.split("T")[0]! : date;
       const timeDisplay = extractTimeDisplay(date);
       const notesVal = timeDisplay ? `time:${timeDisplay}|${notes.trim()}` : notes.trim();
-      await createEvent({ data: { title: title.trim(), date: datePart, type: eventType, notes: notesVal || null } });
+      const saved = await createEvent({ data: { title: title.trim(), date: datePart, type: eventType, notes: notesVal || null } });
+      if (reminderEnabled && reminderSlots.length > 0 && saved?.id) {
+        const eventDateTime = date.includes("T") ? new Date(date) : null;
+        for (const remindBeforeSeconds of reminderSlots) {
+          const fireAt = eventDateTime ? new Date(eventDateTime.getTime() - remindBeforeSeconds * 1000) : null;
+          const scheduledTime = fireAt
+            ? `${String(fireAt.getHours()).padStart(2, "0")}:${String(fireAt.getMinutes()).padStart(2, "0")}`
+            : "00:00";
+          try {
+            const reminder = await upsertReminder({
+              data: { type: "event", label: title.trim(), scheduledTime, isActive: true,
+                metadata: { entityId: String(saved.id), entityType: "event", remindBeforeSeconds } },
+            });
+            if (reminder?.id && fireAt && fireAt > new Date()) {
+              void scheduleEventReminderNotification(reminder.id, title.trim(), fireAt);
+            }
+          } catch {}
+        }
+      }
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       onCreated();
       onClose();
@@ -649,6 +758,15 @@ function AddEventModal({
                 <TextInput value={notes} onChangeText={setNotes} placeholder="Optional notes..." placeholderTextColor={colors.mutedForeground} multiline
                   style={[Sh.textInput, Sh.textArea, { color: colors.foreground, borderColor: colors.border, backgroundColor: colors.card, fontFamily: "Inter_400Regular" }]} />
               </View>
+              <ReminderSlotsSection
+                enabled={reminderEnabled}
+                onToggle={setReminderEnabled}
+                slots={reminderSlots}
+                onAddSlot={() => setReminderSlots((p) => [...p, 3600])}
+                onRemoveSlot={(idx) => setReminderSlots((p) => p.filter((_, i) => i !== idx))}
+                onChangeSlot={(idx, secs) => setReminderSlots((p) => p.map((s, i) => i === idx ? secs : s))}
+                colors={colors}
+              />
               <TouchableOpacity style={[Sh.saveBtn, { backgroundColor: colors.primary, opacity: saving ? 0.7 : 1 }]} onPress={handleSave} disabled={saving}>
                 {saving ? <ActivityIndicator color={colors.primaryForeground} size="small" /> : null}
                 <Text style={[Sh.saveBtnText, { color: colors.primaryForeground, fontFamily: "Inter_600SemiBold" }]}>{saving ? "Saving..." : "Save event"}</Text>
@@ -1639,22 +1757,75 @@ function RoutineModal({
   const [days, setDays] = useState<number[]>([]);
   const [time, setTime] = useState("");
   const [activities, setActivities] = useState<string[]>([""]);
+  const [reminderEnabled, setReminderEnabled] = useState(false);
+  const [reminderSlots, setReminderSlots] = useState<number[]>([3600]);
+
+  const [newId] = useState(() => generateId());
+  const routineId = routine?.id ?? newId;
+
+  const queryClient = useQueryClient();
+  const { mutateAsync: upsertReminder } = useUpsertReminder();
+  const { mutateAsync: deleteReminder } = useDeleteReminder();
+  const { data: allReminders = [] } = useListReminders();
+  const existingRemindersRef = useRef<Reminder[]>([]);
 
   useEffect(() => {
     if (visible) {
-      if (routine) { setName(routine.name); setColor(routine.color); setDays([...routine.days]); setTime(routine.time ?? ""); setActivities(routine.activities.length > 0 ? [...routine.activities] : [""]); }
-      else { setName(""); setColor(ROUTINE_COLORS[0]!); setDays([]); setTime(""); setActivities([""]); }
+      const existing = allReminders.filter((r) => {
+        const m = r.metadata as { entityId?: string } | null;
+        return r.type === "routine" && m?.entityId === routineId;
+      });
+      existingRemindersRef.current = existing;
+      if (routine) {
+        setName(routine.name); setColor(routine.color); setDays([...routine.days]);
+        setTime(routine.time ?? ""); setActivities(routine.activities.length > 0 ? [...routine.activities] : [""]);
+        const active = existing.filter((r) => r.isActive);
+        setReminderEnabled(active.length > 0);
+        setReminderSlots(
+          active.length > 0
+            ? active.map((r) => {
+                const m = r.metadata as { remindBeforeSeconds?: number } | null;
+                return m?.remindBeforeSeconds ?? 3600;
+              })
+            : [3600],
+        );
+      } else {
+        setName(""); setColor(ROUTINE_COLORS[0]!); setDays([]); setTime(""); setActivities([""]);
+        setReminderEnabled(false); setReminderSlots([3600]);
+      }
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [visible, routine]);
 
   function toggleDay(d: number) {
     setDays((prev) => prev.includes(d) ? prev.filter((x) => x !== d) : [...prev, d].sort((a, b) => a - b));
   }
 
-  function handleSave() {
+  async function handleSave() {
     if (!name.trim()) { Alert.alert("Required", "Please enter a routine name."); return; }
     if (days.length === 0) { Alert.alert("Required", "Please select at least one day."); return; }
-    onSave({ id: routine?.id ?? generateId(), name: name.trim(), color, days, time: time || undefined, activities: activities.map((a) => a.trim()).filter(Boolean) });
+    const r: Routine = { id: routineId, name: name.trim(), color, days, time: time || undefined, activities: activities.map((a) => a.trim()).filter(Boolean) };
+    onSave(r);
+    // Delete old reminders for this routine and cancel their notifications
+    for (const existing of existingRemindersRef.current) {
+      void cancelEntityReminderNotification(existing.id);
+      void deleteReminder({ id: existing.id }).catch(() => {});
+    }
+    // Create new reminders
+    if (reminderEnabled && reminderSlots.length > 0) {
+      for (const remindBeforeSeconds of reminderSlots) {
+        try {
+          const saved = await upsertReminder({
+            data: { type: "routine", label: name.trim(), scheduledTime: time || "00:00", isActive: true,
+              metadata: { entityId: routineId, entityType: "routine", remindBeforeSeconds } },
+          });
+          if (saved?.id) {
+            void scheduleRoutineReminderNotification(saved.id, name.trim(), time, remindBeforeSeconds, days);
+          }
+        } catch {}
+      }
+    }
+    queryClient.invalidateQueries({ queryKey: getListRemindersQueryKey() });
     onClose();
   }
 
@@ -1669,7 +1840,7 @@ function RoutineModal({
               <Feather name="x" size={22} color={colors.mutedForeground} />
             </TouchableOpacity>
             <Text style={[Sh.routineModalTitle, { color: colors.foreground, fontFamily: "Inter_700Bold" }]}>{routine ? "Edit Routine" : "New Routine"}</Text>
-            <TouchableOpacity onPress={handleSave}>
+            <TouchableOpacity onPress={() => void handleSave()}>
               <Text style={[Sh.routineModalSave, { color: colors.primary, fontFamily: "Inter_600SemiBold" }]}>Save</Text>
             </TouchableOpacity>
           </View>
@@ -1730,6 +1901,15 @@ function RoutineModal({
                 <Text style={[Sh.addActivityText, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>Add activity</Text>
               </TouchableOpacity>
             </View>
+            <ReminderSlotsSection
+              enabled={reminderEnabled}
+              onToggle={setReminderEnabled}
+              slots={reminderSlots}
+              onAddSlot={() => setReminderSlots((p) => [...p, 3600])}
+              onRemoveSlot={(idx) => setReminderSlots((p) => p.filter((_, i) => i !== idx))}
+              onChangeSlot={(idx, secs) => setReminderSlots((p) => p.map((s, i) => i === idx ? secs : s))}
+              colors={colors}
+            />
             {onDelete && (
               <TouchableOpacity
                 style={[Sh.saveBtn, { backgroundColor: colors.muted, marginTop: 8 }]}
