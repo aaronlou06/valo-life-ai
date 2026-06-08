@@ -262,7 +262,7 @@ const styles = StyleSheet.create({
   },
   fabWrapper: {
     position: "absolute",
-    bottom: TAB_BAR_HEIGHT + 8,
+    bottom: TAB_BAR_HEIGHT - 20,
     alignSelf: "center",
     zIndex: 20,
     shadowColor: "#C17B3F",
