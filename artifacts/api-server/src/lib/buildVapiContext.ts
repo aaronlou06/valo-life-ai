@@ -299,9 +299,15 @@ export async function buildVapiContext(userId: string): Promise<Record<string, u
   const log = todayLogRows[0];
   const profile = profileRows[0];
   const lastDebrief = recentDebriefs[0] ?? null;
-  const recentStruggles = recentDebriefs
-    .filter((d) => d.oneStruggle)
-    .map((d) => d.oneStruggle!);
+
+  // Prefer AI-detected cross-call patterns (written by detectRecurringPatterns
+  // after each call-end). Fall back to raw oneStruggle list if not yet computed.
+  const storedPatterns = profile?.recurringStruggles
+    ? (JSON.parse(profile.recurringStruggles) as string[])
+    : null;
+  const recentStruggles: string[] =
+    storedPatterns ??
+    recentDebriefs.filter((d) => d.oneStruggle).map((d) => d.oneStruggle!);
 
   // ── Entity reminders ─────────────────────────────────────────────────────────
   const activeEntityReminders = entityReminderRows.filter(

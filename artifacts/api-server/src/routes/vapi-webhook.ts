@@ -1,7 +1,11 @@
 import { Router, type IRouter } from "express";
 import { eq } from "drizzle-orm";
 import { db, callsTable, userProfilesTable } from "@workspace/db";
-import { processDebriefTranscript, type TranscriptEntry } from "../lib/processDebrief";
+import {
+  processDebriefTranscript,
+  detectRecurringPatterns,
+  type TranscriptEntry,
+} from "../lib/processDebrief";
 
 const router: IRouter = Router();
 
@@ -125,6 +129,14 @@ router.post("/vapi/webhook", async (req, res): Promise<void> => {
       });
     }
   }
+
+  // Detect recurring patterns across the last 30 debriefs and persist them to
+  // the user's profile so {{memory_recurring_struggles}} reflects genuine
+  // cross-call themes, not just the most recent call's single struggle.
+  // Runs after every call-end (outbound and web-SDK alike) — fails silently.
+  await detectRecurringPatterns(effectiveUserId).catch((err) => {
+    req.log.error({ err, userId: effectiveUserId }, "detectRecurringPatterns failed in webhook");
+  });
 });
 
 export default router;

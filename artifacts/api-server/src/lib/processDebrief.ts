@@ -1,4 +1,4 @@
-import { and, eq } from "drizzle-orm";
+import { and, desc, eq } from "drizzle-orm";
 import { anthropic } from "@workspace/integrations-anthropic-ai";
 import {
   db,
@@ -6,6 +6,7 @@ import {
   debriefExtractionsTable,
   transcriptsTable,
   insightsTable,
+  userProfilesTable,
   voiceDebriefsTable,
 } from "@workspace/db";
 import { logger } from "./logger";
@@ -157,4 +158,107 @@ export async function processDebriefTranscript(
   ]);
 
   return extraction;
+}
+
+// ── Recurring pattern detection ───────────────────────────────────────────────
+
+interface RecurringPattern {
+  theme: string;
+  count: number;
+  last_mentioned: string;
+  latest_quote: string;
+}
+
+export async function detectRecurringPatterns(userId: string): Promise<void> {
+  const rows = await db
+    .select({
+      date: debriefExtractionsTable.date,
+      oneStruggle: debriefExtractionsTable.oneStruggle,
+      primaryEmotion: debriefExtractionsTable.primaryEmotion,
+      workStress: debriefExtractionsTable.workStress,
+      flags: debriefExtractionsTable.flags,
+      valoObservation: debriefExtractionsTable.valoObservation,
+    })
+    .from(debriefExtractionsTable)
+    .where(eq(debriefExtractionsTable.userId, userId))
+    .orderBy(desc(debriefExtractionsTable.date))
+    .limit(30);
+
+  if (rows.length < 2) {
+    // Not enough data to find cross-call patterns
+    return;
+  }
+
+  const summaries = rows.map((r) => {
+    const parts = [
+      `Date: ${r.date}`,
+      r.oneStruggle ? `Struggle: ${r.oneStruggle}` : null,
+      r.primaryEmotion ? `Emotion: ${r.primaryEmotion}` : null,
+      r.workStress ? `Work stress: ${r.workStress}` : null,
+      r.flags ? `Flags: ${r.flags}` : null,
+      r.valoObservation ? `Valo observation: ${r.valoObservation}` : null,
+    ].filter((p): p is string => p !== null);
+    return parts.join(" | ");
+  });
+
+  let patterns: RecurringPattern[] = [];
+
+  try {
+    const msg = await anthropic.messages.create({
+      model: "claude-haiku-4-5",
+      max_tokens: 1000,
+      messages: [
+        {
+          role: "user",
+          content: `You are analyzing a series of debrief summaries from a personal life coaching AI. 
+Look across all of them and identify struggles, stressors, or themes that appear more than once.
+
+For each recurring pattern found, return:
+- The theme in plain language (e.g. 'work stress around deadlines', 'sleep struggles on weeknights', 'tension with co-founder')
+- How many times it appeared
+- The most recent date it came up
+- A direct quote or close paraphrase from the most recent mention
+
+Return ONLY valid JSON:
+{
+  "recurring_patterns": [
+    {
+      "theme": string,
+      "count": number,
+      "last_mentioned": ISO date string,
+      "latest_quote": string
+    }
+  ]
+}
+
+If nothing recurs across calls, return { "recurring_patterns": [] }
+
+DEBRIEF SUMMARIES (most recent first):
+${summaries.join("\n")}`,
+        },
+      ],
+    });
+
+    const text = msg.content[0]?.type === "text" ? msg.content[0].text : "";
+    const clean = text.replace(/```(?:json)?\n?/g, "").replace(/```\n?/g, "").trim();
+    const parsed = JSON.parse(clean) as { recurring_patterns: RecurringPattern[] };
+    patterns = Array.isArray(parsed.recurring_patterns) ? parsed.recurring_patterns : [];
+  } catch (err) {
+    logger.error({ err, userId }, "detectRecurringPatterns: Claude call failed");
+    return;
+  }
+
+  // Save pattern themes as a JSON-serialised array of strings on the profile.
+  // buildVapiContext reads this as recent_struggles → {{memory_recurring_struggles}}.
+  const themes = patterns.map((p) => p.theme);
+
+  try {
+    await db
+      .update(userProfilesTable)
+      .set({ recurringStruggles: JSON.stringify(themes) })
+      .where(eq(userProfilesTable.userId, userId));
+    logger.info({ userId, count: themes.length }, "detectRecurringPatterns: profile updated");
+  } catch (err) {
+    logger.error({ err, userId }, "detectRecurringPatterns: DB write failed");
+  }
 }
