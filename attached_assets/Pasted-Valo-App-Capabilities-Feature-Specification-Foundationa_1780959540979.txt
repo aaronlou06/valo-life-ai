@@ -1,0 +1,64 @@
+Valo — App Capabilities & Feature Specification
+Foundational product spec. Captures the full feature set and the reasoning behind the architecture, to be used as the reference for building in Replit.
+
+
+1. Vision
+Valo is an everything app: a personal assistant that integrates into every aspect of the user's life. The strategic bet is consolidation — Valo wins not by out-featuring any single competitor, but by being competent enough across every domain (planning, health, journaling, meals, fitness, time, etc.) that the user can delete everything else and live inside one app.
+
+The heart of the product is an AI assistant that can see and use all of the user's data, paired with voice chat that makes inputting and retrieving information frictionless. Valo is meant to function as a living journal the user can dump information into and decompress by talking to.
+
+The design north star is a tension Valo must resolve on every screen: maximum capability with minimum cognitive load. The user should be able to reach deep, complex data without ever feeling overloaded by it.
+
+
+2. Core Design Principles
+These principles are the foundation. Every feature decision should trace back to one of them.
+
+The AI is the information architecture. In a normal app, "where things live" means menus and screens, because navigation is how users find features. In Valo, the user mostly talks, and the assistant retrieves and inputs on their behalf. So the app is not a feature map — it is (a) what the assistant surfaces unprompted, (b) the conversational surface where data goes in, and (c) a small set of browsable views into one unified pile of personal data. Manual navigation is the fallback; the AI is the primary interface.
+
+One data model, many views. An event, a habit, a workout, a journal entry, an HRV reading — all are timestamped facts about the user living in one unified personal data graph. The pages (Home, Plan, Health) are lenses on that single graph, not separate apps. This is what lets any screen surface the right thing from anywhere, and it prevents feature silos that don't talk to each other.
+
+Progressive disclosure. Every screen presents a calm top layer and offers depth on demand. Surface little; allow drilling deep.
+
+Insights are an overlay, not a destination. Insights are most valuable when they arrive in context, not when the user goes hunting for them in a dedicated tab. (See §9.)
+
+Types are inferred, not selected. The user should rarely have to pick a "goal type" or "event type" from a menu. They say what they mean in natural language ("I want to run a marathon in October"), and the AI classifies and structures it. This keeps input cognitive load near zero.
+
+Front-load the consistent data. During onboarding and early use, Valo captures the things that stay stable most of the time — work, school, habits, routines, diets, commute/driving, etc. — so that ongoing input is minimal and the assistant starts smart.
+
+
+3. The AI Assistant (the heart)
+The assistant is the connective tissue of the entire app. It:
+
+Has read/write access to the user's full unified data graph (plans, health, journal, profile context, integrations).
+Accepts voice, guided, and text input frictionlessly (see §6, Check-in).
+Infers structure from natural language — turning rambling input into structured events, tasks, goals, habits, and flagged signals.
+Surfaces the right information proactively on Home and contextually elsewhere.
+Functions as a conversational partner for decompression and reflection — Valo is a place to be heard, not just a database.
+Continuously re-reads and re-interprets the user's history as new data arrives, so old entries gain new meaning and new connections surface over time.
+
+
+4. Data Lifecycle
+Onboarding sequence. The user's first run captures initial baseline data and the stable "facts about me" (see §7, Profile). The goal is to front-load everything consistent so the assistant is useful immediately.
+
+Ongoing capture, three channels:
+
+Check-in conversations (voice / guided / text) — the primary, frictionless channel.
+Manual entry — direct structured input when the user prefers to drive.
+Integrations — wearables, calendars, and other connected services (see §11).
+
+Front-loaded consistent data includes (non-exhaustive): work schedule, school schedule, recurring habits, daily/weekly routines, dietary preferences/restrictions, commute and driving patterns.
+
+Input Data → Store+Use Data → After 6 months, consolidate → 1yr reminder → Keep anniversaries
+
+
+5. Navigation Architecture
+Bottom tab bar (4 tabs): Home · Plan · Health · Profile
+
+Center floating action button: Check-in — the heart-of-app "I want to do or say something" gesture. Expands to: Voice · Guided · Text · Tools.
+
+On Home, two persistent affordances:
+
+Apps button — opens access to Spaces (passive deeper views) and Tools (active agents). (See §8.)
+Notifications button (top of screen).
+
+There is intentionally no Insights tab. Insights surface as an overlay across the app (see §...
