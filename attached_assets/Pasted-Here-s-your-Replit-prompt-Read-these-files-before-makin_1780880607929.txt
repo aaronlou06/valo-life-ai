@@ -1,0 +1,52 @@
+Here's your Replit prompt:
+
+---
+
+> **Read these files before making any changes:**
+> - The Plan tab screen in `artifacts/valo/app/(tabs)/plan.tsx`
+> - Any event or routine creation components in `artifacts/valo/components/`
+> - Any event or routine logic in `artifacts/valo/lib/`
+> - The database schema in `lib/db/src/schema/` — specifically the events and routines tables
+> - The API routes in `artifacts/api-server/src/routes/` related to events and routines
+>
+> **Goal:** Add recurring/repeat options to both events and routines in the Plan tab.
+>
+> **What to build:**
+>
+> **1. Database schema changes**
+> Add the following fields to both the events and routines tables:
+> - `recurrence_type` — one of: `none`, `daily`, `weekly`, `monthly`, `custom`
+> - `recurrence_interval` — a number (only used when type is `custom`, e.g. every 3 days)
+> - `recurrence_end_date` — optional date, null means repeat forever
+>
+> **2. UI — creation and editing**
+> In the event and routine creation/edit forms, add a "Repeat" section below the date/time fields:
+> - A toggle or selector to choose: Does not repeat / Daily / Weekly / Monthly / Custom
+> - When "Custom" is selected, show a number input: "Every ___ days"
+> - An optional "End date" field that appears for any recurring option — if left blank, it repeats forever
+> - Keep the UI clean and consistent with the existing form style
+>
+> **3. Calendar display**
+> When rendering the calendar in the Plan tab, generate and show all instances of a recurring event or routine across the calendar — for example a daily event should appear on every day, a weekly event every 7 days, and so on — up to the end date if one is set, or up to 90 days ahead if no end date is set (to avoid generating infinite dates)
+>
+> **4. Editing a recurring series**
+> When a user edits or deletes a recurring event or routine, ask them: "Just this occurrence" or "All future occurrences" — this is standard calendar behavior and prevents confusion
+>
+> **5. API**
+> Update the relevant API routes to accept and return the new recurrence fields. Run `pnpm codegen` after updating the OpenAPI spec.
+>
+> **Constraints:**
+> - Run `pnpm db:push` after schema changes
+> - Do not use any external calendar library — calculate recurrence dates in plain JavaScript
+> - Do not trigger an EAS build — this is pure JavaScript with no new native modules
+> - Keep visual style consistent with the existing Plan tab
+>
+> **When done:** Run `pnpm typecheck` and fix any errors before finishing.
+
+---
+
+A few notes on why I included specific things:
+
+- **The 90-day cap** — if there's no end date, you need a ceiling or the app would try to generate thousands of future dates and slow down. 90 days is a sensible default that can always be increased later
+- **"Just this occurrence" vs "All future"** — this is the standard behavior in every calendar app (Google, Apple) and prevents the frustrating situation where editing one instance accidentally changes everything
+- **Custom interval stored as a number** — this keeps it flexible without overcomplicating the schema. "Every 3 days" is just `recurrence_type: custom, recurrence_interval: 3`

@@ -1,0 +1,92 @@
+Here's your Replit prompt:
+
+
+Read these files before making any changes:
+
+The Plan tab screen in artifacts/valo/app/(tabs)/plan.tsx
+Any event or routine creation/edit components in artifacts/valo/components/
+Any event or routine logic in artifacts/valo/lib/
+The database schema in lib/db/src/schema/ — specifically the events and routines tables
+The API routes in artifacts/api-server/src/routes/ related to events and routines
+The VAPI context builder in artifacts/api-server/src/lib/ to understand how voice context is structured
+
+Goal: Add the ability to set multiple reminders on any event or routine — via a toggle switch in the UI and via the VAPI voice assistant.
+What to build:
+1. Database schema changes
+Create a new reminders table with the following fields:
+
+id
+user_id
+entity_type — either event or routine
+entity_id — the id of the event or routine it belongs to
+remind_before_seconds — store the reminder offset as seconds (e.g. 1 hour = 3600, 1 day = 86400) so it's flexible and consistent
+is_active — boolean, so the toggle can turn it on/off without deleting it
+created_at
+
+2. UI — toggle switch and reminder picker
+In the event and routine creation/edit forms, add a "Reminders" section:
+
+A physical toggle switch (use React Native's Switch component) labeled "Reminders" — off by default
+When toggled on, show a list of reminder slots the user can add
+Each reminder slot has a picker/selector with these options:
+
+1 hour before
+2 hours before
+3 hours before
+6 hours before
+12 hours before
+1 day before
+2 days before
+3 days before
+4 days before
+5 days before
+6 days before
+7 days before
+
+
+An "+ Add reminder" button to add additional reminder slots (no hard limit but cap display at 5 to keep the UI clean)
+A remove button next to each reminder slot to delete it
+If the toggle is switched off, keep the reminders saved in the database but set is_active to false — so they come back if the user toggles it on again
+
+3. Notification delivery
+
+When a reminder is created or updated, schedule a push notification using expo-notifications to fire at the correct time (event/routine time minus the reminder offset)
+The notification message should follow this format: "reminder: [event or routine name] is coming up in [X hours/days]"
+For recurring events and routines, schedule notifications for all upcoming occurrences up to 90 days ahead
+If a reminder is toggled off or deleted, cancel the corresponding scheduled notification
+Important: expo-notifications must be imported lazily inside the function body, never at the top level
+
+4. VAPI voice integration
+Update the VAPI context so users can set and manage reminders through the voice assistant. The assistant should understand and handle phrases like:
+
+"Remind me 2 days before my dentist appointment"
+"Set a reminder for 1 hour before my morning routine"
+"Turn off reminders for my gym session"
+"Add a reminder 3 days before and 1 hour before my presentation"
+When the voice assistant captures a reminder intent, it should call the API to create or update the reminder, then confirm back to the user: "Got it, I'll remind you 2 days before your dentist appointment"
+
+5. API
+Add the following endpoints:
+
+POST /reminders — create a reminder
+PATCH /reminders/:id — update a reminder (including toggling is_active)
+DELETE /reminders/:id — delete a reminder
+GET /reminders?entity_type=event&entity_id=123 — get all reminders for a specific event or routine
+Update the OpenAPI spec and run pnpm codegen after
+
+Constraints:
+
+Push notifications are already waiting on the next EAS build — if expo-notifications is not yet available in the current build, build the full reminder logic and UI but gracefully skip the notification scheduling step with a console.log noting it will fire after the next EAS build
+Never import expo-notifications at the top level — always lazy import inside the function body
+Do not trigger a new EAS build for this task
+Run pnpm db:push after schema changes
+Keep visual style consistent with the existing Plan tab
+
+When done: Run pnpm typecheck and fix any errors before finishing.
+
+
+A few notes on key decisions in this prompt:
+
+Storing offsets as seconds — rather than storing "2 days" as a string, seconds is a universal number that makes scheduling math simple. 1 hour = 3600, 1 day = 86400, 7 days = 604800
+Toggle keeps reminders alive — turning the toggle off sets is_active to false rather than deleting the reminders, so if Aaron toggles it back on his reminders are still there exactly as he set them
+The EAS build note — since push notifications are already flagged as needing the next EAS build, I've told Replit to build everything but gracefully skip the actual notification firing so nothing crashes in the meantime. Once the EAS build happens, notifications will work automatically
