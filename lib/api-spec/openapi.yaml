@@ -64,7 +64,20 @@ paths:
     get:
       operationId: listDailyLogHistory
       tags: [daily-logs]
-      summary: Get last 30 days of daily logs for the authenticated user
+      summary: Get daily logs for the authenticated user, optionally filtered by date range
+      parameters:
+        - in: query
+          name: startDate
+          schema:
+            type: string
+            format: date
+          description: "ISO date (YYYY-MM-DD). When provided, return all logs on or after this date. When omitted, defaults to the last 30 days."
+        - in: query
+          name: endDate
+          schema:
+            type: string
+            format: date
+          description: "ISO date (YYYY-MM-DD). When provided, return all logs on or before this date. Defaults to today."
       responses:
         "200":
           description: List of daily logs ordered by date descending

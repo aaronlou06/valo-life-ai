@@ -35,6 +35,7 @@ import type {
   HealthStatus,
   InsightEntry,
   InsightPattern,
+  ListDailyLogHistoryParams,
   LogEntry,
   LogEntryInput,
   MoodEntry,
@@ -214,43 +215,65 @@ export function useGetTodayLog<
 }
 
 /**
- * @summary Get last 30 days of daily logs for the authenticated user
+ * @summary Get daily logs for the authenticated user, optionally filtered by date range
  */
-export const getListDailyLogHistoryUrl = () => {
-  return `/api/daily-logs/history`;
+export const getListDailyLogHistoryUrl = (
+  params?: ListDailyLogHistoryParams,
+) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/daily-logs/history?${stringifiedParams}`
+    : `/api/daily-logs/history`;
 };
 
 export const listDailyLogHistory = async (
+  params?: ListDailyLogHistoryParams,
   options?: RequestInit,
 ): Promise<DailyLog[]> => {
-  return customFetch<DailyLog[]>(getListDailyLogHistoryUrl(), {
+  return customFetch<DailyLog[]>(getListDailyLogHistoryUrl(params), {
     ...options,
     method: "GET",
   });
 };
 
-export const getListDailyLogHistoryQueryKey = () => {
-  return [`/api/daily-logs/history`] as const;
+export const getListDailyLogHistoryQueryKey = (
+  params?: ListDailyLogHistoryParams,
+) => {
+  return [`/api/daily-logs/history`, ...(params ? [params] : [])] as const;
 };
 
 export const getListDailyLogHistoryQueryOptions = <
   TData = Awaited<ReturnType<typeof listDailyLogHistory>>,
   TError = ErrorType<unknown>,
->(options?: {
-  query?: UseQueryOptions<
-    Awaited<ReturnType<typeof listDailyLogHistory>>,
-    TError,
-    TData
-  >;
-  request?: SecondParameter<typeof customFetch>;
-}) => {
+>(
+  params?: ListDailyLogHistoryParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listDailyLogHistory>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
   const { query: queryOptions, request: requestOptions } = options ?? {};
 
-  const queryKey = queryOptions?.queryKey ?? getListDailyLogHistoryQueryKey();
+  const queryKey =
+    queryOptions?.queryKey ?? getListDailyLogHistoryQueryKey(params);
 
   const queryFn: QueryFunction<
     Awaited<ReturnType<typeof listDailyLogHistory>>
-  > = ({ signal }) => listDailyLogHistory({ signal, ...requestOptions });
+  > = ({ signal }) =>
+    listDailyLogHistory(params, { signal, ...requestOptions });
 
   return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
     Awaited<ReturnType<typeof listDailyLogHistory>>,
@@ -265,21 +288,24 @@ export type ListDailyLogHistoryQueryResult = NonNullable<
 export type ListDailyLogHistoryQueryError = ErrorType<unknown>;
 
 /**
- * @summary Get last 30 days of daily logs for the authenticated user
+ * @summary Get daily logs for the authenticated user, optionally filtered by date range
  */
 
 export function useListDailyLogHistory<
   TData = Awaited<ReturnType<typeof listDailyLogHistory>>,
   TError = ErrorType<unknown>,
->(options?: {
-  query?: UseQueryOptions<
-    Awaited<ReturnType<typeof listDailyLogHistory>>,
-    TError,
-    TData
-  >;
-  request?: SecondParameter<typeof customFetch>;
-}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
-  const queryOptions = getListDailyLogHistoryQueryOptions(options);
+>(
+  params?: ListDailyLogHistoryParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listDailyLogHistory>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getListDailyLogHistoryQueryOptions(params, options);
 
   const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
     queryKey: QueryKey;

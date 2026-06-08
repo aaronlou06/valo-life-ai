@@ -36,8 +36,23 @@ export const GetTodayLogResponse = zod.union([
 ]);
 
 /**
- * @summary Get last 30 days of daily logs for the authenticated user
+ * @summary Get daily logs for the authenticated user, optionally filtered by date range
  */
+export const ListDailyLogHistoryQueryParams = zod.object({
+  startDate: zod
+    .date()
+    .optional()
+    .describe(
+      "ISO date (YYYY-MM-DD). When provided, return all logs on or after this date. When omitted, defaults to the last 30 days.",
+    ),
+  endDate: zod
+    .date()
+    .optional()
+    .describe(
+      "ISO date (YYYY-MM-DD). When provided, return all logs on or before this date. Defaults to today.",
+    ),
+});
+
 export const ListDailyLogHistoryResponseItem = zod.object({
   id: zod.number(),
   userId: zod.string(),

@@ -27,6 +27,7 @@ export * from "./habitUpdate";
 export * from "./healthStatus";
 export * from "./insightEntry";
 export * from "./insightPattern";
+export * from "./listDailyLogHistoryParams";
 export * from "./logEntry";
 export * from "./logEntryInput";
 export * from "./moodEntry";

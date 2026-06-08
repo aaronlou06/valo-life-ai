@@ -470,6 +470,17 @@ export interface InsightPattern {
   isActive: boolean;
 }
 
+export type ListDailyLogHistoryParams = {
+  /**
+   * ISO date (YYYY-MM-DD). When provided, return all logs on or after this date. When omitted, defaults to the last 30 days.
+   */
+  startDate?: string;
+  /**
+   * ISO date (YYYY-MM-DD). When provided, return all logs on or before this date. Defaults to today.
+   */
+  endDate?: string;
+};
+
 export type SaveOnboarding200 = {
   ok: boolean;
 };

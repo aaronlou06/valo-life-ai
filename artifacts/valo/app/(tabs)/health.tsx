@@ -627,6 +627,253 @@ function AddWorkoutModal({
   );
 }
 
+// ─── HistoryBreakdownModal ────────────────────────────────────────────────────
+
+const HISTORY_METRICS: { key: keyof DailyLog; short: string }[] = [
+  { key: "sleepHours", short: "Sleep" },
+  { key: "hrv", short: "HRV" },
+  { key: "restingHeartRate", short: "RHR" },
+  { key: "steps", short: "Steps" },
+  { key: "activeCalories", short: "Cal" },
+  { key: "respiratoryRate", short: "Resp" },
+];
+
+interface HistoryBreakdownModalProps {
+  visible: boolean;
+  onClose: () => void;
+  authDate: string;
+  colors: Colors;
+}
+
+function HistoryBreakdownModal({
+  visible,
+  onClose,
+  authDate,
+  colors,
+}: HistoryBreakdownModalProps) {
+  const insets = useSafeAreaInsets();
+
+  const startDate = authDate.split("T")[0]!;
+
+  const { data: fullHistory = [], isLoading } = useListDailyLogHistory({
+    startDate,
+  });
+
+  const logByDate = React.useMemo(() => {
+    const map: Record<string, DailyLog> = {};
+    for (const log of fullHistory) {
+      map[log.date] = log;
+    }
+    return map;
+  }, [fullHistory]);
+
+  const days = React.useMemo(() => {
+    const start = new Date(authDate);
+    start.setHours(0, 0, 0, 0);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const result: string[] = [];
+    const cursor = new Date(today);
+    while (cursor >= start) {
+      result.push(cursor.toISOString().split("T")[0]!);
+      cursor.setDate(cursor.getDate() - 1);
+    }
+    return result;
+  }, [authDate]);
+
+  const totalDays = days.length;
+  const daysWithData = days.filter((d) => {
+    const log = logByDate[d];
+    if (!log) return false;
+    return HISTORY_METRICS.some((m) => log[m.key] != null);
+  }).length;
+
+  return (
+    <Modal
+      visible={visible}
+      animationType="slide"
+      presentationStyle="pageSheet"
+      onRequestClose={onClose}
+    >
+      <View style={{ flex: 1, backgroundColor: colors.background }}>
+        {/* Sheet header */}
+        <View
+          style={[
+            styles.modalHeader,
+            { borderBottomColor: colors.border },
+          ]}
+        >
+          <View style={{ width: 60 }} />
+          <Text style={[styles.modalTitle, { color: colors.foreground }]}>
+            Import History
+          </Text>
+          <TouchableOpacity
+            onPress={onClose}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            style={{ width: 60, alignItems: "flex-end" }}
+          >
+            <Text style={[styles.modalCancel, { color: colors.mutedForeground }]}>
+              Done
+            </Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* Summary row */}
+        <View
+          style={[
+            styles.historySummaryRow,
+            { backgroundColor: colors.muted, borderColor: colors.border },
+          ]}
+        >
+          <View style={styles.historySummaryStat}>
+            <Text style={[styles.historySummaryNum, { color: colors.foreground }]}>
+              {totalDays}
+            </Text>
+            <Text style={[styles.historySummaryLabel, { color: colors.mutedForeground }]}>
+              days range
+            </Text>
+          </View>
+          <View
+            style={[styles.historySummaryDivider, { backgroundColor: colors.border }]}
+          />
+          <View style={styles.historySummaryStat}>
+            <Text style={[styles.historySummaryNum, { color: colors.foreground }]}>
+              {daysWithData}
+            </Text>
+            <Text style={[styles.historySummaryLabel, { color: colors.mutedForeground }]}>
+              days with data
+            </Text>
+          </View>
+          <View
+            style={[styles.historySummaryDivider, { backgroundColor: colors.border }]}
+          />
+          <View style={styles.historySummaryStat}>
+            <Text style={[styles.historySummaryNum, { color: colors.foreground }]}>
+              {totalDays - daysWithData}
+            </Text>
+            <Text style={[styles.historySummaryLabel, { color: colors.mutedForeground }]}>
+              gaps
+            </Text>
+          </View>
+        </View>
+
+        {/* Column headers */}
+        <View
+          style={[
+            styles.historyHeaderRow,
+            { borderBottomColor: colors.border },
+          ]}
+        >
+          <Text
+            style={[styles.historyColDate, { color: colors.mutedForeground }]}
+          >
+            DATE
+          </Text>
+          {HISTORY_METRICS.map((m) => (
+            <Text
+              key={m.key as string}
+              style={[styles.historyColMetric, { color: colors.mutedForeground }]}
+            >
+              {m.short}
+            </Text>
+          ))}
+        </View>
+
+        {isLoading ? (
+          <ActivityIndicator
+            size="small"
+            color={colors.primary}
+            style={{ marginTop: 48, alignSelf: "center" }}
+          />
+        ) : (
+        <ScrollView
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={{ paddingBottom: insets.bottom + 24 }}
+        >
+          {days.map((dateStr, idx) => {
+            const log = logByDate[dateStr];
+            const hasAnyData =
+              log != null &&
+              HISTORY_METRICS.some((m) => log[m.key] != null);
+            const isToday = idx === 0;
+
+            return (
+              <View
+                key={dateStr}
+                style={[
+                  styles.historyDayRow,
+                  {
+                    borderBottomColor: colors.border,
+                    backgroundColor: hasAnyData
+                      ? colors.background
+                      : colors.muted,
+                  },
+                ]}
+              >
+                <View style={styles.historyDayDateCell}>
+                  <Text
+                    style={[
+                      styles.historyDayDate,
+                      {
+                        color: hasAnyData
+                          ? colors.foreground
+                          : colors.mutedForeground,
+                        fontWeight: isToday ? "700" : "400",
+                      },
+                    ]}
+                  >
+                    {formatDateLabel(dateStr)}
+                  </Text>
+                  {isToday && (
+                    <View
+                      style={[
+                        styles.todayPill,
+                        { backgroundColor: colors.primary },
+                      ]}
+                    >
+                      <Text
+                        style={[
+                          styles.todayPillText,
+                          { color: colors.primaryForeground },
+                        ]}
+                      >
+                        Today
+                      </Text>
+                    </View>
+                  )}
+                </View>
+                {HISTORY_METRICS.map((m) => {
+                  const val = log?.[m.key];
+                  const present = val != null;
+                  return (
+                    <View
+                      key={m.key as string}
+                      style={styles.historyDotCell}
+                    >
+                      <View
+                        style={[
+                          styles.historyDot,
+                          {
+                            backgroundColor: present
+                              ? colors.primary
+                              : colors.border,
+                            opacity: present ? 1 : 0.5,
+                          },
+                        ]}
+                      />
+                    </View>
+                  );
+                })}
+              </View>
+            );
+          })}
+        </ScrollView>
+        )}
+      </View>
+    </Modal>
+  );
+}
+
 // ─── PlaceholderCard ──────────────────────────────────────────────────────────
 
 interface PlaceholderCardProps {
@@ -688,6 +935,7 @@ export default function HealthScreen() {
   const [savingWorkout, setSavingWorkout] = useState(false);
   const [showAllWorkouts, setShowAllWorkouts] = useState(false);
   const [healthKitAuthDate, setHealthKitAuthDate] = useState<string | null>(null);
+  const [showHistorySheet, setShowHistorySheet] = useState(false);
 
   useEffect(() => {
     AsyncStorage.getItem(HEALTHKIT_AUTHORIZED_DATE_KEY).then((val) => {
@@ -792,12 +1040,20 @@ export default function HealthScreen() {
             const d = new Date(healthKitAuthDate);
             const label = d.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" });
             return (
-              <View style={[styles.historyBadge, { backgroundColor: colors.muted, borderColor: colors.border }]}>
+              <TouchableOpacity
+                onPress={() => {
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                  setShowHistorySheet(true);
+                }}
+                activeOpacity={0.7}
+                style={[styles.historyBadge, { backgroundColor: colors.muted, borderColor: colors.border }]}
+              >
                 <Feather name="clock" size={12} color={colors.mutedForeground} />
                 <Text style={[styles.historyBadgeText, { color: colors.mutedForeground }]}>
                   History available since {label}
                 </Text>
-              </View>
+                <Feather name="chevron-right" size={12} color={colors.mutedForeground} />
+              </TouchableOpacity>
             );
           })()}
 
@@ -1029,6 +1285,15 @@ export default function HealthScreen() {
         saving={savingWorkout}
         colors={colors}
       />
+
+      {healthKitAuthDate != null && (
+        <HistoryBreakdownModal
+          visible={showHistorySheet}
+          onClose={() => setShowHistorySheet(false)}
+          authDate={healthKitAuthDate}
+          colors={colors}
+        />
+      )}
     </SafeAreaView>
   );
 }
@@ -1340,5 +1605,83 @@ const styles = StyleSheet.create({
   effortDotText: {
     fontSize: 14,
     fontWeight: "600",
+  },
+
+  // History breakdown sheet
+  historySummaryRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginHorizontal: 20,
+    marginTop: 16,
+    marginBottom: 4,
+    borderRadius: 12,
+    borderWidth: StyleSheet.hairlineWidth,
+    paddingVertical: 14,
+  },
+  historySummaryStat: {
+    flex: 1,
+    alignItems: "center",
+  },
+  historySummaryNum: {
+    fontSize: 22,
+    fontWeight: "700",
+    letterSpacing: -0.5,
+  },
+  historySummaryLabel: {
+    fontSize: 11,
+    marginTop: 2,
+  },
+  historySummaryDivider: {
+    width: StyleSheet.hairlineWidth,
+    height: 32,
+  },
+  historyHeaderRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 20,
+    paddingVertical: 8,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    marginTop: 12,
+  },
+  historyColDate: {
+    flex: 1,
+    fontSize: 10,
+    fontWeight: "600",
+    letterSpacing: 0.6,
+    textTransform: "uppercase",
+  },
+  historyColMetric: {
+    width: 38,
+    fontSize: 9,
+    fontWeight: "600",
+    letterSpacing: 0.4,
+    textTransform: "uppercase",
+    textAlign: "center",
+  },
+  historyDayRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+  },
+  historyDayDateCell: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  historyDayDate: {
+    fontSize: 14,
+  },
+  historyDotCell: {
+    width: 38,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  historyDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
   },
 });
