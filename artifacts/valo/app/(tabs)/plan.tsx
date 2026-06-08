@@ -1760,9 +1760,6 @@ function RoutineModal({
   const [reminderEnabled, setReminderEnabled] = useState(false);
   const [reminderSlots, setReminderSlots] = useState<number[]>([3600]);
 
-  const [newId] = useState(() => generateId());
-  const routineId = routine?.id ?? newId;
-
   const queryClient = useQueryClient();
   const { mutateAsync: upsertReminder } = useUpsertReminder();
   const { mutateAsync: deleteReminder } = useDeleteReminder();
@@ -1771,19 +1768,24 @@ function RoutineModal({
 
   useEffect(() => {
     if (visible) {
-      const existing = allReminders.filter((r) => {
-        const m = r.metadata as { entityId?: string } | null;
-        return r.type === "routine" && m?.entityId === routineId;
-      });
+      // Load ALL reminders for this routine (active and inactive) so toggle-off
+      // preserves records and they return when re-enabled.
+      const existing = routine
+        ? allReminders.filter((r) => {
+            const m = r.metadata as { entityId?: string } | null;
+            return r.type === "routine" && m?.entityId === routine.id;
+          })
+        : [];
       existingRemindersRef.current = existing;
       if (routine) {
         setName(routine.name); setColor(routine.color); setDays([...routine.days]);
         setTime(routine.time ?? ""); setActivities(routine.activities.length > 0 ? [...routine.activities] : [""]);
-        const active = existing.filter((r) => r.isActive);
-        setReminderEnabled(active.length > 0);
+        const hasAny = existing.length > 0;
+        const hasActive = existing.some((r) => r.isActive);
+        setReminderEnabled(hasActive);
         setReminderSlots(
-          active.length > 0
-            ? active.map((r) => {
+          hasAny
+            ? existing.map((r) => {
                 const m = r.metadata as { remindBeforeSeconds?: number } | null;
                 return m?.remindBeforeSeconds ?? 3600;
               })
@@ -1804,20 +1806,44 @@ function RoutineModal({
   async function handleSave() {
     if (!name.trim()) { Alert.alert("Required", "Please enter a routine name."); return; }
     if (days.length === 0) { Alert.alert("Required", "Please select at least one day."); return; }
-    const r: Routine = { id: routineId, name: name.trim(), color, days, time: time || undefined, activities: activities.map((a) => a.trim()).filter(Boolean) };
+    // Generate a stable new ID at save time (not at mount) so each creation gets a fresh ID.
+    const id = routine?.id ?? generateId();
+    const r: Routine = { id, name: name.trim(), color, days, time: time || undefined, activities: activities.map((a) => a.trim()).filter(Boolean) };
     onSave(r);
-    // Delete old reminders for this routine and cancel their notifications
-    for (const existing of existingRemindersRef.current) {
-      void cancelEntityReminderNotification(existing.id);
-      void deleteReminder({ id: existing.id }).catch(() => {});
-    }
-    // Create new reminders
-    if (reminderEnabled && reminderSlots.length > 0) {
+
+    const existingList = existingRemindersRef.current;
+
+    if (!reminderEnabled) {
+      // Toggle OFF: deactivate existing records without deleting so they return when re-enabled.
+      for (const existing of existingList) {
+        void cancelEntityReminderNotification(existing.id);
+        const m = existing.metadata as { remindBeforeSeconds?: number } | null;
+        void upsertReminder({
+          data: { type: "routine", label: name.trim(), scheduledTime: time || "00:00", isActive: false,
+            metadata: { entityId: id, entityType: "routine", remindBeforeSeconds: m?.remindBeforeSeconds ?? 3600 } },
+        }).catch(() => {});
+      }
+    } else {
+      // Toggle ON: create / update active records for current slots; delete removed slots.
+      const existingBySeconds = new Map<number, Reminder>();
+      for (const ex of existingList) {
+        const m = ex.metadata as { remindBeforeSeconds?: number } | null;
+        if (m?.remindBeforeSeconds != null) existingBySeconds.set(m.remindBeforeSeconds, ex);
+      }
+      const currentSlotSet = new Set(reminderSlots);
+      // Delete records no longer in the slot list (user tapped the remove button).
+      for (const [secs, existing] of existingBySeconds) {
+        if (!currentSlotSet.has(secs)) {
+          void cancelEntityReminderNotification(existing.id);
+          void deleteReminder({ id: existing.id }).catch(() => {});
+        }
+      }
+      // Upsert / schedule each active slot.
       for (const remindBeforeSeconds of reminderSlots) {
         try {
           const saved = await upsertReminder({
             data: { type: "routine", label: name.trim(), scheduledTime: time || "00:00", isActive: true,
-              metadata: { entityId: routineId, entityType: "routine", remindBeforeSeconds } },
+              metadata: { entityId: id, entityType: "routine", remindBeforeSeconds } },
           });
           if (saved?.id) {
             void scheduleRoutineReminderNotification(saved.id, name.trim(), time, remindBeforeSeconds, days);
@@ -2643,12 +2669,30 @@ export default function PlanScreen() {
   }
 
   async function handleDeleteRoutine(r: Routine) {
+    // Cancel notifications and delete reminder records for this routine.
+    const routineReminders = reminders.filter((rem) => {
+      const m = rem.metadata as { entityId?: string } | null;
+      return rem.type === "routine" && m?.entityId === r.id;
+    });
+    for (const rem of routineReminders) {
+      void cancelEntityReminderNotification(rem.id);
+      void deleteReminderMutation.mutateAsync({ id: rem.id }).catch(() => {});
+    }
     await deleteRoutineMutation.mutateAsync({ id: r.id }).catch(() => {});
     queryClient.invalidateQueries({ queryKey: getListRoutinesQueryKey() });
     try { await purgeRoutineEvents(r.name); refetch(); Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success); } catch {}
   }
 
   async function handleDeleteEvent(id: number) {
+    // Cancel notifications and delete reminder records for this event.
+    const eventReminders = reminders.filter((rem) => {
+      const m = rem.metadata as { entityId?: string } | null;
+      return rem.type === "event" && m?.entityId === String(id);
+    });
+    for (const rem of eventReminders) {
+      void cancelEntityReminderNotification(rem.id);
+      void deleteReminderMutation.mutateAsync({ id: rem.id }).catch(() => {});
+    }
     try { await deleteEvent({ id }); refetch(); Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success); }
     catch { Alert.alert("Error", "Failed to delete event. Please try again."); }
   }

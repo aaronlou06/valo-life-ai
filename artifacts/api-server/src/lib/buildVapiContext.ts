@@ -178,6 +178,14 @@ function buildContextString(data: Record<string, unknown>): string {
   const callTime = data.user_call_time as string;
   if (callTime !== "not set") lines.push(`- Preferred call time: ${callTime}`);
 
+  lines.push(
+    "\nREMINDER MANAGEMENT INSTRUCTIONS: When the user mentions reminders (e.g. 'remind me 2 days before my dentist', 'turn off reminders for gym', 'what reminders do I have'), use the reminders API. " +
+    "To create: POST /api/reminders { type: 'event'|'routine', label, scheduledTime (HH:MM), isActive: true, metadata: { entityId, entityType, remindBeforeSeconds } }. " +
+    "To deactivate without deleting (so they return when re-enabled): POST the same metadata with isActive: false. " +
+    "To delete permanently: DELETE /api/reminders/{id}. " +
+    "After any change, confirm by restating the entity name and the offset in plain language (e.g. 'Done — I have set a reminder 2 days before your dentist appointment').",
+  );
+
   return lines.join("\n");
 }
 

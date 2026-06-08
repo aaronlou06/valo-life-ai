@@ -56,12 +56,26 @@ function habitNotificationId(habitId: number): string {
 }
 
 function parseHHMM(time: string): { hour: number; minute: number } | null {
-  const match = time.match(/^(\d{1,2}):(\d{2})$/);
-  if (!match) return null;
-  const hour = parseInt(match[1]!, 10);
-  const minute = parseInt(match[2]!, 10);
-  if (hour < 0 || hour > 23 || minute < 0 || minute > 59) return null;
-  return { hour, minute };
+  // Accept 24-hour HH:MM
+  const m24 = time.match(/^(\d{1,2}):(\d{2})$/);
+  if (m24) {
+    const hour = parseInt(m24[1]!, 10);
+    const minute = parseInt(m24[2]!, 10);
+    if (hour < 0 || hour > 23 || minute < 0 || minute > 59) return null;
+    return { hour, minute };
+  }
+  // Accept 12-hour H:MM AM/PM (e.g. "6:30 PM", "12:00 AM")
+  const m12 = time.match(/^(\d{1,2}):(\d{2})\s*(am|pm)$/i);
+  if (m12) {
+    let hour = parseInt(m12[1]!, 10);
+    const minute = parseInt(m12[2]!, 10);
+    const isPm = m12[3]!.toLowerCase() === "pm";
+    if (isPm && hour !== 12) hour += 12;
+    if (!isPm && hour === 12) hour = 0;
+    if (hour < 0 || hour > 23 || minute < 0 || minute > 59) return null;
+    return { hour, minute };
+  }
+  return null;
 }
 
 /**
@@ -294,8 +308,9 @@ export async function scheduleEventReminderNotification(
 }
 
 /**
- * Schedules weekly repeating notifications for a routine reminder.
- * Computes the correct fire day/time from the routine scheduled time minus the offset.
+ * Schedules individual DATE-trigger notifications for a routine reminder,
+ * covering all occurrences within the next 90 days.
+ * Handles both 24-hour ("18:30") and 12-hour ("6:30 PM") routine times.
  * Silently skips if expo-notifications is unavailable or no time/days are set.
  */
 export async function scheduleRoutineReminderNotification(
@@ -318,31 +333,37 @@ export async function scheduleRoutineReminderNotification(
     const parsed = parseHHMM(routineTimeHHMM);
     if (!parsed) return;
 
-    const routineMinutes = parsed.hour * 60 + parsed.minute;
-    const totalOffsetMinutes = Math.floor(remindBeforeSeconds / 60);
-    const rawFireMinutes = routineMinutes - totalOffsetMinutes;
-    const fireMinutes = ((rawFireMinutes % 1440) + 1440) % 1440;
-    const fireHour = Math.floor(fireMinutes / 60);
-    const fireMinute = fireMinutes % 60;
-    const dayShift = rawFireMinutes < 0 ? Math.ceil(-rawFireMinutes / 1440) : 0;
+    const now = new Date();
+    const cutoff = new Date(now.getTime() + 90 * 24 * 60 * 60 * 1000);
+    const daySet = new Set(daysOfWeek);
 
-    for (const day of daysOfWeek) {
-      const fireDay = ((day - dayShift) % 7 + 7) % 7;
-      await Notifications.scheduleNotificationAsync({
-        identifier: `${ENTITY_REMINDER_PREFIX}${reminderId}.d${day}`,
-        content: {
-          title: "Routine reminder",
-          body: entityTitle,
-          data: { type: "routine-reminder", reminderId },
-        },
-        trigger: {
-          type: Notifications.SchedulableTriggerInputTypes.CALENDAR,
-          weekday: fireDay + 1,
-          hour: fireHour,
-          minute: fireMinute,
-          repeats: true,
-        },
-      });
+    // Walk day-by-day over the 90-day window and schedule a DATE notification
+    // for each occurrence whose fire time (routine time − offset) is still in the future.
+    const cursor = new Date(now);
+    cursor.setHours(0, 0, 0, 0);
+    let notifIndex = 0;
+
+    while (cursor <= cutoff) {
+      if (daySet.has(cursor.getDay())) {
+        const routineTime = new Date(cursor);
+        routineTime.setHours(parsed.hour, parsed.minute, 0, 0);
+        const fireAt = new Date(routineTime.getTime() - remindBeforeSeconds * 1000);
+        if (fireAt > now) {
+          await Notifications.scheduleNotificationAsync({
+            identifier: `${ENTITY_REMINDER_PREFIX}${reminderId}.${notifIndex++}`,
+            content: {
+              title: "Routine reminder",
+              body: entityTitle,
+              data: { type: "routine-reminder", reminderId },
+            },
+            trigger: {
+              type: Notifications.SchedulableTriggerInputTypes.DATE,
+              date: fireAt,
+            },
+          });
+        }
+      }
+      cursor.setDate(cursor.getDate() + 1);
     }
   } catch {
     // never surface to user

@@ -65,6 +65,40 @@ router.post("/reminders", requireAuth, async (req, res): Promise<void> => {
     }
   }
 
+  // Entity-aware upsert for event and routine reminders:
+  // find by (userId, type, metadata.entityId, metadata.remindBeforeSeconds) and update if exists.
+  if ((type === "event" || type === "routine") && metadata != null) {
+    const entityId = String((metadata as { entityId?: unknown }).entityId ?? "");
+    const remindBeforeSeconds = (metadata as { remindBeforeSeconds?: unknown }).remindBeforeSeconds;
+    if (entityId) {
+      const existing = await db
+        .select()
+        .from(remindersTable)
+        .where(and(eq(remindersTable.userId, userId), eq(remindersTable.type, type)))
+        .then((rows) =>
+          rows.find((r) => {
+            const m = r.metadata as { entityId?: string; remindBeforeSeconds?: number } | null;
+            return m?.entityId === entityId && m?.remindBeforeSeconds === remindBeforeSeconds;
+          }),
+        );
+      if (existing) {
+        const [updated] = await db
+          .update(remindersTable)
+          .set({
+            label,
+            scheduledTime,
+            isActive: isActive ?? true,
+            metadata: metadata ?? null,
+            updatedAt: new Date(),
+          })
+          .where(eq(remindersTable.id, existing.id))
+          .returning();
+        res.json(updated);
+        return;
+      }
+    }
+  }
+
   const [reminder] = await db
     .insert(remindersTable)
     .values({
