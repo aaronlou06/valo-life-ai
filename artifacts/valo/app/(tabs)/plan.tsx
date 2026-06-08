@@ -21,6 +21,11 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useColors } from "@/hooks/useColors";
 import { useValoAuth } from "@/contexts/AuthContext";
 import {
+  getHolidaysForMonth,
+  getHolidayForDate,
+  HOLIDAY_COLOR,
+} from "@/constants/federalHolidays";
+import {
   useListGoals,
   useCreateGoal,
   useUpdateGoal,
@@ -1107,6 +1112,7 @@ function DayDetailSheet({
   colors: Colors; bottomInset: number;
 }) {
   const header = dateStr ? formatDayHeader(dateStr) : "";
+  const holiday = dateStr ? getHolidayForDate(dateStr) : null;
 
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
@@ -1122,11 +1128,28 @@ function DayDetailSheet({
           </View>
 
           <ScrollView showsVerticalScrollIndicator={false} style={{ flexGrow: 0 }}>
-            {events.length === 0 ? (
+            {holiday && (
+              <>
+                <Text style={{ fontSize: 11, fontFamily: "Inter_500Medium", color: colors.mutedForeground, textTransform: "uppercase", letterSpacing: 0.6, marginBottom: 6 }}>All Day</Text>
+                <View style={{ backgroundColor: HOLIDAY_COLOR + "15", borderRadius: 10, borderWidth: 1, borderColor: HOLIDAY_COLOR + "40", padding: 12, marginBottom: 8, flexDirection: "row", alignItems: "center", gap: 8 }}>
+                  <View style={{ width: 4, borderRadius: 2, backgroundColor: HOLIDAY_COLOR, alignSelf: "stretch" }} />
+                  <Feather name="flag" size={15} color={HOLIDAY_COLOR} style={{ marginLeft: 2 }} />
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ fontSize: 14, fontFamily: "Inter_500Medium", color: colors.foreground }}>{holiday.name}</Text>
+                    <Text style={{ fontSize: 12, fontFamily: "Inter_400Regular", color: colors.mutedForeground, marginTop: 2 }}>Federal Holiday</Text>
+                  </View>
+                  <View style={{ backgroundColor: HOLIDAY_COLOR + "22", paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6 }}>
+                    <Text style={{ fontSize: 11, fontFamily: "Inter_500Medium", color: HOLIDAY_COLOR }}>All day</Text>
+                  </View>
+                </View>
+                {events.length > 0 && <View style={{ height: 1, backgroundColor: colors.border, marginVertical: 8 }} />}
+              </>
+            )}
+            {events.length === 0 && !holiday ? (
               <Text style={{ color: colors.mutedForeground, fontFamily: "Inter_400Regular", textAlign: "center", paddingVertical: 28, fontSize: 14 }}>
                 No events on this day
               </Text>
-            ) : (() => {
+            ) : events.length === 0 ? null : (() => {
               const sorted = [...events].sort((a, b) => {
                 const am = getEventSortMinutes(a);
                 const bm = getEventSortMinutes(b);
@@ -1228,13 +1251,20 @@ function MonthGrid({
   const cells: (number | null)[] = [...Array<null>(firstDayOffset).fill(null), ...Array.from({ length: daysInMonth }, (_, i) => i + 1)];
   while (cells.length % 7 !== 0) cells.push(null);
 
+  const monthHolidays = useMemo(() => {
+    const holidays = getHolidaysForMonth(viewYear, viewMonth);
+    return new Map(holidays.map((h) => [h.date, h.name]));
+  }, [viewYear, viewMonth]);
+
   return (
     <View style={[planStyles.grid, { borderColor: colors.border }]}>
       {cells.map((day, i) => {
         if (!day) return <View key={`e-${i}`} style={[planStyles.cell, { borderColor: colors.border }]} />;
         const dateStr = `${viewYear}-${String(viewMonth + 1).padStart(2,"0")}-${String(day).padStart(2,"0")}`;
         const dayEvents = eventsByDate[dateStr] ?? [];
-        const visibleEvents = dayEvents.slice(0, MAX_CELL_PILLS);
+        const holidayName = monthHolidays.get(dateStr);
+        const maxPills = holidayName ? MAX_CELL_PILLS - 1 : MAX_CELL_PILLS;
+        const visibleEvents = dayEvents.slice(0, maxPills);
         const hiddenCount = dayEvents.length - visibleEvents.length;
         const isToday = dateStr === currentTodayStr;
         return (
@@ -1250,7 +1280,15 @@ function MonthGrid({
                   {day}
                 </Text>
               </View>
+              {holidayName && (
+                <View style={{ width: 5, height: 5, borderRadius: 3, backgroundColor: HOLIDAY_COLOR, marginLeft: 2 }} />
+              )}
             </View>
+            {holidayName && (
+              <View style={[planStyles.cellPill, { backgroundColor: HOLIDAY_COLOR }]}>
+                <Text style={planStyles.cellPillText} numberOfLines={1}>{holidayName}</Text>
+              </View>
+            )}
             {visibleEvents.map((ev) => (
               <View key={ev.id} style={[planStyles.cellPill, { backgroundColor: eventColor(ev) }]}>
                 <Text style={planStyles.cellPillText} numberOfLines={1}>{ev.title}</Text>
@@ -1339,6 +1377,16 @@ function YearView({
     return result;
   }, [eventsByDate, viewYear]);
 
+  const yearHolidays = useMemo(() => {
+    const set = new Set<string>();
+    for (let m = 0; m < 12; m++) {
+      for (const h of getHolidaysForMonth(viewYear, m)) {
+        set.add(h.date);
+      }
+    }
+    return set;
+  }, [viewYear]);
+
   return (
     <View style={yearStyles.outerGrid}>
       {Array.from({ length: 12 }, (_, monthIdx) => {
@@ -1363,18 +1411,20 @@ function YearView({
                 if (!day) return <View key={`e${monthIdx}-${ci}`} style={yearStyles.dayCell} />;
                 const dateStr = `${viewYear}-${String(monthIdx + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
                 const dotColor = activeDays[dateStr];
+                const isHoliday = yearHolidays.has(dateStr);
                 const isToday = dateStr === currentTodayStr;
                 const hasEvent = !!dotColor;
-                if (!hasEvent && !isToday) {
+                if (!hasEvent && !isToday && !isHoliday) {
                   return (
                     <View key={dateStr} style={yearStyles.dayCell}>
                       <View style={[yearStyles.emptyDot, { backgroundColor: colors.border }]} />
                     </View>
                   );
                 }
+                const activeBg = isToday ? colors.primary : (hasEvent ? dotColor : HOLIDAY_COLOR);
                 return (
                   <TouchableOpacity key={dateStr} style={yearStyles.dayCell} onPress={() => onDayPress(dateStr)} activeOpacity={0.65}>
-                    <View style={[yearStyles.activeDot, { backgroundColor: isToday ? colors.primary : dotColor }]}>
+                    <View style={[yearStyles.activeDot, { backgroundColor: activeBg }]}>
                       <Text style={[yearStyles.activeDotText, { color: "#FFFFFF", fontFamily: "Inter_700Bold" }]}>{day}</Text>
                     </View>
                   </TouchableOpacity>

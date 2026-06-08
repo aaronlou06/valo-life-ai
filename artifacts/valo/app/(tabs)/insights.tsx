@@ -27,6 +27,7 @@ import {
 } from "@workspace/api-client-react";
 import { useColors } from "@/hooks/useColors";
 import { trackEvent } from "@/services/telemetry";
+import { getUpcomingHoliday } from "@/constants/federalHolidays";
 import * as Haptics from "expo-haptics";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -674,6 +675,60 @@ export default function InsightsScreen() {
             <View
               style={[styles.divider, { backgroundColor: colors.border }]}
             />
+
+            {/* Upcoming Holiday */}
+            {(() => {
+              const upcoming = getUpcomingHoliday(30);
+              if (!upcoming) return null;
+              const label =
+                upcoming.daysAway === 0
+                  ? "Today"
+                  : upcoming.daysAway === 1
+                  ? "Tomorrow"
+                  : `In ${upcoming.daysAway} days`;
+              const HOLIDAY_COLOR = "#C17B3F";
+              const message =
+                upcoming.daysAway === 0
+                  ? `${upcoming.name} is today — a federal holiday. Take time to rest or connect with those around you.`
+                  : `${upcoming.name} is ${label.toLowerCase()} — a good time to plan ahead, schedule recovery, or set intentions for the long weekend.`;
+              return (
+                <View style={[styles.sectionBlock, { paddingTop: 20 }]}>
+                  <View
+                    style={{
+                      backgroundColor: HOLIDAY_COLOR + "12",
+                      borderRadius: 14,
+                      borderWidth: 1,
+                      borderColor: HOLIDAY_COLOR + "35",
+                      padding: 16,
+                    }}
+                  >
+                    <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 10 }}>
+                      <View
+                        style={{
+                          backgroundColor: HOLIDAY_COLOR + "22",
+                          paddingHorizontal: 10,
+                          paddingVertical: 4,
+                          borderRadius: 8,
+                        }}
+                      >
+                        <Text style={{ fontSize: 12, fontFamily: "Inter_600SemiBold", color: HOLIDAY_COLOR }}>
+                          Federal Holiday
+                        </Text>
+                      </View>
+                      <Text style={{ fontSize: 12, fontFamily: "Inter_400Regular", color: colors.mutedForeground }}>
+                        {label}
+                      </Text>
+                    </View>
+                    <Text style={{ fontSize: 15, fontFamily: "Inter_600SemiBold", color: colors.foreground, marginBottom: 6 }}>
+                      {upcoming.name}
+                    </Text>
+                    <Text style={{ fontSize: 14, fontFamily: "Inter_400Regular", color: colors.foreground, lineHeight: 22 }}>
+                      {message}
+                    </Text>
+                  </View>
+                </View>
+              );
+            })()}
 
             {/* AI Insights */}
             <View style={styles.sectionBlock}>
