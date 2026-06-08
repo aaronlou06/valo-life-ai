@@ -1,0 +1,316 @@
+Valo — App Capabilities & Feature Specification
+Foundational product spec. Captures the full feature set and the reasoning behind the architecture, to be used as the reference for building in Replit.
+
+
+1. Vision
+Valo is an everything app: a personal assistant that integrates into every aspect of the user's life. The strategic bet is consolidation — Valo wins not by out-featuring any single competitor, but by being competent enough across every domain (planning, health, journaling, meals, fitness, time, etc.) that the user can delete everything else and live inside one app.
+
+The heart of the product is an AI assistant that can see and use all of the user's data, paired with voice chat that makes inputting and retrieving information frictionless. Valo is meant to function as a living journal the user can dump information into and decompress by talking to.
+
+The design north star is a tension Valo must resolve on every screen: maximum capability with minimum cognitive load. The user should be able to reach deep, complex data without ever feeling overloaded by it.
+
+
+2. Core Design Principles
+These principles are the foundation. Every feature decision should trace back to one of them.
+
+The AI is the information architecture. In a normal app, "where things live" means menus and screens, because navigation is how users find features. In Valo, the user mostly talks, and the assistant retrieves and inputs on their behalf. So the app is not a feature map — it is (a) what the assistant surfaces unprompted, (b) the conversational surface where data goes in, and (c) a small set of browsable views into one unified pile of personal data. Manual navigation is the fallback; the AI is the primary interface.
+
+One data model, many views. An event, a habit, a workout, a journal entry, an HRV reading — all are timestamped facts about the user living in one unified personal data graph. The pages (Home, Plan, Health) are lenses on that single graph, not separate apps. This is what lets any screen surface the right thing from anywhere, and it prevents feature silos that don't talk to each other.
+
+Progressive disclosure. Every screen presents a calm top layer and offers depth on demand. Surface little; allow drilling deep.
+
+Insights are an overlay, not a destination. Insights are most valuable when they arrive in context, not when the user goes hunting for them in a dedicated tab. (See §9.)
+
+Types are inferred, not selected. The user should rarely have to pick a "goal type" or "event type" from a menu. They say what they mean in natural language ("I want to run a marathon in October"), and the AI classifies and structures it. This keeps input cognitive load near zero.
+
+Front-load the consistent data. During onboarding and early use, Valo captures the things that stay stable most of the time — work, school, habits, routines, diets, commute/driving, etc. — so that ongoing input is minimal and the assistant starts smart.
+
+
+3. The AI Assistant (the heart)
+The assistant is the connective tissue of the entire app. It:
+
+Has read/write access to the user's full unified data graph (plans, health, journal, profile context, integrations).
+Accepts voice, guided, and text input frictionlessly (see §6, Check-in).
+Infers structure from natural language — turning rambling input into structured events, tasks, goals, habits, and flagged signals.
+Surfaces the right information proactively on Home and contextually elsewhere.
+Functions as a conversational partner for decompression and reflection — Valo is a place to be heard, not just a database.
+Continuously re-reads and re-interprets the user's history as new data arrives, so old entries gain new meaning and new connections surface over time.
+
+
+4. Data Lifecycle
+Onboarding sequence. The user's first run captures initial baseline data and the stable "facts about me" (see §7, Profile). The goal is to front-load everything consistent so the assistant is useful immediately.
+
+Ongoing capture, three channels:
+
+Check-in conversations (voice / guided / text) — the primary, frictionless channel.
+Manual entry — direct structured input when the user prefers to drive.
+Integrations — wearables, calendars, and other connected services (see §11).
+
+Front-loaded consistent data includes (non-exhaustive): work schedule, school schedule, recurring habits, daily/weekly routines, dietary preferences/restrictions, commute and driving patterns.
+
+Input Data → Store+Use Data → After 6 months, consolidate → 1yr reminder → Keep anniversaries
+
+
+5. Navigation Architecture
+Bottom tab bar (4 tabs): Home · Plan · Health · Profile
+
+Center floating action button: Check-in — the heart-of-app "I want to do or say something" gesture. Expands to: Voice · Guided · Text · Tools.
+
+On Home, two persistent affordances:
+
+Apps button — opens access to Spaces (passive deeper views) and Tools (active agents). (See §8.)
+Notifications button (top of screen).
+
+There is intentionally no Insights tab. Insights surface as an overlay across the app (see §9). Tools are reachable from both the Apps button and the center button.
+
+
+6. Page-by-Page Feature Breakdown
+6.1 Home
+The proactive surface. Home should feel like the assistant has already done the work for the user.
+
+Greeting header — personalized ("Good morning, [name]"), with contextual info such as weather and location.
+At a Glance cards — an AI-ranked, time-aware carousel of the most relevant items for the current day/time, plus a slot reflecting the function the user uses most. Candidate card types: next event, today's habit status, morning readiness, an approaching countdown, an unfinished check-in, an AI nudge/suggestion. Cards are capped/ranked to avoid overload rather than showing everything.
+Cross-domain insight cards — proactive "the assistant noticed this for you" findings that don't belong to a single dashboard (see §9).
+Apps button — entry point to Spaces and Tools.
+Notifications button — top of screen.
+Center Check-in button — always available.
+
+Note: The earlier "Your Spaces" launcher grid (Messages/Tasks/Calendar/Notes) has been removed from Home because a grid of feature-launchers works against the low-cognitive-load, AI-first thesis. Those deeper views now live behind the Apps button and Profile (see §8).
+6.2 Plan
+The forward-looking structured view. Plan can plan anything and everything — events, goals, work/school, birthdays, routines, countdowns, and more — across many goal and event types (mostly AI-inferred, per §2).
+
+Core components:
+
+Big Goals — long-horizon goals with progress tracking (e.g., a marathon on a target date, a strength benchmark). Shown with a progress indicator.
+Daily Habits — recurring habits with streaks and completion state.
+Work/School Schedule — the user's recurring obligations, set up once and reused.
+Calendar — with Week / Month / Year views and a "Today" jump. Days show event markers; tapping a day reveals its agenda.
+Today/agenda list — the day's timed items (e.g., morning routine, work blocks, events) with type tags (habit, work, routine, etc.).
+Countdowns — important upcoming dates surfaced prominently (e.g., a trip, a birthday, a work deadline) with days-remaining.
+Add to plan — quick add affordance; type is inferred from natural language wherever possible.
+
+Density is managed with collapsible sections and progressive disclosure so the page stays calm despite holding a lot.
+6.3 Check-in (center button)
+The primary, frictionless input surface and the live "journal" act. Tapping the center button offers:
+
+Voice conversation — open-ended dump/decompress; talk to someone. The richest channel; feeds the living journal and the Mind side of Health.
+Guided check-in — the AI asks targeted questions to fill known data gaps (e.g., "How did your run go? How many hours did you sleep?"). Smart/dynamic based on what's missing, not a fixed template.
+Text box — quick capture for when speaking isn't convenient.
+Tools — direct access to the active agents (also reachable via the Apps button).
+
+Everything captured here is auto-structured by the AI (events, tasks, goals, flagged stressors) and recorded in the living journal.
+6.4 Health (Body + Mind)
+A single page covering physical health and mental wellbeing, with insights woven directly into the dashboard rather than living in a separate section. Surfaces trends, anomalies, and concerns.
+
+Body metrics:
+
+Recovery Score — composite metric based on HRV (Heart Rate Variability) and sleep quality. Vital for athletes balancing lifting splits with endurance training.
+Daily Readiness Indicator — simple color-coded status derived from the recovery score: Optimal (Green) / Caution (Yellow) / Rest (Red). The headline of the page; it should also explain why it's at that level.
+Activity Load — total active calories or "Movement" minutes for the day.
+Hydration Tracker — simple, touch-friendly water-intake logging.
+Sleep Quality — hours of sleep vs. target, including sleep-stage breakdown when available.
+Nutrition / Fueling — streamlined macro breakdown (Protein / Carbs / Fats) focused on fueling for the upcoming workout, rather than a dense calorie log.
+Goal Progression — subtle progress ring/bar toward a goal such as a target-date marathon or specific strength benchmarks.
+Consistency Streak — visual indicator of completed workouts or habits.
+
+Mind (mental wellbeing):
+
+Mood, energy, and stress signals derived primarily from check-in conversations (sentiment, recurring themes). The journal and the Mind side of Health are the same engine viewed from two angles.
+
+Health-specific insights appear as native commentary throughout the dashboard (e.g., readiness explains its own color; the sleep chart notes a recurring Sunday dip).
+
+Graceful degradation: for users without wearables, Health falls back to manual logging and check-in-derived signals rather than showing empty wearable-dependent metrics.
+6.5 Profile
+Identity, configuration, and the assistant's editable context.
+
+About me / Context — the stable "facts about me" the AI uses as long-term context. User-editable, effectively a window into the assistant's memory.
+Integrations management — connect/disconnect wearables, calendars, and other services (see §11).
+Settings — app preferences, notifications, privacy, etc.
+Spaces access — the deeper visual views are also reachable here as a "see everything in detail" drawer (see §8).
+
+
+7. Apps: Spaces & Tools
+Reached via the Apps button on Home (Spaces also via Profile; Tools also via the center button). Spaces and Tools are deliberately kept distinct because they behave differently.
+7.1 Spaces (passive deeper views)
+Browse-and-look views of data the user already has, for when someone wants deeper visuals:
+
+Calendar
+Messages
+Notes
+Tasks
+(extensible)
+7.2 Tools (active agents)
+Agents that produce or manage something. The user mostly won't open these manually — the AI invokes them conversationally ("plan my meals this week" → the meal tool runs). The Tools menu is the manual fallback.
+
+Meal plan writer / tracker
+Grocery buyer
+Workout plan writer / tracker
+Time-management assistant
+Living journal (see §8)
+(extensible — the tool roster is meant to grow)
+
+
+8. The Living Journal
+The living journal is not a diary the user writes in and rarely rereads. It is the connective tissue of the app, doing three jobs at once:
+
+Universal inbox. The user rambles ("dentist next Thursday, gotta renew my passport, dreading the Q3 thing") and the AI quietly files it — an event Thursday, a task to renew the passport, a flagged stressor for the Mind side of Health. The journal is the frictionless front door to the entire structured system; it is how data gets in.
+
+The AI's memory. Most of its value is invisible and upstream: because the user mentioned a stressful week, the assistant later lightens their plan without being asked. The journal is what makes every other screen smart.
+
+A mirror. It gives back by resurfacing and closing loops ("you said you wanted to call your dad more — it's been three weeks"; "you've mentioned feeling drained after Tuesday meetings four times this month"). These reflections are the core mental-health signal feeding the Mind side of Health.
+
+Mechanically, the living journal is the persistent record of check-in conversations, openable as a Tool, and continuously re-interpreted as new data arrives ("living").
+
+
+9. Insights System (overlay model)
+Insights are not a page. They surface in two ways, split by type:
+
+Health-specific insights (trends, anomalies, concerns) are woven directly into the Health dashboard as native commentary.
+Cross-domain insights (correlations that span domains — e.g., "you skip workouts the week after a big work deadline," "you spend less when you sleep more") surface as cards on Home, the proactive "the assistant noticed this for you" surface.
+
+This makes insights feel native and timely rather than bolted on, and it removes the need for an Insights tab.
+
+Open item: this model intentionally drops the "go browse all my patterns on demand" room. If a power user wants to explore months of correlations at will, that capability would need a deep view inside Health or a dedicated Tool. Flagged for a future decision (see §12).
+
+
+10. Onboarding
+The first-run sequence exists to front-load consistent data so the assistant is useful from day one. It captures baseline identity/context (the "About me" data that lives in Profile) and the stable patterns of the user's life: work/school schedule, habits, routines, dietary preferences, commute/driving, and any big goals or important dates. Ongoing data then accrues primarily through check-ins, with manual entry and integrations filling the rest.
+
+
+11. Integrations
+Integrations are the engine of the consolidation strategy: they let Valo absorb the other apps so the user doesn't have to. All integrations are connected and managed in Profile. Where an integration is absent, the relevant feature degrades gracefully to manual entry and check-in-derived data.
+
+Every integration falls into one of two modes, which matters for how it's built and how the assistant uses it:
+
+Read — Valo ingests data to feed the unified data graph, the Health page, and the Insights overlay. Read integrations are what make the assistant smart.
+Action — Valo does something in the world on the user's behalf (book, buy, control, send). Action integrations are the agentic "do it for me" layer.
+
+Build sequencing: this is the full ambition, not a v1 checklist. The catalog should be prioritized into tiers (e.g., the already-planned health/calendar reads first; high-leverage actions like grocery/rides next).
+
+Action guardrail: any Action integration that spends money, books, or controls physical devices must route through an explicit user-confirmation step before executing — the assistant proposes, the user approves. (Flagged in §12.)
+
+Availability caveats from research are preserved inline (no public API / unofficial / private) since they are real build constraints.
+11.1 Health & Wearables (Read)
+Powers Recovery Score, Daily Readiness, Activity Load, Sleep Quality, Goal Progression, and Consistency Streak on the Health page.
+
+Apple HealthKit — read sleep, HRV, steps, RHR, workouts. (already planned)
+Google Fit — Android equivalent of HealthKit; same metrics. (already planned)
+Garmin Connect — read GPS routes, advanced HRV, VO2 max, training load. (already planned)
+Whoop — read recovery, strain, sleep performance; maps almost directly onto Recovery Score and Readiness. (already planned)
+Oura Ring — read sleep stages, readiness score, HRV.
+Fitbit — read steps, sleep, heart rate.
+Polar — read advanced training metrics and running power.
+Withings — read smart-scale weight/body composition, blood pressure, sleep-mat data.
+Eight Sleep — read sleep temperature, sleep stages, HRV; can also tie into smart-home sleep routines.
+11.2 Nutrition & Food (Read + database lookup)
+Feeds the Nutrition/Fueling macro breakdown and powers the Meal-plan and Grocery tools.
+
+Nutritionix — food database, barcode scanning, macro tracking for fast logging.
+Edamam — recipe nutrition analysis and meal planning.
+Cronometer — micronutrient-level tracking for depth.
+Open Food Facts — free, open barcode lookup; good as the primary/fallback food database.
+Spoonacular — recipes, meal planning, ingredient substitutions; feeds meal-plan generation and grocery lists.
+11.3 Mental Health & Mindfulness (Read)
+Feeds the Mind side of the Health page.
+
+Calm — meditation and sleep content; suggest and log sessions.
+Headspace — guided meditation; suggest and log.
+Muse — EEG headband; objective meditation-quality metric for the Mind dashboard.
+11.4 Fitness & Training (Read; some plan import)
+Feeds Activity Load, Goal Progression, and the Workout tool.
+
+Strava — running, cycling, outdoor workouts.
+TrainingPeaks — import structured training plans into Plan / the Workout tool.
+Peloton — cycling and strength workouts. (unofficial API)
+MyFitnessPal — import existing workout and nutrition logs.
+Nike Run Club — no public API; not available.
+11.5 Productivity & Calendar (Read/Write)
+Absorbs existing schedules/tasks/notes and writes back from the Plan page.
+
+Google Calendar — read and create events. (already integrated)
+Apple Calendar — read and create events via EventKit on iOS.
+Outlook / Microsoft 365 — calendar, tasks, and email.
+Notion — sync notes, goals, project tracking.
+Todoist — read and write tasks.
+Calendly — schedule meetings automatically (also an Action integration in §11.10).
+11.6 Finance (Read; budgeting Read/Write)
+Feeds spending insights and cross-domain correlations (e.g., spending vs. sleep).
+
+Plaid — bank accounts, spending tracking, income verification; the backbone for financial data.
+Coinbase — read crypto portfolio.
+YNAB — zero-based budgeting; read and write.
+Mint / Intuit — budgeting and financial health. (Note: Intuit discontinued Mint in 2024; needs may be covered by Plaid + YNAB or a Credit Karma path.)
+Robinhood — no public API; not available.
+11.7 Smart Home (Action / control; some Read)
+Powers wake/sleep routines and environment automation.
+
+Apple HomeKit — control lights, thermostat, locks, cameras.
+Google Home — control smart-home devices.
+Philips Hue — smart lighting; ideal for wind-down and wake routines tied to sleep data.
+Nest — thermostat and sleep-temperature automation.
+Amazon Alexa Skills Kit — bridge voice commands to smart-home control.
+11.8 Communication (Action / send)
+Outbound reminders and notifications.
+
+Twilio — send SMS reminders and notifications.
+SendGrid — send email notifications.
+WhatsApp Business — send messages/reminders.
+Slack — send team notifications.
+11.9 Location & Maps (Read)
+Provides commute-aware and location-aware planning.
+
+Google Maps — location, commute time, nearby places.
+Apple Maps — native iOS mapping equivalent.
+Foursquare — place recommendations.
+11.10 Reservations & Booking (Action)
+The agentic booking layer — the assistant proposes and books on confirmation.
+
+OpenTable — reserve restaurant tables.
+Resy — restaurant reservations. (private API)
+Yelp — join waitlists / reservations via their API.
+Mindbody — book gyms, yoga studios, spas, salons.
+Zocdoc — book doctor appointments.
+Calendly — schedule meetings with anyone.
+Ticketmaster — find and buy tickets for concerts, sports, events.
+Eventbrite — find and register for local/general events.
+Square Appointments — book any Square-powered business.
+Acuity Scheduling — general appointment booking.
+11.11 Travel & Transportation (Action + Read)
+Uber — request and schedule rides programmatically.
+Lyft — request and schedule rides programmatically.
+Amadeus — search and book flights, hotels, car rentals.
+Booking.com — book hotel reservations.
+Airbnb — no public API; not available.
+11.12 Shopping & Errands (Action)
+Powers the Grocery-buyer tool and general purchasing.
+
+Instacart — order groceries for delivery.
+Kroger — order groceries.
+Walmart — order groceries.
+Amazon — order products.
+11.13 Lifestyle & Personal (Read; some control)
+The "everything else" layer that rounds out whole-life awareness.
+
+Birthdays / Contacts — pull birthdays to auto-create countdowns and reminders.
+Duolingo — read language-learning streaks and progress to feed habit tracking.
+Screen Time — read device usage for digital-wellbeing signals and to verify habits like "no screens after 9pm" (feeds the Mind side of Health).
+Spotify — read listening data and playlists as a mood/energy signal; control playback and serve focus/workout playlists.
+Apple Music — Apple-side equivalent of Spotify.
+
+
+12. Open Questions / Future Considerations
+Captured here so nothing is lost going into the build:
+
+Power-user pattern browsing. With no Insights tab, there's no front door for on-demand exploration of long-term cross-domain patterns. Candidate homes: a deep view inside Health, or a dedicated Tool.
+Center-button load. The center button now carries Voice, Guided, Text, and Tools. Confirmed acceptable for now; revisit if it feels overloaded as the tool roster grows.
+At a Glance ranking model. The logic that decides which cards are "most relevant for the day/time" plus the "most-used function" slot needs a concrete ranking approach.
+Goal/event taxonomy. The full set of goal types and event types, and how confidently the AI can infer them from natural language, needs to be enumerated.
+Mental-wellbeing signals. The specific signals derived from check-ins (mood, energy, stress themes) and how they roll into the Mind side of Health need definition.
+Wearable-less experience. The exact manual-logging fallback for each Health metric needs specifying.
+Integration tiering. §11 is the full ambition. It needs to be cut into build tiers — what ships in v1 (likely the already-planned health reads + calendar) vs. later.
+Action-confirmation UX. Booking, buying, spending, and device-control integrations need a concrete propose-then-approve flow so the assistant never acts unilaterally with money or the physical world.
+
+
+
+End of specification.
+
