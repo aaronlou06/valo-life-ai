@@ -59,7 +59,7 @@ const RIGHT_TABS: TabDef[] = [
   },
 ];
 
-const FAB_SIZE = 58;
+const FAB_SIZE = 38;
 const TAB_BAR_HEIGHT = 62;
 
 function TabItem({
@@ -179,73 +179,59 @@ export function CustomTabBar({ state, navigation }: { state: any; navigation: an
   });
 
   return (
-    <View
-      pointerEvents="box-none"
-      style={[styles.wrapper, { height: totalHeight + FAB_SIZE / 2 }]}
-    >
-      {/* FAB — floats above the tab bar */}
-      <View style={styles.fabWrapper} pointerEvents="box-none">
-        <Animated.View
-          style={{
-            transform: [{ scale: fabScale }, { rotate: rotation }],
-          }}
-        >
-          <TouchableOpacity
-            onPress={handleFABPress}
-            activeOpacity={0.85}
-            style={[styles.fab, { backgroundColor: colors.primary }]}
-          >
-            <Feather name="plus" size={26} color="#FFFFFF" />
-          </TouchableOpacity>
-        </Animated.View>
-      </View>
-
-      {/* Tab bar */}
-      <View style={[styles.tabBar, { height: totalHeight }]}>
-        {isIOS ? (
-          <BlurView
-            intensity={90}
-            tint={isDark ? "dark" : "light"}
-            style={StyleSheet.absoluteFill}
-          />
-        ) : (
-          <View
-            style={[
-              StyleSheet.absoluteFill,
-              { backgroundColor: colors.background },
-            ]}
-          />
-        )}
-
+    <View style={[styles.wrapper, { height: totalHeight }]}>
+      {isIOS ? (
+        <BlurView
+          intensity={90}
+          tint={isDark ? "dark" : "light"}
+          style={StyleSheet.absoluteFill}
+        />
+      ) : (
         <View
-          style={[
-            styles.tabRow,
-            { paddingBottom: bottomPad, borderTopColor: colors.border },
-          ]}
-        >
-          {/* Left tabs */}
-          {LEFT_TABS.map((def) => (
-            <TabItem
-              key={def.routeName}
-              def={def}
-              isActive={isRouteActive(def.routeName)}
-              onPress={() => navigateTo(def.routeName)}
-            />
-          ))}
+          style={[StyleSheet.absoluteFill, { backgroundColor: colors.background }]}
+        />
+      )}
 
-          {/* Center gap for FAB */}
-          <View style={styles.fabGap} />
+      <View
+        style={[
+          styles.tabRow,
+          { paddingBottom: bottomPad, borderTopColor: colors.border },
+        ]}
+      >
+        {/* Left tabs */}
+        {LEFT_TABS.map((def) => (
+          <TabItem
+            key={def.routeName}
+            def={def}
+            isActive={isRouteActive(def.routeName)}
+            onPress={() => navigateTo(def.routeName)}
+          />
+        ))}
 
-          {/* Right tabs */}
-          {RIGHT_TABS.map((def) => (
-            <TabItem
-              key={def.routeName}
-              def={def}
-              isActive={isRouteActive(def.routeName)}
-              onPress={() => navigateTo(def.routeName)}
-            />
-          ))}
+        {/* Center FAB — inline, raised just above the row */}
+        <View style={styles.fabSlot}>
+          <Animated.View
+            style={{ transform: [{ scale: fabScale }, { rotate: rotation }] }}
+          >
+            <TouchableOpacity
+              onPress={handleFABPress}
+              activeOpacity={0.85}
+              style={[styles.fab, { backgroundColor: colors.primary }]}
+            >
+              <Feather name="plus" size={20} color="#FFFFFF" />
+            </TouchableOpacity>
+          </Animated.View>
         </View>
+
+        {/* Right tabs */}
+        {RIGHT_TABS.map((def) => (
+          <TabItem
+            key={def.routeName}
+            def={def}
+            isActive={isRouteActive(def.routeName)}
+            onPress={() => navigateTo(def.routeName)}
+          />
+        ))}
       </View>
     </View>
   );
@@ -260,30 +246,23 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "flex-end",
   },
-  fabWrapper: {
-    position: "absolute",
-    bottom: TAB_BAR_HEIGHT - 20,
-    alignSelf: "center",
-    zIndex: 20,
-    shadowColor: "#C17B3F",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.35,
-    shadowRadius: 12,
-    elevation: 12,
-  },
   fab: {
     width: FAB_SIZE,
     height: FAB_SIZE,
     borderRadius: FAB_SIZE / 2,
     alignItems: "center",
     justifyContent: "center",
+    shadowColor: "#C17B3F",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 6,
+    elevation: 6,
   },
-  tabBar: {
-    position: "absolute",
-    bottom: 0,
-    left: 0,
-    right: 0,
-    overflow: "hidden",
+  fabSlot: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingTop: 2,
   },
   tabRow: {
     flex: 1,
@@ -302,8 +281,5 @@ const styles = StyleSheet.create({
   tabLabel: {
     fontSize: 10,
     letterSpacing: 0.2,
-  },
-  fabGap: {
-    width: FAB_SIZE + 24,
   },
 });
