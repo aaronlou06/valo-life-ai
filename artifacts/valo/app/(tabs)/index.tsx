@@ -7,7 +7,7 @@ import {
   StyleSheet,
   Platform,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Feather } from "@expo/vector-icons";
 import { SymbolView } from "expo-symbols";
 import { useRouter } from "expo-router";
@@ -129,14 +129,15 @@ export default function HomeScreen() {
   const colors = useColors();
   const { name } = useValoAuth();
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const greeting = useMemo(() => getGreeting(), []);
   const firstName = useMemo(() => getFirstName(name), [name]);
 
   return (
-    <SafeAreaView style={[styles.safe, { backgroundColor: colors.background }]} edges={["top"]}>
+    <View style={[styles.safe, { backgroundColor: colors.background }]}>
       <ScrollView
         style={{ flex: 1 }}
-        contentContainerStyle={[styles.scroll, { paddingBottom: 120 }]}
+        contentContainerStyle={[styles.scroll, { paddingTop: insets.top + 24, paddingBottom: 120 }]}
         showsVerticalScrollIndicator={false}
       >
         {/* Header */}
@@ -232,7 +233,7 @@ export default function HomeScreen() {
           />
         </View>
       </ScrollView>
-    </SafeAreaView>
+    </View>
   );
 }
 
@@ -242,7 +243,6 @@ const styles = StyleSheet.create({
   },
   scroll: {
     paddingHorizontal: 20,
-    paddingTop: 24,
   },
   header: {
     flexDirection: "row",
