@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
-import { eq } from "drizzle-orm";
-import { db, goalsTable, userProfilesTable } from "@workspace/db";
+import { desc, eq } from "drizzle-orm";
+import { db, debriefExtractionsTable, goalsTable, insightsTable, userProfilesTable } from "@workspace/db";
 import { requireAuth, type AuthenticatedRequest } from "../middlewares/requireAuth";
 import {
   buildVapiContext,
@@ -202,6 +202,53 @@ async function handleBuildSystemPrompt(req: any, res: any): Promise<void> {
   }
 }
 
+// GET /api/vapi/intel
+// Lightweight read-only endpoint for the Home screen "From Valo" card.
+// Reads stored data only — no AI generation triggered.
+async function handleVapiIntel(req: any, res: any): Promise<void> {
+  const userId = (req as AuthenticatedRequest).userId;
+  if (!userId) {
+    res.status(401).json({ error: "Unauthorized" });
+    return;
+  }
+  try {
+    const [debriefRows, insightRows] = await Promise.all([
+      db
+        .select({
+          oneStruggle: debriefExtractionsTable.oneStruggle,
+          tomorrowIntention: debriefExtractionsTable.tomorrowIntention,
+          primaryEmotion: debriefExtractionsTable.primaryEmotion,
+          energyLevel: debriefExtractionsTable.energyLevel,
+          date: debriefExtractionsTable.date,
+        })
+        .from(debriefExtractionsTable)
+        .where(eq(debriefExtractionsTable.userId, userId))
+        .orderBy(desc(debriefExtractionsTable.createdAt))
+        .limit(1),
+      db
+        .select({ content: insightsTable.content })
+        .from(insightsTable)
+        .where(eq(insightsTable.userId, userId))
+        .orderBy(desc(insightsTable.createdAt))
+        .limit(1),
+    ]);
+
+    const debrief = debriefRows[0] ?? null;
+    res.json({
+      unresolved_thread: debrief?.oneStruggle ?? null,
+      commitment: debrief?.tomorrowIntention ?? null,
+      emotional_tone: debrief
+        ? [debrief.primaryEmotion, debrief.energyLevel].filter(Boolean).join(", ") || null
+        : null,
+      last_call_date: debrief?.date ?? null,
+      pattern_observation: insightRows[0]?.content ?? null,
+    });
+  } catch (err: any) {
+    req.log.error({ err }, "GET /vapi/intel failed");
+    res.status(500).json({ error: "Failed to assemble intel" });
+  }
+}
+
 // ── Routes ───────────────────────────────────────────────────────────────────
 
 router.post("/vapi/system-prompt", requireAuth, handleBuildSystemPrompt);
@@ -212,5 +259,6 @@ router.post("/vapi/context", requireAuth, handleVapiContextAuth);
 router.get("/vapi/first-call-context/:userId", requireAuth, handleFirstCallContext);
 router.get("/vapi/system-prompt/:type", handleSystemPrompt);
 router.post("/vapi/debrief", requireAuth, handleVapiDebrief);
+router.get("/vapi/intel", requireAuth, handleVapiIntel);
 
 export default router;
