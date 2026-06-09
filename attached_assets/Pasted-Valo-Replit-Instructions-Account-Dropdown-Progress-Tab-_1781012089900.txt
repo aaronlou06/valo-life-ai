@@ -1,0 +1,76 @@
+Valo — Replit Instructions: Account Dropdown + Progress Tab
+Two changes to the navigation. This is a UI/navigation change only — preserve all existing backend logic, API connections, VAPI integration, data models, and the existing cards (Recovery, GoalProgress, Motivation). Do not regress the center "+" FAB → CheckInSheet wiring. Work on a branch (git checkout -b nav-dropdown-progress) so the live build stays safe.
+App location: artifacts/valo/ (Expo / React Native / TypeScript, Expo Router).
+
+Change 1 — Replace the Profile tab with a Progress tab
+Bottom nav
+
+New tab order, left to right: Home · Plan · (+) · Health · Progress.
+The center (+) stays exactly as-is (floating FAB that opens CheckInSheet with Voice / Guided / Write it out / Tools). Do not touch it.
+Remove Profile from the tab bar and put Progress in its place (far-right slot).
+Update the tab list wherever it's defined (the CustomTabBar component / the (tabs)/_layout). Swap the Profile entry's label, icon, and route for the Progress entry.
+Suggested Progress tab icon: a line-style bar-chart / trending-up icon, matching the weight of the existing Home/Plan/Health/Profile icons.
+
+Keep the Profile screen alive (just not as a tab)
+
+The Profile screen must still exist and be navigable — it's now reached from the account dropdown (Change 2), not the tab bar.
+In Expo Router, keep the route but hide it from the tab bar (e.g. options={{ href: null }} on the profile Tabs.Screen, or move the profile screen out of the (tabs) group into a standalone route). Do not delete the profile screen or its logic.
+
+New screen: Progress (results / habits / consistency over time)
+Create a new screen at the Progress route. Its job is looking back — tracking consistency and results over time. It is primarily a viewing surface; day-to-day habit check-off stays on the Plan page (see "Relationship to Plan" below).
+Reuse existing data — habits, habit completions, streaks, and goals already exist (the Plan page already renders a weekly habit tracker). Do not create a new data model. Read the same habit/completion/goal sources and render history views over them. If completion records aren't currently persisted far enough back to show long-range consistency, flag that — long-range views depend on stored completion history.
+Layout, top to bottom:
+
+Header — title "Progress", with a rolling time-range switcher matching the Health page: 7d / 1m / 3m / 6m (default 7d). The selected range drives every section below.
+Overview band — a row of small stat cards summarizing the selected range: e.g. overall consistency %, active streaks, longest current streak, habits completed this period. Keep it glanceable (no dense numbers).
+Habits consistency — one row per habit showing the habit name, its current streak, and a consistency visualization over the selected range. Use a contribution-style heatmap grid (filled cells = completed days) or expanded completion dots — whichever fits the existing component style. Include a per-habit completion % for the range.
+Streaks — surface current active streaks prominently (this is the rewarding part users return for). Fine to fold into the habit rows or give a small dedicated strip.
+Goal progress — progress toward Big Goals (rings/bars), e.g. marathon training or strength benchmarks. Reuse the existing GoalProgress component here — do not alter it.
+Consistency notes (light, optional) — one or two short surfaced observations in the same spirit as the Health page's correlation notes (e.g. "Morning run is your most consistent habit this month — 86%"). Keep subtle; this is an overlay touch, not a section to fill.
+
+Styling: use the existing warm/earthy palette and tokens (terracotta #C17B3F for primary accents/CTAs, plus the sage/rose/sand/slate/lavender/amber set). Match the calm, uncluttered feel of the other pages.
+Relationship to Plan (important — don't duplicate or remove)
+
+Plan keeps its habit tracker for quick daily check-off (the weekly dots already there). Do not remove it.
+Progress is the deep history view of that same data. Completion toggling stays on Plan; Progress is for viewing consistency over time. (If inline tap-to-toggle on Progress is trivial to add, it's acceptable, but it is not required.)
+
+
+Change 2 — "A" avatar dropdown menu
+Currently the "A" avatar (top-right of the Home header) is decorative. Make it open a small dropdown menu.
+Behavior
+
+Tapping the "A" avatar opens a small popover/dropdown anchored to the avatar (top-right).
+It contains four items, each with a leading icon:
+
+Profile → existing Profile screen
+Help → Help/Support screen
+Report Bug → existing bug-report flow (already built — link to it, don't rebuild)
+Accountability Buddy → Accountability Buddy screen
+
+
+Tapping an item navigates to that screen and closes the menu.
+Dismiss on outside tap / scroll. Subtle fade+scale animation. Rounded corners, soft shadow, palette-consistent background.
+Wherever else the avatar appears in the app, wire the same menu so it's consistent.
+
+Routing notes for the four items
+
+Profile and Report Bug already exist — route to the existing screens.
+Help — if a help/support screen exists, link it; if not, create a simple Help screen (FAQ / contact / app info) as a placeholder to route to.
+Accountability Buddy — this feature isn't defined yet. Create the route with a clean placeholder screen (title + brief "coming soon" state) so the menu item works now; the feature itself will be specced later.
+
+
+Build guardrails (re-stated)
+
+Visual/navigation change only — no backend, data-model, VAPI, or CheckInSheet changes.
+Do not regress the (+) FAB → CheckInSheet behavior. After building, verify the + still opens the modal (not the old checkin.tsx dashboard).
+Do not alter the preserved components: Recovery, GoalProgress, Motivation.
+Use existing palette/tokens; don't introduce new colors.
+After the change, run a clean rebuild (expo start --clear) and fully kill/reopen the app on device to avoid a stale Metro bundle.
+
+Verify when done
+
+Bottom nav reads Home · Plan · (+) · Health · Progress; no Profile tab.
+(+) still opens the check-in sheet correctly.
+The "A" avatar opens the dropdown; all four items navigate; Profile is reachable this way.
+Progress page renders habit consistency, streaks, and goal progress over the 7d/1m/3m/6m ranges, reading existing data.
+Plan's habit tracker is untouched.
