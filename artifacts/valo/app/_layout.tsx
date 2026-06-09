@@ -126,7 +126,7 @@ function NotificationDeepLinkEffect() {
           const data = response.notification.request.content.data as Record<string, unknown>;
           const type = data?.type;
           if (type === "morning-briefing" || type === "checkin") {
-            router.push("/(tabs)/checkin");
+            router.push("/(tabs)");
           }
         });
       } catch {}
