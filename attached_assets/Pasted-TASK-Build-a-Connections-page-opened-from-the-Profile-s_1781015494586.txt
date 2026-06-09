@@ -1,0 +1,34 @@
+TASK: Build a Connections page, opened from the Profile screen.
+Before writing anything, inspect the existing app to match its conventions: how the Profile screen is built, how other screens are routed (this is Expo Router — find the existing route pattern), what the design tokens / theme colors are, and how the app currently persists local settings. Build the Connections page to match those existing patterns exactly. Do not introduce new styling values or a new storage approach if the app already has one — reuse what's there.
+What the page does:
+A full-screen page, pushed from a "Connections" row on the Profile screen (show the count of connected integrations on that row). The page lists every integration below, grouped under its category heading. It has a search bar at the top that filters by name and description, and a row of category filter chips (All + one per category) that filter the list. Each integration shows its name, a short description, and a status:
+
+Connect button for available ones — tapping it marks the integration connected and persists that locally; the header's connected count updates.
+Connected state for ones already on — tapping gives a disconnect option.
+"Unavailable" label (greyed, not connectable) for ones with no public API.
+"Unofficial" label for ones with only an unofficial/private API — still connectable, but flag it.
+
+Seed these three as already connected: Apple HealthKit, Google Calendar, Twilio.
+Match the app's existing visual style — dark warm theme, terracotta accent, same card/row treatment, spacing, and typography used elsewhere. Give each category a small color accent so the list scans well, but pull from the existing palette rather than inventing new colors.
+The integration catalog:
+Misc: Birthdays (contacts, reminders) · Duolingo (language streaks) · Screen Time (app usage, limits) · Spotify (music, mood) · Apple Music (music, mood)
+Health & Wearables: Apple HealthKit (sleep, HRV, steps, RHR, workouts) · Google Fit (steps, activity — Android equivalent) · Garmin Connect (GPS, HRV, VO2 max, training load) · Whoop (recovery, strain, sleep) · Oura Ring (sleep stages, readiness, HRV) · Fitbit (steps, sleep, heart rate) · Polar (training metrics, running power) · Withings (smart scale, blood pressure, sleep mat) · Eight Sleep (sleep temp, stages, HRV)
+Nutrition & Food: Nutritionix (food DB, barcode, macros) · Edamam (recipe nutrition, meal planning) · Cronometer (micronutrients) · Open Food Facts (open DB, barcode) · Spoonacular (recipes, meal plans, substitutions)
+Grocery Shopping: Walmart (groceries, delivery, pickup) · Kroger (groceries, delivery, pickup) · Instacart (grocery delivery)
+Mindfulness: Calm (meditation, sleep content) · Headspace (guided meditation) · Muse (EEG headband, meditation quality)
+Fitness & Training: Strava (running, cycling, outdoor) · TrainingPeaks (structured plans) · Nike Run Club (running) — no public API · Peloton (cycling, strength) — unofficial API · MyFitnessPal (workout, nutrition logging)
+Productivity & Calendar: Google Calendar (events, scheduling) · Apple Calendar (EventKit, native iOS) · Outlook / Microsoft 365 (calendar, tasks, email) · Notion (notes, goals, projects) · Todoist (tasks) · Calendly (meeting scheduling)
+Reservations & Booking: OpenTable (restaurants) · Resy (restaurants) — private API · Mindbody (gyms, yoga, spas, salons) · Zocdoc (doctor appointments) · Uber (rides) · Lyft (rides) · Amadeus (flights, hotels, cars) · Booking.com (hotels) · Airbnb (rentals) — no public API · Ticketmaster (concerts, sports, events) · Eventbrite (local events) · Square Appointments (business booking) · Acuity Scheduling (appointment booking)
+Finance: Plaid (bank accounts, spending, income) · Coinbase (crypto portfolio) · Robinhood (stock portfolio) — no public API · YNAB (zero-based budgeting)
+Smart Home: Apple HomeKit (lights, thermostat, locks, cameras) · Google Home (devices) · Philips Hue (lighting, sleep routines) · Nest (thermostat, temp automation) · Amazon Alexa (voice, smart home)
+Comms: Twilio (SMS reminders, notifications) · SendGrid (email) · WhatsApp Business (messaging) · Slack (team notifications)
+Location & Maps: Google Maps (location, commute, places) · Apple Maps (native iOS) · Foursquare (place recommendations)
+Profile screen change:
+The only existing screen you should modify is Profile. Add the "Connections" entry row that opens the new page. Separately, wherever the Profile screen currently displays individual integrations/connected apps, remove these from that Profile view only — they must still appear on the Connections page: Google Calendar, Instacart, Walmart, Kroger, Google Fit, Garmin Connect, Whoop. Do not delete these integrations from the catalog; just exclude them from the Profile display.
+Constraints:
+
+Do not modify the Recovery, GoalProgress, or Motivation components, the check-in sheet, or the bottom nav / FAB.
+Everything other than the Profile screen is new files.
+This is UI + local persistence only — no backend or real OAuth yet.
+
+When done, confirm the app runs and that: the Profile row opens the page, search filters the list, the category chips filter, connect/disconnect persists across navigation, and the seven integrations above no longer show on the Profile screen but do appear on the Connections page.

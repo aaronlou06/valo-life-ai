@@ -88,6 +88,16 @@ const CATEGORIES: Category[] = [
     ],
   },
   {
+    key: "grocery",
+    label: "Grocery Shopping",
+    accentKey: "accent",
+    integrations: [
+      { id: "walmart", name: "Walmart", description: "Groceries, delivery & pickup", icon: "shopping-cart", status: "available" },
+      { id: "kroger", name: "Kroger", description: "Groceries, delivery & pickup", icon: "shopping-cart", status: "available" },
+      { id: "instacart", name: "Instacart", description: "Grocery delivery", icon: "package", status: "available" },
+    ],
+  },
+  {
     key: "mindfulness",
     label: "Mindfulness",
     accentKey: "primary",
@@ -148,7 +158,6 @@ const CATEGORIES: Category[] = [
     accentKey: "primary",
     integrations: [
       { id: "plaid", name: "Plaid", description: "Bank accounts, spending & income", icon: "credit-card", status: "available" },
-      { id: "mint", name: "Mint / Intuit", description: "Budgeting — discontinued 2024", icon: "dollar-sign", status: "unavailable" },
       { id: "coinbase", name: "Coinbase", description: "Crypto portfolio", icon: "trending-up", status: "available" },
       { id: "robinhood", name: "Robinhood", description: "Stock portfolio", icon: "bar-chart-2", status: "unavailable" },
       { id: "ynab", name: "YNAB", description: "Zero-based budgeting", icon: "pie-chart", status: "available" },
