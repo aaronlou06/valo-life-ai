@@ -59,8 +59,9 @@ const RIGHT_TABS: TabDef[] = [
   },
 ];
 
-const FAB_SIZE = 38;
-const TAB_BAR_HEIGHT = 62;
+const FAB_SIZE = 52;
+const FAB_SLOT_WIDTH = 72;
+const TAB_BAR_HEIGHT = 64;
 
 function TabItem({
   def,
@@ -85,7 +86,7 @@ function TabItem({
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           name={(isActive ? def.sfSymbolFill : def.sfSymbol) as any}
           tintColor={iconColor}
-          size={24}
+          size={22}
         />
       ) : (
         <Feather name={def.feather} size={22} color={iconColor} />
@@ -259,16 +260,15 @@ const styles = StyleSheet.create({
     elevation: 6,
   },
   fabSlot: {
-    flex: 1,
+    width: FAB_SLOT_WIDTH,
     alignItems: "center",
     justifyContent: "center",
-    paddingTop: 2,
+    paddingVertical: 8,
   },
   tabRow: {
     flex: 1,
     flexDirection: "row",
     alignItems: "flex-start",
-    paddingTop: 10,
     borderTopWidth: StyleSheet.hairlineWidth,
   },
   tabItem: {
@@ -276,7 +276,8 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     gap: 3,
-    paddingTop: 2,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
   },
   tabLabel: {
     fontSize: 10,
