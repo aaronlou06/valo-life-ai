@@ -1,0 +1,48 @@
+TASK: Rebuild the Home tab as Valo's daily briefing.
+Home currently shows a static "At a Glance / Your Spaces" dashboard. Replace it with a time-of-day-aware briefing that surfaces the intelligence Valo already generates before every call. This is a redesign of the Home screen only.
+First, inspect — don't assume. Before writing anything:
+
+Confirm the Home route. It's the Expo Router file artifacts/valo/app/(tabs)/index.tsx (currently contains "AT A GLANCE", "Design Sync", "YOUR SPACES"). Build the new design there.
+Find the app's existing theme tokens (the warm palette: #FAF8F5 page bg, sage #D8EBE3/#4A7D68, rose #F5DDD8/#A06050, sand, slate-blue, lavender, amber #FAEEDA/#8A6030, terracotta CTA, text #3A332C/muted #8A7D70). Reuse the actual token names already in the codebase — do not hardcode new hex values or invent a palette.
+Find how the app reads per-user data: health metrics (recovery/readiness, HRV today vs avg, sleep hours, steps), calendar events, habits (completed/pending today, streaks), top goal + progress, and the stored pre-call intelligence + memory objects (the same ones fed to the Vapi assistant). Reuse the existing hooks/endpoints. If the pre-call intelligence object isn't yet exposed to the client, add a minimal read-only GET that returns the already-generated object — do not change how it's generated, merged, or stored.
+If any data source is empty in dev, seed realistic placeholder values so the screen renders, and gate on a loading state.
+
+Layout — top to bottom:
+
+Greeting header — "Good morning/afternoon/evening, {{user_name}}", date, weather/location (keep whatever the current header already does).
+"From Valo" card (permanent — always rendered, never ranked out). One card in Valo's voice that surfaces the pre-call intelligence. Pick its content in this priority order, using the first non-empty field: intel_unresolved_thread (a gentle loop-close, e.g. "You mentioned wanting to call your dad — still want to?") → intel_pattern_observation (the one thing Valo noticed) → intel_suggested_question. Write it conversationally, not like a data readout. Style it distinctly from the glance cards (e.g. amber/terracotta accent, a small Valo mark) so the companion presence is obvious. Tapping it opens the check-in sheet.
+At a Glance — dynamic, ranked cards (show top 3–5, calm). Replace the fixed two-card pair with a scored, ranked list. Build a candidate set, score each, sort descending, render the top 3–5. Candidate card types:
+
+Readiness/recovery headline (recovery_score/readiness_score, hrv_today vs hrv_avg) — e.g. "You're in the yellow — HRV dipped two nights running."
+Next event (calendar) — with a countdown variant when it's < ~60 min away.
+Habits remaining today (habits_pending_today) — or a streak-at-risk warning.
+Top goal nudge (top_goal, top_goal_progress).
+Anomaly (intel_data_anomaly — bad sleep, streak about to break, calendar conflict).
+Check-in prompt ("Ready for today's check-in?").
+Yesterday's intention (from last-call commitments/intentions) in the morning.
+
+Scoring heuristic (sum these, higher = ranks first):
+
+Urgency — soonest/most time-bound wins (event in 45 min > goal due in 30 days; a check-in due now beats both).
+Time-of-day fit — readiness ranks high in the morning, check-in prompt high in the evening.
+Exception/anomaly — anything off (bad sleep, streak about to break, conflict) gets a large boost; exceptions beat business-as-usual.
+Freshness — a new post-call summary or just-surfaced pattern ranks high, then decays as it's seen.
+
+
+Time-of-day mode drives which candidates are emphasized (mirror the Vapi morning/afternoon/evening modes):
+
+Morning (before 12pm): readiness headline, today's first event, habits to hit, yesterday's intention.
+Midday (12–5pm): what's next, habits still open, a quick-capture nudge.
+Evening (after 5pm): check-in prompt front and center, today's wins, tomorrow's preview.
+
+
+Light launchpad footer (keep minimal): remove the full "Your Spaces" 2×2 grid entirely. Replace it with a single Apps button (entry to Spaces/Tools) plus a small quick-capture shortcut that opens the check-in sheet's text option. Nothing more — the page is a briefing, not a menu.
+
+Hard constraints — do not touch:
+
+Do not modify _layout.tsx, CustomTabBar.tsx, CheckInSheet.tsx, plan.tsx, health.tsx, or profile.tsx.
+Do not alter any backend generation/merge logic, VAPI integration, API hooks, or data models. The only backend change permitted is an additive read-only GET to expose the existing intelligence object, if one doesn't already exist.
+Do not alter existing reusable card components — wrap/compose them, don't rewrite them.
+Reuse existing theme tokens, spacing, and typography. No new palette.
+
+When done: clear the Metro cache and restart (npx expo start -c). Report back: which data hooks/endpoints you wired each card to, whether you added a read endpoint for the intelligence object, and confirmation that the Home tab now renders the briefing (From Valo card + ranked glance cards + Apps/quick-capture) with the old "Your Spaces" grid gone.
