@@ -52,11 +52,11 @@ const RIGHT_TABS: TabDef[] = [
     feather: "heart",
   },
   {
-    routeName: "profile",
-    label: "Profile",
-    sfSymbol: "person",
-    sfSymbolFill: "person.fill",
-    feather: "user",
+    routeName: "progress",
+    label: "Progress",
+    sfSymbol: "chart.bar",
+    sfSymbolFill: "chart.bar.fill",
+    feather: "bar-chart-2",
   },
 ];
 

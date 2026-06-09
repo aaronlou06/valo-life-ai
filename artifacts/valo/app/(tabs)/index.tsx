@@ -1,4 +1,4 @@
-import React, { useMemo } from "react";
+import React, { useRef, useState, useMemo } from "react";
 import {
   View,
   Text,
@@ -6,6 +6,11 @@ import {
   TouchableOpacity,
   StyleSheet,
   Platform,
+  Modal,
+  Animated,
+  TouchableWithoutFeedback,
+  Linking,
+  Alert,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Feather } from "@expo/vector-icons";
@@ -15,6 +20,9 @@ import { useColors } from "@/hooks/useColors";
 import { useValoAuth } from "@/contexts/AuthContext";
 
 const isIOS = Platform.OS === "ios";
+
+const BUG_EMAIL = "support@govalo.app";
+const BUG_SUBJECT = "Bug report";
 
 function getGreeting(): string {
   const hour = new Date().getHours();
@@ -28,19 +36,148 @@ function getFirstName(name: string | null): string {
   return name.split(" ")[0];
 }
 
-function UserAvatar({ name, colors }: { name: string | null; colors: ReturnType<typeof useColors> }) {
+type DropdownItem = {
+  label: string;
+  icon: keyof typeof Feather.glyphMap;
+  onPress: () => void;
+};
+
+function AvatarDropdown({
+  name,
+  colors,
+}: {
+  name: string | null;
+  colors: ReturnType<typeof useColors>;
+}) {
+  const router = useRouter();
+  const insets = useSafeAreaInsets();
+  const [open, setOpen] = useState(false);
+  const scaleAnim = useRef(new Animated.Value(0)).current;
+  const opacityAnim = useRef(new Animated.Value(0)).current;
   const initial = name ? name[0].toUpperCase() : "V";
+
+  function openMenu() {
+    setOpen(true);
+    Animated.parallel([
+      Animated.spring(scaleAnim, {
+        toValue: 1,
+        useNativeDriver: true,
+        speed: 50,
+        bounciness: 6,
+      }),
+      Animated.timing(opacityAnim, {
+        toValue: 1,
+        duration: 140,
+        useNativeDriver: true,
+      }),
+    ]).start();
+  }
+
+  function closeMenu() {
+    Animated.parallel([
+      Animated.timing(scaleAnim, {
+        toValue: 0,
+        duration: 120,
+        useNativeDriver: true,
+      }),
+      Animated.timing(opacityAnim, {
+        toValue: 0,
+        duration: 100,
+        useNativeDriver: true,
+      }),
+    ]).start(() => setOpen(false));
+  }
+
+  function navigate(path: string) {
+    closeMenu();
+    setTimeout(() => router.push(path as never), 120);
+  }
+
+  async function handleReportBug() {
+    closeMenu();
+    const body = `Device: ${Platform.OS}\nOS Version: ${Platform.Version}\n\n--- Describe the bug ---\n\n`;
+    const mailto = `mailto:${BUG_EMAIL}?subject=${encodeURIComponent(BUG_SUBJECT)}&body=${encodeURIComponent(body)}`;
+    const canOpen = await Linking.canOpenURL(mailto).catch(() => false);
+    if (canOpen) {
+      await Linking.openURL(mailto).catch(() => {});
+    } else {
+      Alert.alert("Cannot open mail app", `Please email us at ${BUG_EMAIL}`);
+    }
+  }
+
+  const items: DropdownItem[] = [
+    { label: "Profile", icon: "user", onPress: () => navigate("/(tabs)/profile") },
+    { label: "Help", icon: "help-circle", onPress: () => navigate("/help") },
+    { label: "Report Bug", icon: "alert-circle", onPress: () => { void handleReportBug(); } },
+    { label: "Accountability Buddy", icon: "users", onPress: () => navigate("/accountability-buddy") },
+  ];
+
   return (
-    <View
-      style={[
-        styles.avatar,
-        { backgroundColor: colors.secondary, borderColor: colors.border },
-      ]}
-    >
-      <Text style={[styles.avatarText, { color: colors.primary, fontFamily: "Inter_600SemiBold" }]}>
-        {initial}
-      </Text>
-    </View>
+    <>
+      <TouchableOpacity
+        onPress={openMenu}
+        activeOpacity={0.75}
+        style={[
+          styles.avatar,
+          { backgroundColor: colors.secondary, borderColor: colors.border },
+        ]}
+      >
+        <Text style={[styles.avatarText, { color: colors.primary, fontFamily: "Inter_600SemiBold" }]}>
+          {initial}
+        </Text>
+      </TouchableOpacity>
+
+      <Modal
+        visible={open}
+        transparent
+        animationType="none"
+        onRequestClose={closeMenu}
+        statusBarTranslucent
+      >
+        <TouchableWithoutFeedback onPress={closeMenu}>
+          <View style={styles.modalOverlay}>
+            <TouchableWithoutFeedback>
+              <Animated.View
+                style={[
+                  styles.dropdown,
+                  {
+                    backgroundColor: colors.card,
+                    borderColor: colors.border,
+                    top: insets.top + 64,
+                    opacity: opacityAnim,
+                    transform: [
+                      {
+                        scale: scaleAnim.interpolate({
+                          inputRange: [0, 1],
+                          outputRange: [0.85, 1],
+                        }),
+                      },
+                    ],
+                  },
+                ]}
+              >
+                {items.map((item, i) => (
+                  <TouchableOpacity
+                    key={item.label}
+                    onPress={item.onPress}
+                    activeOpacity={0.7}
+                    style={[
+                      styles.dropdownItem,
+                      i < items.length - 1 && { borderBottomColor: colors.border, borderBottomWidth: StyleSheet.hairlineWidth },
+                    ]}
+                  >
+                    <Feather name={item.icon} size={16} color={colors.mutedForeground} />
+                    <Text style={[styles.dropdownLabel, { color: colors.foreground, fontFamily: "Inter_500Medium" }]}>
+                      {item.label}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </Animated.View>
+            </TouchableWithoutFeedback>
+          </View>
+        </TouchableWithoutFeedback>
+      </Modal>
+    </>
   );
 }
 
@@ -70,7 +207,7 @@ function AtAGlanceCard({
       <View style={styles.glanceCardHeader}>
         <View style={[styles.glanceIcon, { backgroundColor: iconColor + "30" }]}>
           {isIOS ? (
-            <SymbolView name={iconName as any} tintColor={iconColor} size={16} />
+            <SymbolView name={iconName as never} tintColor={iconColor} size={16} />
           ) : (
             <Feather name="calendar" size={16} color={iconColor} />
           )}
@@ -113,7 +250,7 @@ function SpaceTile({ label, sfSymbol, featherIcon, onPress, colors }: SpaceTileP
     >
       <View style={[styles.spaceIconWrap, { backgroundColor: colors.secondary }]}>
         {isIOS ? (
-          <SymbolView name={sfSymbol as any} tintColor={colors.mutedForeground} size={22} />
+          <SymbolView name={sfSymbol as never} tintColor={colors.mutedForeground} size={22} />
         ) : (
           <Feather name={featherIcon} size={22} color={colors.mutedForeground} />
         )}
@@ -157,7 +294,7 @@ export default function HomeScreen() {
               </Text>
             </View>
           </View>
-          <UserAvatar name={name} colors={colors} />
+          <AvatarDropdown name={name} colors={colors} />
         </View>
 
         {/* At a Glance */}
@@ -274,6 +411,33 @@ const styles = StyleSheet.create({
   },
   avatarText: {
     fontSize: 16,
+  },
+  modalOverlay: {
+    flex: 1,
+  },
+  dropdown: {
+    position: "absolute",
+    right: 16,
+    minWidth: 220,
+    borderRadius: 14,
+    borderWidth: StyleSheet.hairlineWidth,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.12,
+    shadowRadius: 12,
+    elevation: 8,
+    transformOrigin: "top right",
+    overflow: "hidden",
+  },
+  dropdownItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+  },
+  dropdownLabel: {
+    fontSize: 15,
   },
   sectionLabel: {
     fontSize: 11,
