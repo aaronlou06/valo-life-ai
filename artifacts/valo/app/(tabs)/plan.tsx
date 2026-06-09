@@ -123,6 +123,16 @@ const MAX_CELL_PILLS = 3;
 
 const PERSONAL_DATE_COLOR = "#D64E79";
 
+const CAT_FILTER_PILLS = [
+  { key: "all" as const,  label: "All",    color: "#C17B3F" },
+  { key: "goal" as const, label: "Goals",  color: "#6B9473" },
+  { key: "habit" as const, label: "Habits", color: "#C9972A" },
+  { key: "work" as const, label: "Work",   color: "#6B7FA3" },
+  { key: "date" as const, label: "Dates",  color: "#C07080" },
+] as const;
+
+type CatFilter = "all" | "goal" | "habit" | "work" | "date";
+
 const ORDINAL_LABELS = ["1st","2nd","3rd","4th"] as const;
 
 const RECURRENCE_OPTIONS = [
@@ -1330,12 +1340,27 @@ function DayDetailSheet({
 
 // ─── Month Grid ───────────────────────────────────────────────────────────────
 
+function catDotColor(ev: CalendarEvent): string {
+  switch (ev.type) {
+    case "goal":
+    case "goal-deadline": return "#6B9473";
+    case "habit": return "#C9972A";
+    case "work": return "#6B7FA3";
+    case "google": return "#4285F4";
+    case "routine": {
+      const m = (ev.notes ?? "").match(/^routineColor:(#[0-9A-Fa-f]{6})\|/);
+      return m ? m[1]! : "#9080B8";
+    }
+    default: return "#9080B8";
+  }
+}
+
 function MonthGrid({
-  viewYear, viewMonth, eventsByDate, currentTodayStr, onDayPress, colors, region, personalDates,
+  viewYear, viewMonth, eventsByDate, currentTodayStr, onDayPress, colors, region, personalDates, catFilter,
 }: {
   viewYear: number; viewMonth: number; eventsByDate: Record<string, CalendarEvent[]>;
   currentTodayStr: string; onDayPress: (dateStr: string) => void; colors: Colors;
-  region: HolidayLocale; personalDates: PersonalDate[];
+  region: HolidayLocale; personalDates: PersonalDate[]; catFilter: CatFilter;
 }) {
   const daysInMonth = new Date(viewYear, viewMonth + 1, 0).getDate();
   const firstDayOffset = new Date(viewYear, viewMonth, 1).getDay();
@@ -1357,14 +1382,28 @@ function MonthGrid({
       {cells.map((day, i) => {
         if (!day) return <View key={`e-${i}`} style={[planStyles.cell, { borderColor: colors.border }]} />;
         const dateStr = `${viewYear}-${String(viewMonth + 1).padStart(2,"0")}-${String(day).padStart(2,"0")}`;
-        const dayEvents = eventsByDate[dateStr] ?? [];
+        const allDayEvents = eventsByDate[dateStr] ?? [];
         const holidayName = monthHolidays.get(dateStr);
         const dayPersonalDates = monthPersonalDates.get(dateStr) ?? [];
-        const hasSpecial = !!(holidayName || dayPersonalDates.length > 0);
-        const maxPills = hasSpecial ? MAX_CELL_PILLS - 1 : MAX_CELL_PILLS;
-        const visibleEvents = dayEvents.slice(0, maxPills);
-        const hiddenCount = dayEvents.length - visibleEvents.length;
         const isToday = dateStr === currentTodayStr;
+
+        const filteredEvents = allDayEvents.filter((ev) => {
+          if (catFilter === "all") return true;
+          if (catFilter === "goal") return ev.type === "goal" || ev.type === "goal-deadline";
+          if (catFilter === "habit") return ev.type === "habit" || ev.type === "routine";
+          if (catFilter === "work") return ev.type === "work" || ev.type === "google";
+          return false;
+        });
+        const showHoliday = (catFilter === "all" || catFilter === "date") && !!holidayName;
+        const showPersonal = (catFilter === "all" || catFilter === "date") && dayPersonalDates.length > 0;
+
+        const dots: { color: string; key: string }[] = [];
+        if (showHoliday) dots.push({ color: HOLIDAY_COLOR, key: "holiday" });
+        if (showPersonal) dots.push({ color: "#C07080", key: "personal" });
+        filteredEvents.forEach((ev) => dots.push({ color: catDotColor(ev), key: String(ev.id) }));
+        const visibleDots = dots.slice(0, 3);
+        const overflow = dots.length - visibleDots.length;
+
         return (
           <TouchableOpacity
             key={dateStr}
@@ -1378,30 +1417,16 @@ function MonthGrid({
                   {day}
                 </Text>
               </View>
-              {holidayName && (
-                <View style={{ width: 5, height: 5, borderRadius: 3, backgroundColor: HOLIDAY_COLOR, marginLeft: 2 }} />
-              )}
-              {dayPersonalDates.length > 0 && (
-                <View style={{ width: 5, height: 5, borderRadius: 3, backgroundColor: PERSONAL_DATE_COLOR, marginLeft: 2 }} />
-              )}
             </View>
-            {holidayName && (
-              <View style={[planStyles.cellPill, { backgroundColor: HOLIDAY_COLOR }]}>
-                <Text style={planStyles.cellPillText} numberOfLines={1}>{holidayName}</Text>
+            {dots.length > 0 && (
+              <View style={{ flexDirection: "row", justifyContent: "center", alignItems: "center", gap: 2, paddingBottom: 3 }}>
+                {visibleDots.map((dot) => (
+                  <View key={dot.key} style={{ width: 5, height: 5, borderRadius: 3, backgroundColor: dot.color }} />
+                ))}
+                {overflow > 0 && (
+                  <Text style={[planStyles.cellMore, { color: colors.mutedForeground }]}>+{overflow}</Text>
+                )}
               </View>
-            )}
-            {dayPersonalDates.slice(0, holidayName ? 0 : 1).map((pd) => (
-              <View key={pd.id} style={[planStyles.cellPill, { backgroundColor: PERSONAL_DATE_COLOR }]}>
-                <Text style={planStyles.cellPillText} numberOfLines={1}>{pd.name}</Text>
-              </View>
-            ))}
-            {visibleEvents.map((ev) => (
-              <View key={ev.id} style={[planStyles.cellPill, { backgroundColor: eventColor(ev) }]}>
-                <Text style={planStyles.cellPillText} numberOfLines={1}>{ev.title}</Text>
-              </View>
-            ))}
-            {hiddenCount > 0 && (
-              <Text style={[planStyles.cellMore, { color: colors.mutedForeground }]}>+{hiddenCount} more</Text>
             )}
           </TouchableOpacity>
         );
@@ -2508,6 +2533,137 @@ function PersonalDatesModal({
   );
 }
 
+// ─── Countdown Strip ──────────────────────────────────────────────────────────
+
+function CountdownStrip({
+  personalDates, goals, todayStr, colors, onSeeAll,
+}: {
+  personalDates: PersonalDate[];
+  goals: { id: number; title: string; targetDate?: string | null | undefined }[];
+  todayStr: string;
+  colors: Colors;
+  onSeeAll: () => void;
+}) {
+  const today = new Date(todayStr + "T00:00:00");
+
+  const items: { key: string; label: string; dateStr: string; color: string; days: number }[] = [];
+
+  for (const pd of personalDates) {
+    let next = new Date(today.getFullYear(), pd.month - 1, pd.day);
+    if (next < today) next = new Date(today.getFullYear() + 1, pd.month - 1, pd.day);
+    const days = Math.round((next.getTime() - today.getTime()) / 86400000);
+    if (days <= 180) items.push({ key: `pd-${pd.id}`, label: pd.name, dateStr: toISODate(next), color: "#C07080", days });
+  }
+
+  for (const g of goals) {
+    if (!g.targetDate) continue;
+    const target = new Date(g.targetDate + "T00:00:00");
+    if (target < today) continue;
+    const days = Math.round((target.getTime() - today.getTime()) / 86400000);
+    items.push({ key: `goal-${g.id}`, label: g.title, dateStr: g.targetDate, color: "#6B9473", days });
+  }
+
+  items.sort((a, b) => a.days - b.days);
+  if (items.length === 0) return null;
+
+  return (
+    <View style={{ marginBottom: 20 }}>
+      <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 20, marginBottom: 10 }}>
+        <Text style={{ fontSize: 15, fontFamily: "Inter_600SemiBold", color: colors.foreground }}>Coming up</Text>
+        <TouchableOpacity onPress={onSeeAll}>
+          <Text style={{ fontSize: 13, fontFamily: "Inter_500Medium", color: colors.primary }}>See all</Text>
+        </TouchableOpacity>
+      </View>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 20, gap: 10 }}>
+        {items.map((item) => {
+          const weeks = Math.floor(item.days / 7);
+          const isToday = item.days === 0;
+          const isTomorrow = item.days === 1;
+          const bigNum = isToday || isTomorrow ? null : weeks >= 2 ? weeks : item.days;
+          const unit = isToday ? "Today" : isTomorrow ? "Tomorrow" : weeks >= 2 ? "wks" : "days";
+          return (
+            <View
+              key={item.key}
+              style={{ width: 130, borderRadius: 16, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.card, borderLeftWidth: 4, borderLeftColor: item.color, padding: 12, gap: 6 }}
+            >
+              <Text style={{ fontSize: 11, fontFamily: "Inter_400Regular", color: colors.mutedForeground }} numberOfLines={1}>{item.dateStr}</Text>
+              <View style={{ flexDirection: "row", alignItems: "baseline", gap: 3 }}>
+                {bigNum !== null ? (
+                  <>
+                    <Text style={{ fontSize: 28, fontFamily: "Inter_600SemiBold", color: item.color, lineHeight: 32 }}>{bigNum}</Text>
+                    <Text style={{ fontSize: 13, fontFamily: "Inter_400Regular", color: item.color }}>{unit}</Text>
+                  </>
+                ) : (
+                  <Text style={{ fontSize: 18, fontFamily: "Inter_600SemiBold", color: item.color }}>{unit}</Text>
+                )}
+              </View>
+              <Text style={{ fontSize: 12, fontFamily: "Inter_500Medium", color: colors.foreground, lineHeight: 16 }} numberOfLines={2}>{item.label}</Text>
+            </View>
+          );
+        })}
+      </ScrollView>
+    </View>
+  );
+}
+
+// ─── This Week List ───────────────────────────────────────────────────────────
+
+function ThisWeekList({
+  eventsByDate, personalDates, todayStr, colors, onDayPress,
+}: {
+  eventsByDate: Record<string, CalendarEvent[]>;
+  personalDates: PersonalDate[];
+  todayStr: string;
+  colors: Colors;
+  onDayPress: (dateStr: string) => void;
+}) {
+  const today = new Date(todayStr + "T00:00:00");
+  const days: { dateStr: string; label: string; isToday: boolean; events: { key: string; title: string; color: string; typeLabel: string }[] }[] = [];
+
+  for (let i = 0; i < 7; i++) {
+    const d = new Date(today);
+    d.setDate(d.getDate() + i);
+    const dStr = toISODate(d);
+    const dayLabel = i === 0 ? "Today" : i === 1 ? "Tomorrow" :
+      d.toLocaleDateString("en-US", { weekday: "long", month: "short", day: "numeric" });
+    const evs: { key: string; title: string; color: string; typeLabel: string }[] = [];
+
+    personalDates
+      .filter((pd) => pd.month === d.getMonth() + 1 && pd.day === d.getDate())
+      .forEach((pd) => evs.push({ key: `pd-${pd.id}`, title: pd.name, color: "#C07080", typeLabel: "Date" }));
+
+    (eventsByDate[dStr] ?? []).forEach((ev) => evs.push({
+      key: `ev-${ev.id}`, title: ev.title, color: catDotColor(ev), typeLabel: typeBadgeLabel(ev.type),
+    }));
+
+    if (evs.length > 0) days.push({ dateStr: dStr, label: dayLabel, isToday: i === 0, events: evs });
+  }
+
+  if (days.length === 0) return null;
+
+  return (
+    <View style={{ marginBottom: 20, paddingHorizontal: 20 }}>
+      <Text style={{ fontSize: 15, fontFamily: "Inter_600SemiBold", color: colors.foreground, marginBottom: 10 }}>This week</Text>
+      {days.map((day) => (
+        <TouchableOpacity key={day.dateStr} onPress={() => onDayPress(day.dateStr)} activeOpacity={0.75} style={{ marginBottom: 10 }}>
+          <Text style={{ fontSize: 11, fontFamily: day.isToday ? "Inter_600SemiBold" : "Inter_400Regular", color: day.isToday ? colors.primary : colors.mutedForeground, marginBottom: 5, textTransform: "uppercase", letterSpacing: 0.5 }}>
+            {day.label}
+          </Text>
+          {day.events.map((ev) => (
+            <View key={ev.key} style={{ flexDirection: "row", alignItems: "center", gap: 8, borderRadius: 10, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.card, paddingHorizontal: 12, paddingVertical: 9, marginBottom: 4 }}>
+              <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: ev.color, flexShrink: 0 }} />
+              <Text style={{ flex: 1, fontSize: 14, fontFamily: "Inter_400Regular", color: colors.foreground }} numberOfLines={1}>{ev.title}</Text>
+              <View style={{ paddingHorizontal: 7, paddingVertical: 2, borderRadius: 10, backgroundColor: ev.color + "20" }}>
+                <Text style={{ fontSize: 10, fontFamily: "Inter_500Medium", color: ev.color }}>{ev.typeLabel}</Text>
+              </View>
+            </View>
+          ))}
+        </TouchableOpacity>
+      ))}
+    </View>
+  );
+}
+
 // ─── Main Screen ──────────────────────────────────────────────────────────────
 
 export default function PlanScreen() {
@@ -2534,6 +2690,7 @@ export default function PlanScreen() {
   const [editingGoalPct, setEditingGoalPct] = useState(0);
 
   // ── Calendar state ──
+  const [catFilter, setCatFilter] = useState<CatFilter>("all");
   const [viewMode, setViewMode] = useState<"month" | "week" | "year">("month");
   const [viewYear, setViewYear] = useState(today.getFullYear());
   const [viewMonth, setViewMonth] = useState(today.getMonth());
@@ -3086,6 +3243,106 @@ export default function PlanScreen() {
           </View>
         </View>
 
+        {/* ── Calendar hero ────────────────────────────────────────────────── */}
+        <View style={{ marginBottom: 20 }}>
+          {/* Nav row: ‹ Month Year › ………… Today */}
+          <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 20, marginBottom: 10 }}>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 2 }}>
+              <TouchableOpacity onPress={prevPeriod} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+                <Feather name="chevron-left" size={20} color={colors.foreground} />
+              </TouchableOpacity>
+              <Text style={{ fontSize: 16, fontFamily: "Inter_600SemiBold", color: colors.foreground, minWidth: 140, textAlign: "center" }}>{navLabel}</Text>
+              <TouchableOpacity onPress={nextPeriod} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+                <Feather name="chevron-right" size={20} color={colors.foreground} />
+              </TouchableOpacity>
+            </View>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+              <TouchableOpacity
+                onPress={() => setShowPersonalDates(true)}
+                style={{ width: 30, height: 30, borderRadius: 15, borderWidth: 1, borderColor: PERSONAL_DATE_COLOR + "60", backgroundColor: PERSONAL_DATE_COLOR + "14", justifyContent: "center", alignItems: "center" }}
+              >
+                <Feather name="heart" size={13} color={PERSONAL_DATE_COLOR} />
+              </TouchableOpacity>
+              <TouchableOpacity onPress={goToToday} style={{ backgroundColor: colors.primary, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 5 }}>
+                <Text style={{ color: colors.primaryForeground, fontFamily: "Inter_600SemiBold", fontSize: 12 }}>Today</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+
+          {/* View mode toggle */}
+          <View style={{ paddingHorizontal: 20, marginBottom: 10 }}>
+            <View style={[planStyles.viewToggle, { backgroundColor: colors.muted, borderColor: colors.border }]}>
+              {(["month", "week", "year"] as const).map((mode) => (
+                <TouchableOpacity
+                  key={mode}
+                  style={[planStyles.viewTogglePill, viewMode === mode && { backgroundColor: colors.card }]}
+                  onPress={() => setViewMode(mode)}
+                >
+                  <Text style={[planStyles.viewToggleText, { color: viewMode === mode ? colors.foreground : colors.mutedForeground, fontFamily: viewMode === mode ? "Inter_600SemiBold" : "Inter_400Regular" }]}>
+                    {mode.charAt(0).toUpperCase() + mode.slice(1)}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          </View>
+
+          {/* Category filter pills */}
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 20, gap: 6, paddingBottom: 10 }}>
+            {CAT_FILTER_PILLS.map((p) => {
+              const active = catFilter === p.key;
+              return (
+                <TouchableOpacity
+                  key={p.key}
+                  onPress={() => setCatFilter(p.key)}
+                  activeOpacity={0.75}
+                  style={{ flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20, borderWidth: 1.5, borderColor: active ? p.color : colors.border, backgroundColor: active ? p.color + "18" : colors.card }}
+                >
+                  <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: p.color }} />
+                  <Text style={{ fontSize: 12, fontFamily: "Inter_500Medium", color: active ? p.color : colors.mutedForeground }}>{p.label}</Text>
+                </TouchableOpacity>
+              );
+            })}
+          </ScrollView>
+
+          {/* Day-of-week headers */}
+          {viewMode !== "year" && (
+            <View style={[planStyles.weekRow, { paddingHorizontal: 8 }]}>
+              {WEEK_DAYS.map((d, i) => (
+                <Text key={i} style={[planStyles.weekDay, { color: colors.mutedForeground, fontFamily: "Inter_500Medium" }]}>{d}</Text>
+              ))}
+            </View>
+          )}
+
+          {/* Calendar grid */}
+          <View style={{ paddingHorizontal: 8 }}>
+            {viewMode === "month" ? (
+              <MonthGrid viewYear={viewYear} viewMonth={viewMonth} eventsByDate={eventsByDate} currentTodayStr={currentTodayStr} onDayPress={handleDayPress} colors={colors} region={region} personalDates={personalDates} catFilter={catFilter} />
+            ) : viewMode === "week" ? (
+              <WeekView weekStart={weekStart} eventsByDate={eventsByDate} currentTodayStr={currentTodayStr} onDayPress={handleDayPress} colors={colors} region={region} personalDates={personalDates} />
+            ) : (
+              <YearView viewYear={viewYear} eventsByDate={eventsByDate} currentTodayStr={currentTodayStr} onDayPress={handleDayPress} colors={colors} region={region} />
+            )}
+          </View>
+        </View>
+
+        {/* ── Coming up countdown strip ─────────────────────────────────────── */}
+        <CountdownStrip
+          personalDates={personalDates}
+          goals={goals ?? []}
+          todayStr={currentTodayStr}
+          colors={colors}
+          onSeeAll={goToToday}
+        />
+
+        {/* ── This week ────────────────────────────────────────────────────── */}
+        <ThisWeekList
+          eventsByDate={eventsByDate}
+          personalDates={personalDates}
+          todayStr={currentTodayStr}
+          colors={colors}
+          onDayPress={handleDayPress}
+        />
+
         {/* ── Big Goals ──────────────────────────────────────────────────── */}
         <View style={planStyles.section}>
           <View style={planStyles.sectionHeader}>
@@ -3259,69 +3516,6 @@ export default function PlanScreen() {
           )}
         </View>
 
-        {/* ── Calendar ───────────────────────────────────────────────────── */}
-        <View style={planStyles.section}>
-          <View style={[planStyles.sectionHeader, { marginBottom: 12 }]}>
-            <Text style={[planStyles.sectionTitle, { color: colors.foreground, fontFamily: "Inter_600SemiBold" }]}>Calendar</Text>
-            <TouchableOpacity
-              style={{ flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8, borderWidth: 1, borderColor: PERSONAL_DATE_COLOR + "50", backgroundColor: PERSONAL_DATE_COLOR + "10" }}
-              onPress={() => setShowPersonalDates(true)}
-            >
-              <Feather name="heart" size={13} color={PERSONAL_DATE_COLOR} />
-              <Text style={{ fontSize: 12, fontFamily: "Inter_500Medium", color: PERSONAL_DATE_COLOR }}>Dates</Text>
-            </TouchableOpacity>
-          </View>
-
-          {/* View mode toggle */}
-          <View style={planStyles.viewToggleRow}>
-            <View style={[planStyles.viewToggle, { backgroundColor: colors.muted, borderColor: colors.border }]}>
-              {(["week", "month", "year"] as const).map((mode) => (
-                <TouchableOpacity
-                  key={mode}
-                  style={[planStyles.viewTogglePill, viewMode === mode && { backgroundColor: colors.card }]}
-                  onPress={() => setViewMode(mode)}
-                >
-                  <Text style={[planStyles.viewToggleText, { color: viewMode === mode ? colors.foreground : colors.mutedForeground, fontFamily: viewMode === mode ? "Inter_600SemiBold" : "Inter_400Regular" }]}>
-                    {mode.charAt(0).toUpperCase() + mode.slice(1)}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-            <TouchableOpacity style={[planStyles.todayBtn, { borderColor: colors.border, backgroundColor: colors.card }]} onPress={goToToday}>
-              <Text style={[planStyles.todayBtnText, { color: colors.primary, fontFamily: "Inter_500Medium" }]}>Today</Text>
-            </TouchableOpacity>
-          </View>
-
-          {/* Period navigation */}
-          <View style={[planStyles.monthNav, { borderColor: colors.border }]}>
-            <TouchableOpacity onPress={prevPeriod} style={planStyles.monthNavBtn} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
-              <Feather name="chevron-left" size={20} color={colors.foreground} />
-            </TouchableOpacity>
-            <Text style={[planStyles.monthTitle, { color: colors.foreground, fontFamily: "Inter_600SemiBold" }]}>{navLabel}</Text>
-            <TouchableOpacity onPress={nextPeriod} style={planStyles.monthNavBtn} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
-              <Feather name="chevron-right" size={20} color={colors.foreground} />
-            </TouchableOpacity>
-          </View>
-
-          {/* Day-of-week headers */}
-          {viewMode !== "year" && (
-            <View style={planStyles.weekRow}>
-              {WEEK_DAYS.map((d, i) => (
-                <Text key={i} style={[planStyles.weekDay, { color: colors.mutedForeground, fontFamily: "Inter_500Medium" }]}>{d}</Text>
-              ))}
-            </View>
-          )}
-
-          {/* Calendar grid */}
-          {viewMode === "month" ? (
-            <MonthGrid viewYear={viewYear} viewMonth={viewMonth} eventsByDate={eventsByDate} currentTodayStr={currentTodayStr} onDayPress={handleDayPress} colors={colors} region={region} personalDates={personalDates} />
-          ) : viewMode === "week" ? (
-            <WeekView weekStart={weekStart} eventsByDate={eventsByDate} currentTodayStr={currentTodayStr} onDayPress={handleDayPress} colors={colors} region={region} personalDates={personalDates} />
-          ) : (
-            <YearView viewYear={viewYear} eventsByDate={eventsByDate} currentTodayStr={currentTodayStr} onDayPress={handleDayPress} colors={colors} region={region} />
-          )}
-        </View>
-
         {/* ── Routines & Habits ──────────────────────────────────────────── */}
         <View style={planStyles.section}>
           <View style={planStyles.sectionHeader}>
@@ -3411,75 +3605,6 @@ export default function PlanScreen() {
           )}
         </View>
 
-        {/* ── Coming Up This Week ────────────────────────────────────────── */}
-        <View style={planStyles.section}>
-          <TouchableOpacity style={planStyles.sectionHeader} onPress={() => setUpcomingOpen((v) => !v)} activeOpacity={0.7}>
-            <Text style={[planStyles.sectionTitle, { color: colors.foreground, fontFamily: "Inter_600SemiBold" }]}>Coming Up This Week</Text>
-            <Feather name={upcomingOpen ? "chevron-up" : "chevron-down"} size={16} color={colors.mutedForeground} />
-          </TouchableOpacity>
-          {upcomingOpen && (
-            upcomingEvents.length === 0 ? (
-              <View style={[planStyles.emptyState, { borderColor: colors.border, backgroundColor: colors.card }]}>
-                <Feather name="calendar" size={22} color={colors.mutedForeground} />
-                <Text style={[planStyles.emptyText, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>Nothing scheduled this week</Text>
-              </View>
-            ) : (
-              upcomingEvents.map((event) => {
-                const bc = typeBadgeColor(event.type);
-                return (
-                  <View key={event.id} style={[planStyles.eventCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
-                    <View style={planStyles.eventTop}>
-                      <Text style={[planStyles.eventTitle, { color: colors.foreground, fontFamily: "Inter_500Medium" }]} numberOfLines={2}>{event.title}</Text>
-                      <View style={[planStyles.typeBadge, { backgroundColor: bc + "22" }]}>
-                        <Text style={[planStyles.typeBadgeText, { color: bc, fontFamily: "Inter_500Medium" }]}>{typeBadgeLabel(event.type)}</Text>
-                      </View>
-                    </View>
-                    <View style={planStyles.eventDateRow}>
-                      <Feather name="calendar" size={12} color={colors.mutedForeground} />
-                      <Text style={[planStyles.eventDate, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>{formatEventDate(event.date)}</Text>
-                    </View>
-                    {event.notes ? <Text style={[planStyles.eventNotes, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]} numberOfLines={2}>{event.notes}</Text> : null}
-                  </View>
-                );
-              })
-            )
-          )}
-        </View>
-
-        {/* ── From Google Calendar ───────────────────────────────────────── */}
-        {upcomingGoogleEvents.length > 0 && (
-          <View style={planStyles.section}>
-            <TouchableOpacity style={planStyles.sectionHeader} onPress={() => setGoogleCalOpen((v) => !v)} activeOpacity={0.7}>
-              <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
-                <View style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: "#4285F4" }} />
-                <Text style={[planStyles.sectionTitle, { color: colors.foreground, fontFamily: "Inter_600SemiBold" }]}>From Google Calendar</Text>
-              </View>
-              <Feather name={googleCalOpen ? "chevron-up" : "chevron-down"} size={16} color={colors.mutedForeground} />
-            </TouchableOpacity>
-            {googleCalOpen && upcomingGoogleEvents.map((event) => {
-              const dateLabel = formatDateWithDay(event.date);
-              const timeLabel = event.startTime
-                ? new Date(event.startTime).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true })
-                : null;
-              const dateTimeLabel = timeLabel ? `${dateLabel} at ${timeLabel}` : dateLabel;
-              return (
-                <View key={event.id} style={[planStyles.eventCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
-                  <View style={planStyles.eventTop}>
-                    <Text style={[planStyles.eventTitle, { color: colors.foreground, fontFamily: "Inter_500Medium" }]} numberOfLines={2}>{event.title}</Text>
-                    <View style={[planStyles.typeBadge, { backgroundColor: "#4285F422" }]}>
-                      <Text style={[planStyles.typeBadgeText, { color: "#4285F4", fontFamily: "Inter_500Medium" }]}>Google Cal</Text>
-                    </View>
-                  </View>
-                  <View style={planStyles.eventDateRow}>
-                    <Feather name="calendar" size={12} color={colors.mutedForeground} />
-                    <Text style={[planStyles.eventDate, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>{dateTimeLabel}</Text>
-                  </View>
-                  {event.notes ? <Text style={[planStyles.eventNotes, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]} numberOfLines={2}>{event.notes}</Text> : null}
-                </View>
-              );
-            })}
-          </View>
-        )}
       </ScrollView>
 
       {/* ── Modals ─────────────────────────────────────────────────────── */}
