@@ -1,0 +1,91 @@
+Replit Agent Prompt — Valo Plan Redesign + "Library" Hosting Screen
+Context
+Redesign the Plan page and add a new Library screen in the mockup-sandbox. The Plan page currently stacks the calendar below four dropdowns (Big Goals, Daily Habits, Work/School Schedule, Dates) plus Routines and "Coming Up This Week." We're promoting the calendar to the top, slimming Plan down to three modules, and moving the four dropdowns into a purpose-built Library screen.
+Build everything as previewable mockup components following the same conventions as the existing shell mockups (use NavCheckIn.tsx as the reference for structure, styling approach, and preview wiring). Mock data only — no backend, no API calls, no persistence.
+Hard constraints — do not violate
+
+Do NOT modify Recovery.tsx, GoalProgress.tsx, or Motivation.tsx. You may import and render GoalProgress as-is.
+Pull all colors, typography, and spacing from the design tokens in Valo_App_Spec.md — that file is the single source of truth. Do not invent new hex values where a token already exists.
+Match the existing file structure, naming, and /preview/shell/... route conventions in artifacts/mockup-sandbox/src/components/mockups/shell/.
+TypeScript throughout. Keep components small and modular (separate files for Countdown, ThisWeek, Calendar, Library zones).
+Do NOT touch the bottom-nav center check-in FAB behavior.
+
+Color mapping (map to existing tokens; intended values shown)
+CategoryColorGoalssage greenHabitsamberWork/Schoolslate blueDates (birthdays/anniversaries)roseEvents / routineslavenderCTA / "today" / active stateterracotta #C17B3F
+
+BUILD 1 — Redesigned Plan screen
+File: shell/PlanScreen.tsx (or match existing convention) · Preview: /preview/shell/PlanScreen
+Top-to-bottom layout:
+
+Header
+
+VALO wordmark, left.
+Right side, two controls: a list/agenda icon button that opens the Library screen (Build 2), and a terracotta "+" button (add-to-calendar; stub the action).
+
+
+Calendar (hero — top of page, primary attention)
+
+Month label with ‹ › navigation + a terracotta "Today" pill.
+Week / Month / Year segmented toggle.
+Filter pills row (horizontally scrollable): All · Goals · Habits · Work · Dates, each with its category color dot. All active by default (terracotta). Selecting a pill filters which event dots render.
+Month view = colored dots, NOT text blocks. Each day cell shows the date number and up to 3 small category-colored dots; 4+ events show 3 dots + a subtle "+N". Today's number sits in a terracotta filled circle. This is the single most important change — kill the stacked truncated text labels.
+Week view keeps short text event labels (there's horizontal room).
+Tapping a day opens a day-detail bottom sheet listing that day's events (mock).
+
+
+Countdown — shell/Countdown.tsx
+
+Horizontal scroll of compact cards, nearest date first.
+Each card: big number + unit ("5 days", "3 wks"), label, and a small type tag with a left color accent (rose = birthday, terracotta = deadline, lavender = anniversary/event).
+Populated from a merged list of: important Dates + Goal deadlines + flagged calendar events. Section header has a › "see all" affordance (stub).
+
+
+This Week — shell/ThisWeek.tsx
+
+Compact agenda list (date chip · category dot · title · time) for the next 7 days.
+Empty state only if genuinely nothing scheduled.
+
+
+
+Remove from Plan: the Big Goals, Daily Habits, Work/School Schedule, and Routines dropdowns, and the old "Coming Up This Week" dashed-box section. They no longer live here.
+
+BUILD 2 — Library screen ("set it up" hub)
+File: shell/PlanLibrary.tsx · Preview: /preview/shell/PlanLibrary
+Opened from the Plan header list icon. Header: back affordance + title ("Library" or "Plan setup") + a + to add.
+Organize into two zones by interaction type — not four identical accordions:
+Zone A — Active (engagement objects, given visual weight)
+
+Goals: render each as a card with a progress bar, percent, and deadline. Reuse GoalProgress.tsx for these cards (do not alter it).
+Habits: compact rows — habit name, current streak count, and a week-of-dots row (S M T W T F S, filled = completed).
+
+Zone B — Reference (set-and-forget, demoted, lower on screen)
+
+Work/School Schedule: compact rows with a recurrence chip (e.g. "Mon–Fri · 9:00–5:00") and category color.
+Dates: simple list of birthdays/anniversaries with a small inline countdown preview ("in 5 days"). Include the rose "Dates" heart entry here as the add-affordance for this list. Make clear these feed the Plan Countdown.
+
+Visual hierarchy: Zone A reads rich and tappable; Zone B reads utilitarian and quiet (smaller rows, lighter treatment), so it stops competing for attention.
+
+Data shapes (TypeScript interfaces + mock data)
+Define these and seed realistic mock data so both screens render fully:
+tstype Category = 'goal' | 'habit' | 'work' | 'date' | 'event' | 'routine';
+
+interface CalendarEvent { id: string; title: string; date: string; time?: string; category: Category; flaggedForCountdown?: boolean; }
+interface Goal { id: string; title: string; progress: number; deadline?: string; }      // progress 0–1
+interface Habit { id: string; name: string; streak: number; weekDots: boolean[]; }       // weekDots length 7, Sun→Sat
+interface ScheduleBlock { id: string; title: string; days: string[]; start: string; end: string; }
+interface ImportantDate { id: string; label: string; date: string; kind: 'birthday' | 'anniversary'; }
+interface CountdownItem { id: string; label: string; date: string; type: 'birthday' | 'anniversary' | 'deadline' | 'event'; }
+Build a small helper that merges ImportantDate[], Goal deadlines, and flagged CalendarEvent[] into a sorted CountdownItem[] for the Countdown strip.
+Out of scope (do not build yet)
+
+No Supabase / Replit DB / API wiring — mock data only.
+No real recurrence engine; recurrence chips can be static strings.
+No edit/create forms beyond stubbed buttons (tapping + can log or open an empty stub).
+Do not change Home, Health, Progress, onboarding, or the check-in modal.
+
+Acceptance check
+
+Plan page shows: header → calendar (dots, filters, Today) → Countdown → This Week. The four old dropdowns are gone.
+Library page shows the two-zone Active/Reference layout with Goals using GoalProgress.
+Both render at their /preview/shell/... routes with mock data, no console errors.
+Recovery.tsx, GoalProgress.tsx, Motivation.tsx are unchanged.
