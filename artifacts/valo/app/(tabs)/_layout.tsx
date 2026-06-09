@@ -145,6 +145,5 @@ export default function TabLayout() {
   if (!isSignedIn) return <Redirect href="/(auth)/sign-in" />;
   if (needsOnboarding) return <Redirect href="/onboarding" />;
 
-  if (isLiquidGlassAvailable()) return <NativeTabLayout />;
   return <ClassicTabLayout />;
 }
