@@ -1,4 +1,4 @@
-import React, { useRef } from "react";
+import React, { useRef, useState } from "react";
 import {
   View,
   TouchableOpacity,
@@ -6,7 +6,6 @@ import {
   Platform,
   Animated,
   Text,
-  useColorScheme,
 } from "react-native";
 import { BlurView } from "expo-blur";
 import { Feather } from "@expo/vector-icons";
@@ -14,6 +13,8 @@ import { SymbolView } from "expo-symbols";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import * as Haptics from "expo-haptics";
 import { useColors } from "@/hooks/useColors";
+import { useTheme } from "@/contexts/ThemeContext";
+import { CheckInSheet } from "@/components/CheckInSheet";
 
 const isIOS = Platform.OS === "ios";
 
@@ -108,10 +109,11 @@ type RouteEntry = { key: string; name: string };
 export function CustomTabBar({ state, navigation }: { state: any; navigation: any; descriptors: any; insets: any }) {
   const colors = useColors();
   const insets = useSafeAreaInsets();
-  const colorScheme = useColorScheme();
+  const { colorScheme } = useTheme();
   const isDark = colorScheme === "dark";
   const fabScale = useRef(new Animated.Value(1)).current;
   const fabRotate = useRef(new Animated.Value(0)).current;
+  const [sheetOpen, setSheetOpen] = useState(false);
 
   const bottomPad = Math.max(insets.bottom, 8);
   const totalHeight = TAB_BAR_HEIGHT + bottomPad;
@@ -168,7 +170,7 @@ export function CustomTabBar({ state, navigation }: { state: any; navigation: an
         }),
       ]),
     ]).start();
-    navigateTo("checkin");
+    setSheetOpen(true);
   }
 
   const rotation = fabRotate.interpolate({
@@ -177,6 +179,8 @@ export function CustomTabBar({ state, navigation }: { state: any; navigation: an
   });
 
   return (
+    <>
+    <CheckInSheet isOpen={sheetOpen} onClose={() => setSheetOpen(false)} />
     <View style={[styles.wrapper, { height: totalHeight }]}>
       {isIOS ? (
         <BlurView
@@ -232,6 +236,7 @@ export function CustomTabBar({ state, navigation }: { state: any; navigation: an
         ))}
       </View>
     </View>
+    </>
   );
 }
 

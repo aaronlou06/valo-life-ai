@@ -1,0 +1,74 @@
+Fix the Check-in (+) Button — Bottom Sheet with 4 Options
+Problem
+The center + button in the bottom nav currently navigates to / pulls up the old home screen. It should NOT navigate anywhere or change the active page.
+What it should do
+When tapped, a bottom sheet modal floats up over the current page (whatever page the user is on). The page behind dims with a backdrop. The sheet has 4 option buttons. Tapping the backdrop or a cancel/X closes the sheet. The active page behind does not change.
+Bottom Sheet Design
+Backdrop: rgba(26, 24, 20, 0.45), covers the full screen, tapping it closes the sheet.
+Sheet container:
+
+Anchored to bottom of screen
+Background: var(--bg-surface) (light: #FCFBF9, dark: #242018)
+Border-radius: 22px 22px 0 0 (rounded top corners only)
+Padding: 16px 20px 28px
+Drag handle bar at top: 36×4px, var(--border-default), centered, margin-bottom: 16px
+
+Title: "Check in" — 16px, weight 600, primary text color
+Subtitle: "How would you like to check in?" — 12px, muted text color, margin-bottom 16px
+The 4 Options (vertical stack, 10px gap between them)
+Each option is a tappable row/button:
+
+Full width, var(--bg-card-fill) background (light: #F0ECE6), 1px solid var(--border-default)
+Border-radius: 12px, padding: 12px 14px
+Layout: icon container on left + text block on right
+Icon container: 38×38px, border-radius 10px, colored background, centered icon (18px stroke)
+
+Option 1 — Voice conversation
+
+Icon: microphone, in green container (bg #D8EBE3, icon stroke #4A7D68)
+Title: "Voice conversation" (13px, weight 600, primary text)
+Subtitle: "Talk it out — decompress, reflect, think aloud" (11px, muted)
+actionType: start_voice_conversation
+
+Option 2 — Guided check-in
+
+Icon: a chat-bubble-with-question or compass icon, in pink container (bg #F5DDD8, icon stroke #A06050)
+Title: "Guided check-in" (13px, weight 600, primary text)
+Subtitle: "Valo asks what's missing — sleep, mood, goals" (11px, muted)
+actionType: start_guided_checkin
+
+Option 3 — Text box
+
+Icon: pencil/edit icon, in sand container (bg #E0D8CC, icon stroke #7A6A5A)
+Title: "Write it out" (13px, weight 600, primary text)
+Subtitle: "Quick capture when you can't talk" (11px, muted)
+actionType: start_text_checkin
+
+Option 4 — Tools
+
+Icon: grid/apps icon or wrench icon, in purple container (bg #EDE8F8, icon stroke #6A5A9A)
+Title: "Tools" (13px, weight 600, primary text)
+Subtitle: "Open your active agents and apps" (11px, muted)
+actionType: open_tools
+
+Cancel button
+Below the 4 options, 12px margin-top:
+
+Full width, transparent background, 1px solid var(--border-default), border-radius 12px
+Text: "Cancel", 13px, muted text color
+Tapping closes the sheet
+
+Technical requirements
+
+The + button must NOT change the active nav tab or navigate to a route
+The sheet renders as an overlay/portal above the current page content
+The sheet should animate in (slide up ~200ms ease-out) and out (slide down ~150ms ease-in)
+When the sheet is open, the + button in the nav should still be visible underneath the backdrop
+Use the app's existing dark mode CSS variables so the sheet looks correct in both themes
+Wire each option's onClick to close the sheet and trigger the appropriate action (console.log the actionType for now if the routes don't exist yet)
+
+Do NOT
+
+Do not create a new page/route for the check-in
+Do not change the nav tab highlight when the sheet opens
+Do not modify any other page content
