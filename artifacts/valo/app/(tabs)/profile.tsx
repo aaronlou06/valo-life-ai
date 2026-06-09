@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useRef } from "react";
-import { useRouter } from "expo-router";
+import React, { useState, useEffect, useRef, useCallback } from "react";
+import { useRouter, useFocusEffect } from "expo-router";
 import {
   View,
   Text,
@@ -878,6 +878,22 @@ export default function ProfileScreen() {
     instacart: false, walmart: false, kroger: false,
   });
 
+  // ── Connections page count ────────────────────────────────────────────────
+  const [connectionsCount, setConnectionsCount] = useState(0);
+
+  useFocusEffect(
+    useCallback(() => {
+      void AsyncStorage.getItem("@valo/connections").then((raw) => {
+        try {
+          const data = raw ? (JSON.parse(raw) as Record<string, boolean>) : { "apple-healthkit": true, "google-calendar": true, twilio: true };
+          setConnectionsCount(Object.values(data).filter(Boolean).length);
+        } catch {
+          setConnectionsCount(3);
+        }
+      });
+    }, []),
+  );
+
   // ── Load on mount ──────────────────────────────────────────────────────────
   useEffect(() => {
     void loadProfile();
@@ -1524,6 +1540,17 @@ export default function ProfileScreen() {
         ══════════════════════════════════════════════════════════════════ */}
         <View style={styles.section}>
           <SectionLabel label="CONNECTIONS" />
+
+          {/* Connections page entry row */}
+          <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border, padding: 0, overflow: "hidden", marginBottom: 16 }]}>
+            <ChevronRow
+              icon="link"
+              label="Connections"
+              value={connectionsCount > 0 ? `${connectionsCount} connected` : undefined}
+              onPress={() => router.push("/connections")}
+              last
+            />
+          </View>
 
           {/* Google Calendar */}
           <View style={[styles.connectionCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
