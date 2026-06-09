@@ -1,0 +1,41 @@
+Add Dark Mode with Toggle on Profile Page
+Overview
+Add a dark/light mode toggle to the Profile page. The current design is the light mode. Create a dark mode that preserves the same warm, earthy feel — no cold blue-grays. The toggle should persist across sessions (use localStorage).
+Dark Mode Color Mapping
+TokenLight valueDark valuePage background#FAF8F5#1A1814Surface/screen#FCFBF9#242018Card neutral fill#F0ECE6#2E2A24White card#FFFFFF#302C26Primary text#3A332C#E8E4DEMuted text#8A7D70#9A8D80Placeholder text#B0A090#6A6058Border#E0D8CC#3A3530Light divider#F0ECE6#2E2A24Nav background#FCFBF9#1E1A16Nav active#7A6A5A#D0C4B4Nav inactive#B0A090#6A6058
+Accent Colors in Dark Mode (keep vibrant, slightly muted)
+AccentLight BGDark BGLight textDark textGreen/sage#D8EBE3#1E3A2E#4A7D68#6AAA8EPink/rose#F5DDD8#3A2420#A06050#D08878Sand#E0D8CC#342E26#7A6A5A#A09080Blue/slate#C8DAE8#1E2A38#4A6A80#6A9ABBPurple#EDE8F8#2A2438#6A5A9A#9A88CCAmber#FAEEDA#342A1A#8A6030#C09050
+CTA Button (unchanged in both modes)
+
+Terracotta: #B06050 with white text — same in both modes. It pops naturally against both backgrounds.
+
+Implementation
+
+Theme provider: Create a context/provider (or use a simple data-theme="dark" attribute on the root <div>) that toggles a class or attribute. Use CSS custom properties mapped to the table above so all existing components inherit the change automatically.
+CSS custom properties approach (preferred): Define all colors as CSS variables on :root for light and [data-theme="dark"] for dark. Replace any hardcoded hex values in components with var(--color-name). Variable names:
+
+--bg-page, --bg-surface, --bg-card-fill, --bg-card-white
+--text-primary, --text-muted, --text-placeholder
+--border-default, --border-light
+--nav-bg, --nav-active, --nav-inactive
+--accent-green-bg, --accent-green-text (repeat for each accent)
+
+
+Profile page toggle: Add a row in the Profile settings list between "Notifications" and "Connected apps":
+
+Label: "Appearance" on the left
+Right side: a segmented control or simple toggle switch
+Options: a sun icon for light, moon icon for dark
+Use a small pill toggle — when light is active, the pill bg is #F0ECE6 and the active indicator is #7A6A5A. In dark mode, the pill bg is #2E2A24 and active indicator is #D0C4B4.
+
+
+Persist choice: Save to localStorage key valo-theme. On app load, check localStorage and apply before first render to avoid flash of wrong theme.
+Respect system preference as default: If no localStorage value exists, check prefers-color-scheme: dark media query and use that as the initial value.
+
+What NOT to change
+
+Do not change the terracotta CTA button color
+Do not change any SVG icon stroke widths or sizes
+Do not change layout, spacing, border-radius, or font sizes
+Do not touch any backend logic
+Do not modify the today-cards components (Recovery.tsx, GoalProgress.tsx, Motivation.tsx)

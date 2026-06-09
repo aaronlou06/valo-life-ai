@@ -17,6 +17,7 @@ import { setBaseUrl } from "@workspace/api-client-react";
 
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { AuthProvider, useValoAuth } from "@/contexts/AuthContext";
+import { ThemeProvider } from "@/contexts/ThemeContext";
 import { HolidayRegionProvider } from "@/contexts/HolidayRegionContext";
 import { GOOGLE_OAUTH_PREFIX } from "@/lib/googleCalendar";
 import { installErrorLogger } from "@/lib/errorLogger";
@@ -261,6 +262,7 @@ export default function RootLayout() {
         console.error("[Valo] Stack:", stack);
       }}
     >
+      <ThemeProvider>
       <AuthProvider>
         <HolidayRegionProvider>
         <SafeAreaProvider>
@@ -283,6 +285,7 @@ export default function RootLayout() {
         </SafeAreaProvider>
         </HolidayRegionProvider>
       </AuthProvider>
+      </ThemeProvider>
     </ErrorBoundary>
   );
 }

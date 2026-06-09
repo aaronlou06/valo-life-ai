@@ -59,8 +59,6 @@ const RIGHT_TABS: TabDef[] = [
   },
 ];
 
-const INACTIVE_COLOR = "#b0a090";
-const ACTIVE_COLOR = "#7a6a5a";
 const FAB_COLOR = "#b06050";
 
 const FAB_SIZE = 52;
@@ -76,7 +74,8 @@ function TabItem({
   isActive: boolean;
   onPress: () => void;
 }) {
-  const iconColor = isActive ? ACTIVE_COLOR : INACTIVE_COLOR;
+  const colors = useColors();
+  const iconColor = isActive ? colors.navActive : colors.navInactive;
 
   return (
     <TouchableOpacity
@@ -187,7 +186,7 @@ export function CustomTabBar({ state, navigation }: { state: any; navigation: an
         />
       ) : (
         <View
-          style={[StyleSheet.absoluteFill, { backgroundColor: colors.background }]}
+          style={[StyleSheet.absoluteFill, { backgroundColor: colors.navBackground }]}
         />
       )}
 

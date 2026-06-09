@@ -1,3 +1,4 @@
-- [Tab structure](tab-structure.md) — 4 tabs (Home, Search, Notifications, Profile) + center amber FAB → Check-in. CustomTabBar component handles layout.
+- [Tab structure](tab-structure.md) — 4 tabs (Home, Plan, Health, Profile) + center terracotta FAB (#b06050) → Check-in. CustomTabBar uses useColors() for nav tokens.
 - [Auth routes](auth-routes.md) — custom session auth (not Clerk). change-password and delete-account added to auth.ts.
 - [Multi-reminder event editing](multi-reminder-event-editing.md) — AddEventModal supports edit mode via event? prop; PATCH /reminders/:id added for isActive toggle-off semantics.
+- [Dark mode](dark-mode.md) — ThemeContext + AsyncStorage override; useColors() reads from ThemeContext not useColorScheme(); toggle in Profile > Account section.

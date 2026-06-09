@@ -23,6 +23,7 @@ import * as ImagePicker from "expo-image-picker";
 import Constants from "expo-constants";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useColors } from "@/hooks/useColors";
+import { useTheme } from "@/contexts/ThemeContext";
 import { useValoAuth } from "@/contexts/AuthContext";
 import { useHolidayRegion } from "@/hooks/useHolidayRegion";
 import {
@@ -133,6 +134,75 @@ function SavedBadge({ visible }: { visible: boolean }) {
     </Text>
   );
 }
+
+function AppearanceRow() {
+  const colors = useColors();
+  const { colorScheme, setColorScheme } = useTheme();
+  const isDark = colorScheme === "dark";
+
+  const pillBg = isDark ? "#2E2A24" : "#F0ECE6";
+  const indicator = isDark ? "#D0C4B4" : "#7A6A5A";
+  const iconColor = isDark ? "#9A8D80" : "#8A7D70";
+  const activeIconColor = isDark ? "#1A1814" : "#FFFFFF";
+
+  async function toggle(scheme: "light" | "dark") {
+    void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    await setColorScheme(scheme);
+  }
+
+  return (
+    <View
+      style={[
+        styles.chevronRow,
+        { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border },
+      ]}
+    >
+      <View style={styles.chevronLeft}>
+        <Feather name="sun" size={17} color={colors.mutedForeground} />
+        <Text style={[styles.chevronLabel, { color: colors.foreground, fontFamily: "Inter_400Regular" }]}>
+          Appearance
+        </Text>
+      </View>
+      <View style={[appearanceStyles.pill, { backgroundColor: pillBg }]}>
+        <TouchableOpacity
+          onPress={() => void toggle("light")}
+          activeOpacity={0.8}
+          style={[
+            appearanceStyles.pillOption,
+            !isDark && { backgroundColor: indicator, borderRadius: 14 },
+          ]}
+        >
+          <Feather name="sun" size={14} color={!isDark ? activeIconColor : iconColor} />
+        </TouchableOpacity>
+        <TouchableOpacity
+          onPress={() => void toggle("dark")}
+          activeOpacity={0.8}
+          style={[
+            appearanceStyles.pillOption,
+            isDark && { backgroundColor: indicator, borderRadius: 14 },
+          ]}
+        >
+          <Feather name="moon" size={14} color={isDark ? activeIconColor : iconColor} />
+        </TouchableOpacity>
+      </View>
+    </View>
+  );
+}
+
+const appearanceStyles = StyleSheet.create({
+  pill: {
+    flexDirection: "row",
+    borderRadius: 18,
+    padding: 3,
+    gap: 2,
+  },
+  pillOption: {
+    width: 32,
+    height: 28,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+});
 
 function ChevronRow({
   icon,
@@ -1840,6 +1910,7 @@ export default function ProfileScreen() {
               value={dailyReminder ? `Reminder: ${formatTime(callTime)}` : undefined}
               onPress={() => setShowNotifications(true)}
             />
+            <AppearanceRow />
             <ChevronRow
               icon="globe"
               label="Holiday region"
