@@ -1,0 +1,13 @@
+My Home tab is showing the wrong screen. When I tap "Home" in the bottom nav, I see an OLD dashboard with the VALO wordmark logo, "Tuesday, June 9 / Good morning, Aaron / 2 day streak / MORNING CHECK-IN tiles (Mood, Sleep, Energy) / TODAY'S METRICS tiles (Sleep, HRV, Steps, RHR)". This is wrong.
+The CORRECT home screen design — the one I want — has a "Good morning, Aaron" greeting with weather and location, an "AT A GLANCE" section with two tinted cards (Design Sync in green, Weekly Goals in pink), and a "YOUR SPACES" 2×2 grid (Messages, Tasks, Calendar, Notes). You built this design recently but it's living in the wrong place.
+Please do the following:
+
+Locate where the new "At a Glance / Your Spaces" home design currently lives in artifacts/valo/. It may be in a file like home-new.tsx, home.tsx, a components/Home*.tsx file, or somewhere else. Search for the strings "AT A GLANCE", "YOUR SPACES", or "Design Sync" to find it.
+Identify what artifacts/valo/app/(tabs)/index.tsx currently contains and tell me what file it imports from or what content it renders.
+Make the new design the Home tab by replacing the content of artifacts/valo/app/(tabs)/index.tsx so it renders the "At a Glance / Your Spaces" home design. If the new design is in a separate component file, you can have index.tsx simply import and render that component as its default export. The Home tab MUST show the new design (image 2 style) and never the old VALO-logo dashboard.
+Do NOT delete checkin.tsx — it contains the guided check-in, voice debrief, and quick-log logic that will be wired to the CheckInSheet options later. Leave it in place even though it's no longer reachable from the tab bar.
+Do NOT modify _layout.tsx, CustomTabBar.tsx, CheckInSheet.tsx, plan.tsx, health.tsx, or profile.tsx.
+Do NOT change any backend logic, API hooks, VAPI integration, or data models.
+After making the change, clear the Metro cache and restart the Expo dev server (npx expo start -c or equivalent) so the new bundle picks up the routing change. The Home tab must show the new design on refresh.
+
+Report back with: which file the new design was in, what index.tsx previously contained, and confirmation that index.tsx now renders the new home design.
