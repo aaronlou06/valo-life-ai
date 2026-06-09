@@ -1,5 +1,6 @@
 import { COLORS, MOCK_GOALS, MOCK_HABITS, MOCK_SCHEDULE, MOCK_DATES, WEEK_DAYS, TODAY, formatCountdown } from "./mockData";
-import type { Goal, Habit, ScheduleBlock, ImportantDate } from "./mockData";
+import type { Habit, ScheduleBlock, ImportantDate } from "./mockData";
+import { GoalProgress } from "../today-cards/GoalProgress";
 
 export function PlanLibrary() {
   return (
@@ -14,8 +15,8 @@ export function PlanLibrary() {
 
             {/* Goals */}
             <SectionLabel label="Goals" color={COLORS.goal} />
-            <div style={{ paddingLeft: 16, paddingRight: 16, display: "flex", flexDirection: "column", gap: 10, marginBottom: 16 }}>
-              {MOCK_GOALS.map((g) => <GoalCard key={g.id} goal={g} />)}
+            <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 16 }}>
+              {MOCK_GOALS.map((_, i) => <GoalProgress key={i} />)}
             </div>
 
             {/* Habits */}
@@ -120,36 +121,6 @@ function SectionLabel({ label, color }: { label: string; color: string }) {
     <div style={{ display: "flex", alignItems: "center", gap: 6, paddingLeft: 16, paddingRight: 16, marginBottom: 8, marginTop: 6 }}>
       <div style={{ width: 8, height: 8, borderRadius: "50%", background: color }} />
       <span style={{ fontSize: 12, fontWeight: 600, color: COLORS.textMid, letterSpacing: "0.02em" }}>{label}</span>
-    </div>
-  );
-}
-
-function GoalCard({ goal }: { goal: Goal }) {
-  const pct = Math.round(goal.progress * 100);
-  const deadline = goal.deadline
-    ? (() => { const { value, unit } = formatCountdown(goal.deadline!); return unit === "today" ? "Due today" : `${value} ${unit} left`; })()
-    : null;
-
-  return (
-    <div style={{
-      background: COLORS.white, borderRadius: 12, padding: 16,
-      border: `1.5px solid ${COLORS.goal}`,
-      boxShadow: "0 1px 4px rgba(0,0,0,0.06)",
-    }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 8 }}>
-        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke={COLORS.goal} strokeWidth="2" strokeLinecap="round">
-          <circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/>
-        </svg>
-        <span style={{ fontSize: 11, fontWeight: 600, color: COLORS.goal, letterSpacing: "0.04em", textTransform: "uppercase" }}>Goal</span>
-      </div>
-      <p style={{ fontSize: 14, color: COLORS.text, margin: "0 0 10px", fontWeight: 500, lineHeight: 1.4 }}>{goal.title}</p>
-      <div style={{ background: COLORS.goalLight, borderRadius: 4, height: 5, marginBottom: 8, overflow: "hidden" }}>
-        <div style={{ height: "100%", width: `${pct}%`, background: COLORS.goal, borderRadius: 4 }} />
-      </div>
-      <div style={{ display: "flex", justifyContent: "space-between" }}>
-        <span style={{ fontSize: 12, color: COLORS.muted }}>{pct}% complete</span>
-        {deadline && <span style={{ fontSize: 12, color: COLORS.goal, fontWeight: 500 }}>{deadline}</span>}
-      </div>
     </div>
   );
 }
