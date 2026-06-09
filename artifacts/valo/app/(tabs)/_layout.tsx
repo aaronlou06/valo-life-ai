@@ -1,6 +1,4 @@
-import { isLiquidGlassAvailable } from "expo-glass-effect";
 import { Redirect, Tabs } from "expo-router";
-import { Icon, Label, NativeTabs } from "expo-router/unstable-native-tabs";
 import React, { useEffect, useState } from "react";
 import { View, ActivityIndicator } from "react-native";
 import { setAuthTokenGetter, listReminders, listHabits } from "@workspace/api-client-react";
@@ -9,33 +7,6 @@ import { useValoAuth } from "@/contexts/AuthContext";
 import { isOnboardingComplete, loadOnboardingState } from "@/hooks/onboardingState";
 import { scheduleHabitReminder } from "@/lib/notifications";
 import { CustomTabBar } from "@/components/CustomTabBar";
-
-function NativeTabLayout() {
-  return (
-    <NativeTabs>
-      <NativeTabs.Trigger name="index">
-        <Icon sf={{ default: "house", selected: "house.fill" }} />
-        <Label>Home</Label>
-      </NativeTabs.Trigger>
-      <NativeTabs.Trigger name="plan">
-        <Icon sf={{ default: "list.bullet.clipboard", selected: "list.bullet.clipboard.fill" }} />
-        <Label>Plan</Label>
-      </NativeTabs.Trigger>
-      <NativeTabs.Trigger name="checkin">
-        <Icon sf={{ default: "plus.circle.fill", selected: "plus.circle.fill" }} />
-        <Label></Label>
-      </NativeTabs.Trigger>
-      <NativeTabs.Trigger name="health">
-        <Icon sf={{ default: "heart", selected: "heart.fill" }} />
-        <Label>Health</Label>
-      </NativeTabs.Trigger>
-      <NativeTabs.Trigger name="profile">
-        <Icon sf={{ default: "person", selected: "person.fill" }} />
-        <Label>Profile</Label>
-      </NativeTabs.Trigger>
-    </NativeTabs>
-  );
-}
 
 function ClassicTabLayout() {
   const colors = useColors();
