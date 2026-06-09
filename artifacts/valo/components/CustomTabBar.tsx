@@ -34,21 +34,21 @@ const LEFT_TABS: TabDef[] = [
     feather: "home",
   },
   {
-    routeName: "search",
-    label: "Search",
-    sfSymbol: "magnifyingglass",
-    sfSymbolFill: "magnifyingglass",
-    feather: "search",
+    routeName: "plan",
+    label: "Plan",
+    sfSymbol: "list.bullet.clipboard",
+    sfSymbolFill: "list.bullet.clipboard.fill",
+    feather: "list",
   },
 ];
 
 const RIGHT_TABS: TabDef[] = [
   {
-    routeName: "notifications",
-    label: "",
-    sfSymbol: "bell",
-    sfSymbolFill: "bell.fill",
-    feather: "bell",
+    routeName: "health",
+    label: "Health",
+    sfSymbol: "heart",
+    sfSymbolFill: "heart.fill",
+    feather: "heart",
   },
   {
     routeName: "profile",
@@ -58,6 +58,10 @@ const RIGHT_TABS: TabDef[] = [
     feather: "user",
   },
 ];
+
+const INACTIVE_COLOR = "#b0a090";
+const ACTIVE_COLOR = "#7a6a5a";
+const FAB_COLOR = "#b06050";
 
 const FAB_SIZE = 52;
 const FAB_SLOT_WIDTH = 72;
@@ -72,8 +76,7 @@ function TabItem({
   isActive: boolean;
   onPress: () => void;
 }) {
-  const colors = useColors();
-  const iconColor = isActive ? colors.primary : colors.mutedForeground;
+  const iconColor = isActive ? ACTIVE_COLOR : INACTIVE_COLOR;
 
   return (
     <TouchableOpacity
@@ -86,18 +89,13 @@ function TabItem({
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           name={(isActive ? def.sfSymbolFill : def.sfSymbol) as any}
           tintColor={iconColor}
-          size={22}
+          size={20}
         />
       ) : (
-        <Feather name={def.feather} size={22} color={iconColor} />
+        <Feather name={def.feather} size={20} color={iconColor} />
       )}
       {def.label ? (
-        <Text
-          style={[
-            styles.tabLabel,
-            { color: iconColor, fontFamily: "Inter_500Medium" },
-          ]}
-        >
+        <Text style={[styles.tabLabel, { color: iconColor, fontFamily: "Inter_500Medium" }]}>
           {def.label}
         </Text>
       ) : null}
@@ -217,7 +215,7 @@ export function CustomTabBar({ state, navigation }: { state: any; navigation: an
             <TouchableOpacity
               onPress={handleFABPress}
               activeOpacity={0.85}
-              style={[styles.fab, { backgroundColor: colors.primary }]}
+              style={[styles.fab, { backgroundColor: FAB_COLOR }]}
             >
               <Feather name="plus" size={20} color="#FFFFFF" />
             </TouchableOpacity>
@@ -280,7 +278,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
   },
   tabLabel: {
-    fontSize: 10,
+    fontSize: 9,
     letterSpacing: 0.2,
   },
 });

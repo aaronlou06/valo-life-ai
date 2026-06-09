@@ -2,7 +2,7 @@ import { isLiquidGlassAvailable } from "expo-glass-effect";
 import { Redirect, Tabs } from "expo-router";
 import { Icon, Label, NativeTabs } from "expo-router/unstable-native-tabs";
 import React, { useEffect, useState } from "react";
-import { Platform, StyleSheet, View, ActivityIndicator } from "react-native";
+import { View, ActivityIndicator } from "react-native";
 import { setAuthTokenGetter, listReminders, listHabits } from "@workspace/api-client-react";
 import { useColors } from "@/hooks/useColors";
 import { useValoAuth } from "@/contexts/AuthContext";
@@ -17,17 +17,17 @@ function NativeTabLayout() {
         <Icon sf={{ default: "house", selected: "house.fill" }} />
         <Label>Home</Label>
       </NativeTabs.Trigger>
-      <NativeTabs.Trigger name="search">
-        <Icon sf={{ default: "magnifyingglass", selected: "magnifyingglass" }} />
-        <Label>Search</Label>
+      <NativeTabs.Trigger name="plan">
+        <Icon sf={{ default: "list.bullet.clipboard", selected: "list.bullet.clipboard.fill" }} />
+        <Label>Plan</Label>
       </NativeTabs.Trigger>
       <NativeTabs.Trigger name="checkin">
         <Icon sf={{ default: "plus.circle.fill", selected: "plus.circle.fill" }} />
-        <Label>Check-In</Label>
-      </NativeTabs.Trigger>
-      <NativeTabs.Trigger name="notifications">
-        <Icon sf={{ default: "bell", selected: "bell.fill" }} />
         <Label></Label>
+      </NativeTabs.Trigger>
+      <NativeTabs.Trigger name="health">
+        <Icon sf={{ default: "heart", selected: "heart.fill" }} />
+        <Label>Health</Label>
       </NativeTabs.Trigger>
       <NativeTabs.Trigger name="profile">
         <Icon sf={{ default: "person", selected: "person.fill" }} />
@@ -48,17 +48,11 @@ function ClassicTabLayout() {
         tabBarStyle: { display: "none" },
       }}
     >
-      {/* Visible tabs */}
       <Tabs.Screen name="index" options={{ title: "Home" }} />
-      <Tabs.Screen name="search" options={{ title: "Search" }} />
+      <Tabs.Screen name="plan" options={{ title: "Plan" }} />
       <Tabs.Screen name="checkin" options={{ title: "Check-In" }} />
-      <Tabs.Screen name="notifications" options={{ title: "Notifications" }} />
+      <Tabs.Screen name="health" options={{ title: "Health" }} />
       <Tabs.Screen name="profile" options={{ title: "Profile" }} />
-
-      {/* Hidden tabs — accessible from in-app navigation */}
-      <Tabs.Screen name="plan" options={{ href: null }} />
-      <Tabs.Screen name="health" options={{ href: null }} />
-      <Tabs.Screen name="insights" options={{ href: null }} />
     </Tabs>
   );
 }
@@ -73,7 +67,6 @@ export default function TabLayout() {
     setAuthTokenGetter(() => getToken());
   }, [getToken]);
 
-  // Re-schedule all active habit reminders on app startup so they survive restarts.
   useEffect(() => {
     if (!isSignedIn) return;
     (async () => {
