@@ -1,0 +1,51 @@
+TASK: Rebuild the Progress / Habit Tracker Screen
+Locate the current progress or habit tracker screen in the Valo app (artifacts/valo/). Fully replace its content with the following spec. Do not touch any other screens, components, or navigation files.
+
+LAYOUT & STRUCTURE
+The screen is a scrollable list of habit rows. Each habit gets its own card. At the top of the screen, display the current week label (e.g. "Jun 9 – Jun 15").
+
+HABIT ROW (default/collapsed state)
+Each habit card shows:
+
+Habit name (left, bold)
+A 7-column dot/cell grid representing the current week (Mon–Sun), one cell per day
+
+Each cell: filled/colored if completed that day, empty/muted if not
+Today's column should be visually highlighted (subtle border or accent background)
+Day labels (M T W T F S S) appear above the grid, inside the card
+
+
+The card is tappable — tapping anywhere on it expands it (see below)
+
+
+DRAG-TO-REORDER
+Each habit card must be drag-reorderable. Use react-native-draggable-flatlist (install if not present) to render the habit list. Place a drag handle icon (≡ or ⠿) on the left side of each card. Long-press the handle to initiate drag. Persist the new order to local state (AsyncStorage or existing storage pattern in the app).
+
+EXPANDED HABIT DETAIL (tapped state)
+When a user taps a habit card, it expands inline (accordion style) to reveal additional timeline views:
+
+A 30-day grid (past 30 days, 5 rows × 6 cols or similar compact grid)
+A 3-month bar or dot chart
+A streak counter ("Current streak: X days", "Best streak: X days")
+A completion rate for the current month (e.g. "18 / 30 days — 60%")
+
+Tapping the card again collapses it back to the 7-column weekly view.
+
+STYLING
+Match the existing Valo design system exactly:
+
+Use the app's existing color tokens/theme variables for backgrounds, text, and accent colors
+Completed day cells: use the terracotta accent (#C17B3F) or the habit's assigned color if one exists
+Empty cells: muted gray or low-opacity fill
+Cards: rounded corners, subtle shadow, consistent padding with the rest of the app
+Drag handle: muted, right-aligned or left-aligned, doesn't compete visually with the habit name
+
+
+DATA
+Wire to whatever habit data source is currently in use (check existing Plan or home screen habit logic). If no real data exists yet, seed 3–4 placeholder habits with randomized completion booleans across the past 30 days so all UI states are testable.
+
+DO NOT:
+
+Modify Navigation, _layout.tsx, the CheckInSheet, or any existing card components (Recovery, GoalProgress, Motivation)
+Add a new tab — this screen should already be accessible from its existing route
+Remove the existing weekly view in favor of only the expanded view — weekly grid is always visible
