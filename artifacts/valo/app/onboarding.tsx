@@ -237,7 +237,7 @@ export default function OnboardingScreen() {
   const navigateToApp = useCallback(async () => {
     await AsyncStorage.setItem("@valo/onboarding-complete", "true");
     markOnboardingComplete();
-    router.replace("/(tabs)/checkin");
+    router.replace("/(tabs)");
   }, [router]);
 
   // ── Step handlers ─────────────────────────────────────────────────────────

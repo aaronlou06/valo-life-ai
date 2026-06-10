@@ -1379,7 +1379,7 @@ export default function ProfileScreen() {
 
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     Alert.alert("Data reset. Fresh start!", undefined, [
-      { text: "OK", onPress: () => router.replace("/(tabs)/checkin" as any) },
+      { text: "OK", onPress: () => router.replace("/(tabs)" as any) },
     ]);
   }
 
