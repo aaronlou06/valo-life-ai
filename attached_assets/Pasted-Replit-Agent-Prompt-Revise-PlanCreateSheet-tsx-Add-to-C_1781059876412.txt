@@ -1,0 +1,51 @@
+Replit Agent Prompt — Revise PlanCreateSheet.tsx → "Add to Calendar"
+Revise the existing component at artifacts/mockup-sandbox/src/components/mockups/plan/PlanCreateSheet.tsx. Keep what's working — the progressive one-step-at-a-time reveal, the Event "When" timeline with collision detection, the Valo toggles, the preview route, and leave Recovery.tsx / GoalProgress.tsx / Motivation.tsx untouched. Make the changes below.
+
+1. Title
+Change the sheet header to "Add to Calendar". (Keep the file name and route as-is.)
+2. "Type" = the kind (this was wrong before)
+The first thing on the screen is a Type picker. Type means the kind of thing, NOT a life-area. Replace the current kind set with these types:
+Event · Workout · Goal · Work/School · Habit · Routine · To-do · Important date
+Each gets its own icon and color (Event = lavender, Goal = sage green, Work/School = slate blue, Habit = amber, Dates = rose, etc. — pull from existing palette tokens). Remove the life-area facet as a required step. If you want to keep Personal/Health/Work/Social/Growth/Faith at all, demote it to one optional chip row inside "More options" — color of the item comes from its Type, not the facet.
+3. Strict progressive disclosure (the core requirement)
+This is the part to get exactly right:
+
+On open, the screen shows ONLY the header + the Type picker. Nothing else. No title field, no date, no toggles — none of it is visible yet.
+The moment a Type is picked, reveal only that type's first option block.
+Each subsequent block appears only after the previous one is filled/confirmed (Looks good →). Never render a later block before the earlier ones are addressed.
+Earlier blocks stay visible and editable; the user can scroll back and change any answer.
+Example (Workout): pick Workout → reveal workout-type chips → after that, reveal duration → then When → then Repeat → then More options → then Save. Duration must not be visible until the workout type is chosen, and so on down the chain.
+
+4. Add a real Repeat control (with day-of-week)
+Add a Repeat block to every type where it makes sense (Event, Work/School, Habit, Routine, To-do, Important date). Every option must be possible:
+
+Frequency: Does not repeat (default for Event/To-do) · Daily · Weekly · Every 2 weeks · Monthly · Yearly · Custom
+When Weekly or Custom is chosen, show a day-of-week selector — tappable S M T W T F S toggles, multi-select.
+Quick presets: Every weekday (Mon–Fri) and Weekends.
+Ends: Never · On [date] · After [N] occurrences.
+Sensible defaults per type: Work/School → Weekly with weekday selector ready; Habit → Daily; Important date → Yearly; Event/To-do → Does not repeat.
+
+5. Per-type reveal sequences (build all of them to the rules above)
+Event: Title → When (keep the visual timeline + collision detection + Today/Tomorrow/This weekend chips + all-day) → Repeat → Where/Who (optional) → More options → Save
+Workout: Workout type (Strength/Run/Ride/Mobility) → Duration or target → When → Repeat → More options (Valo toggles incl. "Counts toward a goal") → Save
+Goal: Title → Target (measurable) → Deadline → Milestones (optional, addable) → More options ("Have Valo check in", "Track as countdown") → Save (no repeat block)
+Work/School: Title → When (time block) → Repeat with day-of-week front and center → Location (optional) → More options → Save
+Habit: Title → Repeat/cadence (Daily / Weekly on [days] / X times per week — day-of-week selector) → Time of day or anchor → Reminder → More options → Save
+Routine: Title → Steps (ordered, addable, reorderable) → When it runs (time window) → Repeat (day-of-week) → More options → Save
+To-do: Title → Due date (optional) → Priority (optional) → Repeat (optional) → More options (reminder, "Have Valo check in") → Save
+Important date: Label/whose → Date → Repeat (Yearly default) → Track as countdown (on by default) → Save
+6. Keep
+
+The three Valo toggles inside More options: "Have Valo check in on this" (#C17B3F when on), "Counts toward a goal" (with linked-goal chip), "Track as countdown".
+Footer: Save [type] (terracotta) + Save & add another.
+Mock data only. Preview at /preview/plan/PlanCreateSheet.
+
+
+Acceptance checklist
+
+ Header reads "Add to Calendar".
+ On open, ONLY the Type picker is visible.
+ Type set is Event/Workout/Goal/Work/School/Habit/Routine/To-do/Important date; life-area facet is gone from the required flow.
+ Picking a type reveals exactly one block; each next block appears only after the prior is confirmed.
+ Repeat block exists with Daily/Weekly/Every 2 weeks/Monthly/Yearly/Custom, a multi-select day-of-week row, weekday/weekend presets, and Never/On date/After N ends.
+ Event timeline, collision detection, and Valo toggles still work; preserved cards untouched.
