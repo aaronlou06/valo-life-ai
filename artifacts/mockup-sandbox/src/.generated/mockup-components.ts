@@ -8,5 +8,6 @@ export const modules: ModuleMap = {
   "./components/mockups/shell/ThisWeek.tsx": () => import("../components/mockups/shell/ThisWeek.tsx"),
   "./components/mockups/today-cards/GoalProgress.tsx": () => import("../components/mockups/today-cards/GoalProgress.tsx"),
   "./components/mockups/today-cards/Motivation.tsx": () => import("../components/mockups/today-cards/Motivation.tsx"),
-  "./components/mockups/today-cards/Recovery.tsx": () => import("../components/mockups/today-cards/Recovery.tsx")
+  "./components/mockups/today-cards/Recovery.tsx": () => import("../components/mockups/today-cards/Recovery.tsx"),
+  "./components/mockups/plan/PlanCreateSheet.tsx": () => import("../components/mockups/plan/PlanCreateSheet.tsx")
 };
