@@ -1,0 +1,11 @@
+The Home tab is still showing the OLD dashboard — the big "VALO" wordmark logo, a "MORNING CHECK-IN" row (Mood / Sleep / Energy), and a "TODAY'S METRICS" grid (Sleep / HRV / Steps / RHR). It is NOT showing the briefing you built last session (From Valo card + ranked TODAY cards). Do not trust prior reports — verify directly and fix. The terracotta + FAB is visible, so the classic tab layout is already active; the problem is which screen Home resolves to, or a stale bundle.
+Work through these in order and paste the evidence as you go:
+
+Print the top ~50 lines of artifacts/valo/app/(tabs)/index.tsx. Tell me plainly: does it contain the NEW briefing (a "From Valo" card, the /api/vapi/intel fetch, ranked TODAY cards) or the OLD dashboard (strings "MORNING CHECK-IN", "TODAY'S METRICS", a VALO wordmark)? Don't summarize from memory — read the file.
+Grep the whole artifacts/valo tree for MORNING CHECK-IN, TODAY'S METRICS, and streak to locate every file containing the old dashboard. Report which files match. The old dashboard is being rendered from somewhere — find that file.
+Trace the Home route. Open the tab layout (_layout.tsx and CustomTabBar.tsx / whatever registers the screens). Identify exactly which component file the Home tab renders as its initial route. Confirm whether it's (tabs)/index.tsx or some other file (e.g. an old home.tsx, dashboard.tsx, or checkin.tsx). If _layout.tsx still has an isLiquidGlassAvailable() conditional choosing NativeTabLayout vs ClassicTabLayout, force ClassicTabLayout unconditionally.
+Fix the resolution: make the Home tab render the NEW briefing in (tabs)/index.tsx. If the old dashboard is a separate file wired in as Home, repoint Home to index.tsx. If the old dashboard content somehow ended up back inside index.tsx, restore the briefing version. Do NOT delete checkin.tsx or the old dashboard file — just stop rendering it as Home.
+Do NOT modify the backend, /api/vapi/intel, CheckInSheet.tsx, plan.tsx, health.tsx, or the Progress/account screens. This is a routing/render fix only.
+Clean rebuild: kill the dev server and restart with cache cleared (npx expo start -c).
+
+Report back with: the actual head of index.tsx, which file(s) contained the old dashboard, which file Home was resolving to before your fix, and confirmation of what Home renders now.
