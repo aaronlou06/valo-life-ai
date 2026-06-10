@@ -1,0 +1,123 @@
+Replit Agent Prompt — Plan Create Sheet (branching "Add to plan" flow)
+Goal
+Build a new branching create sheet for the Plan page. When the user taps Add to plan and picks a kind, the sheet walks them through only the questions relevant to that kind — one step at a time, stacked on a single growing scrollable surface — instead of dumping every field at once. It must be guided but skippable: every revealed step comes pre-filled with a smart default and a Looks good → affordance so the common case is "type a title, hit Save."
+This is the manual mirror of how Valo asks one thing at a time in voice. Event is the fully-detailed reference branch; build the other kinds to the same skeleton using the per-kind spec below.
+
+Where to build (do not break anything)
+
+Build a new component in the mockup sandbox: artifacts/mockup-sandbox/src/components/mockups/plan/PlanCreateSheet.tsx. Discover the exact existing folder convention from PlanScreen.tsx / PlanLibrary.tsx and match it.
+Add a preview route so it renders at /preview/plan/PlanCreateSheet (match how NavCheckIn is wired at /preview/shell/NavCheckIn).
+Do NOT modify Recovery.tsx, GoalProgress.tsx, or Motivation.tsx. Build alongside; do not restyle existing components.
+Mock data only — no backend, no DB calls. Local component state is fine.
+React Native + Expo + TypeScript, matching the conventions already used in the sandbox mockups.
+
+
+Design tokens (reuse the existing theme — do not invent new ones)
+Pull colors/spacing/radius from the established Valo theme tokens. Where the existing mockups hardcode, match these:
+
+Terracotta (primary CTA + active/on state): #C17B3F
+Card surface: #FFFFFF · hairline borders: #EDE8E1 / #E8E4DE · muted text: #8B8780 · toggle-off track: #D9D4CC
+Life-area / category colors: Goals = sage green · Habits = amber · Work/School = slate blue · Dates = rose · Events = lavender. Use the existing palette tokens for these.
+Radius: existing --border-radius-md / --border-radius-lg equivalents.
+
+
+Core interaction model (applies to every kind)
+
+Step 0 — Kind picker (reuse existing). The existing "Add to plan" picker is the branch point: Event · Workout · Goal · Habit · Routine · Important date. Selecting a kind morphs the sheet into that kind's sequence.
+Single growing sheet. Steps stack vertically on one scrollable surface. They do not hop between full modal screens.
+Progressive reveal. Show one step at a time. The next step appears only after the current one is answered or skipped.
+Smart defaults + skip-ahead. Each revealed step is pre-filled with a sensible default (the tapped day, the next open time slot, last-used facet, a 1h duration, annual recurrence, etc.) and shows a Looks good → control so the user can blow straight through.
+Scroll back to edit. Any earlier answer remains visible and tappable to change.
+Voice always one tap, never forced. The title field auto-focuses on open with an inline mic affordance.
+Footer: primary Save (terracotta) + secondary Save & add another (terracotta text).
+
+
+EVENT branch — reference implementation (build this one fully polished)
+Steps, in order:
+
+Title — auto-focused; inline mic affordance.
+When — the heart of the flow. Render a visual day-timeline of the chosen day showing what's already scheduled; the user drops the new block into open space rather than using a blind picker.
+
+Default: next open slot on the tapped day; default duration 1h with an end-time/duration control.
+Quick chips: Today · Tomorrow · This weekend.
+All-day toggle.
+Collision detection: if the new block overlaps an existing one, that block lights up red.
+
+
+Where / Who (optional) — location field (sets up travel-time/conflict awareness later) + people/notes.
+Anything else? — collapsible row labeled "Reminders, location, notes". Expands to:
+
+Reminder lead-time ("remind me X before").
+The three Valo toggles (see below).
+
+
+Life-area facet — single-select chip row: Personal · Health · Work · Social · Growth · Faith. This drives the color coding and replaces the old free "Type" field. "Habit" is NOT a facet — do not include it here.
+Footer — Save event / Save & add another.
+
+
+The three Valo toggles (live inside "Anything else?")
+
+Have Valo check in on this — terracotta #C17B3F when on. Closes the loop so Valo can later ask "did you complete this / how did it go?" This is the toggle that changes what the screen is.
+Counts toward a goal — links the item to a Big Goal so completing it advances progress. When set, show the linked-goal chip (e.g. Marathon · Oct).
+Track as countdown — sets flaggedForCountdown so the item surfaces in the Countdown strip on Plan.
+
+
+Other branches (same skeleton; build to this spec)
+Workout
+Produces the same workout entity so completed workouts can feed Health later.
+
+Title (optional / auto)
+Modality — Strength · Run · Ride · Mobility
+Target or duration — distance/pace or RPE or planned duration; optional exercise/set list
+When — reuse the same visual day-timeline from Event
+Anything else — reminders + Valo toggles (Counts toward a goal is especially relevant here)
+Save
+
+Goal
+
+Title
+Target — measurable target (distance, weight, count, etc.)
+Deadline — date
+Milestones — optional ordered sub-targets
+Anything else — Have Valo check in on this, Track as countdown
+Save
+
+Habit (has streaks — distinct entity)
+
+Title
+Cadence — Daily / X times per week / specific days
+Time of day / anchor — morning / afternoon / evening, or anchored to a routine
+Reminder — optional
+Anything else — Have Valo check in on this + life-area facet
+Save
+
+Routine
+
+Title
+Steps — ordered, reorderable sub-items (e.g. morning routine: stretch → journal → coffee)
+When it runs — days + time window
+Anything else — Have Valo check in on this
+Save
+
+Important date (birthday / anniversary)
+
+Label / whose
+Date
+Recurrence — annual by default
+Track as countdown — on by default for this kind (flaggedForCountdown)
+Save
+
+
+Acceptance checklist
+
+ Picking a kind reveals only that kind's steps; switching kind re-branches cleanly.
+ Steps reveal one at a time on a single scrollable sheet, each with a smart default and a Looks good →.
+ Earlier steps stay visible and editable (scroll back).
+ Event "When" shows a visual day timeline with existing blocks; new block drops into open space; overlaps light red; quick chips + all-day work.
+ Life-area facet (Personal/Health/Work/Social/Growth/Faith) drives color; "Habit" is not a facet option.
+ All three Valo toggles present in "Anything else"; "Have Valo check in on this" uses #C17B3F when on; "Counts toward a goal" shows a linked-goal chip.
+ Title auto-focused with inline mic; Save + Save & add another footer.
+ Renders at /preview/plan/PlanCreateSheet.
+ Recovery.tsx, GoalProgress.tsx, Motivation.tsx untouched. Mock data only.
+
+After building, report the file path(s) created/edited and confirm the preview route resolves.
