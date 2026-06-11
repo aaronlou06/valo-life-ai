@@ -842,7 +842,7 @@ export default function HomeScreen() {
         <View style={styles.footerRow}>
           <TouchableOpacity
             style={[styles.footerBtn, { backgroundColor: colors.card, borderColor: colors.border }]}
-            onPress={() => router.navigate("/(tabs)/plan")}
+            onPress={() => router.navigate("/tools")}
             activeOpacity={0.75}
           >
             {isIOS ? (
@@ -851,7 +851,7 @@ export default function HomeScreen() {
               <Feather name="grid" size={15} color={colors.mutedForeground} />
             )}
             <Text style={[styles.footerBtnText, { color: colors.foreground, fontFamily: "Inter_500Medium" }]}>
-              Apps
+              Text
             </Text>
           </TouchableOpacity>
 
