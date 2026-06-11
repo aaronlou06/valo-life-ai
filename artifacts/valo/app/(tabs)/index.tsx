@@ -386,26 +386,38 @@ function ValoCard({
         <ActivityIndicator size="small" color={colors.mutedForeground} style={{ marginTop: 8 }} />
       ) : (
         <>
-          {/* Invisible measuring pass — renders at full width, takes no height */}
-          <View style={{ height: 0, overflow: "hidden" }}>
+          {/* Visible text + absolutely-positioned measuring ghost (same width, no height impact) */}
+          <View style={{ position: "relative" }}>
+            {/* Measuring ghost: no numberOfLines cap, invisible, not interactive */}
             <Text
-              style={[styles.valoText, { color: colors.foreground, fontFamily: "Inter_400Regular" }]}
+              style={[
+                styles.valoText,
+                {
+                  fontFamily: "Inter_400Regular",
+                  position: "absolute",
+                  top: 0,
+                  left: 0,
+                  right: 0,
+                  opacity: 0,
+                },
+              ]}
+              pointerEvents="none"
               onTextLayout={(e) => {
+                console.log("Valo lines:", e.nativeEvent.lines.length);
                 setOverflows(e.nativeEvent.lines.length > 3);
               }}
             >
-              {text}
+              {"Valo noticed something worth naming. Over the past week, your energy has been highest in the morning, yet most of your deep-work blocks are scheduled after lunch — right when your body is asking for rest. Your sleep logs show you're averaging around six hours, and your HRV has been quietly signalling the strain. It might be worth experimenting with an earlier anchor block, even just one day, to see how it feels."}
             </Text>
-          </View>
 
-          {/* Visible text + fade */}
-          <View style={{ position: "relative" }}>
+            {/* Visible text */}
             <Text
               style={[styles.valoText, { color: colors.foreground, fontFamily: "Inter_400Regular" }]}
               numberOfLines={expanded ? undefined : 3}
             >
-              {text}
+              {"Valo noticed something worth naming. Over the past week, your energy has been highest in the morning, yet most of your deep-work blocks are scheduled after lunch — right when your body is asking for rest. Your sleep logs show you're averaging around six hours, and your HRV has been quietly signalling the strain. It might be worth experimenting with an earlier anchor block, even just one day, to see how it feels."}
             </Text>
+
             {overflows && !expanded && (
               <LinearGradient
                 colors={["transparent", colors.secondary]}
