@@ -1,0 +1,256 @@
+Valo — Replit Prompt: Tools Hub + Six Sub-Module Screens
+
+Build a Tools hub screen and six tool sub-module screens for the Valo app. The "Tools" option in CheckInSheet (the bottom sheet opened by the center + FAB) should navigate to this new hub. This is a UI-only build — no changes to the backend, VAPI integration, CheckInSheet modal itself, or any existing navigation/tab structure.
+
+App root: artifacts/valo/ (Expo Router, React Native, TypeScript).
+
+
+Overview
+
+The Tools hub is a full-screen page containing six tool tiles. Each tile opens a dedicated sub-screen. The six tools are:
+
+
+Accountability Buddy
+Time Management
+Fitness Planner
+Meal Planner
+Grocery List
+Progress Charts
+
+
+
+Step 1 — Wire the "Tools" option in CheckInSheet
+
+Locate CheckInSheet (likely at components/CheckInSheet.tsx or similar). The "Tools" option currently exists as one of four items in the sheet. Make the Tools option navigate to the new Tools hub screen when tapped:
+
+tsrouter.push('/(tools)');
+// or wherever the route resolves — see Step 2 for exact path
+
+The sheet should dismiss before navigating. Do not change the other three options (Voice, Guided, Write it out) or any other logic in this file.
+
+
+Step 2 — Route structure
+
+Create a new Expo Router route group at app/(tools)/. Files to create:
+
+app/(tools)/
+  _layout.tsx        ← Stack navigator for this group
+  index.tsx          ← Tools hub (the grid of six tiles)
+  accountability.tsx ← Accountability Buddy
+  time-management.tsx
+  fitness.tsx
+  meal-plan.tsx
+  grocery.tsx
+  charts.tsx
+
+_layout.tsx should be a simple <Stack> with a shared header style matching the rest of the app (sand background #F7F5F2, terracotta back-chevron, Inter font). Each screen in the stack uses options={{ title: '<Screen Name>' }}.
+
+
+Step 3 — Tools Hub (index.tsx)
+
+Layout
+
+
+Full-screen ScrollView, sand #F7F5F2 background.
+Header: back button (top-left, router.back()), title "Tools" (center, 18px semibold, slate #1A1814).
+Subtitle below header: "Everything you need, in one place." — 13px, muted #8B8780.
+Below subtitle: a 2-column grid of ToolCard components (see below), padded 16px horizontally, 12px gap between cards.
+
+
+ToolCard component
+
+Create a reusable ToolCard component (can live in components/ToolCard.tsx). Props: icon, label, description, accentColor, onPress.
+
+Each card:
+
+
+Rounded corners 12px
+White background with 1px border #E8E4DE
+Subtle shadow (elevation 2 / shadowOpacity 0.06)
+Icon (24px) in a 44×44 rounded square, colored with the card's accentColor at 15% opacity as background, icon itself in accentColor
+Label: 14px semibold, slate #1A1814
+Description: 12px, muted #8B8780, 2-line max
+Tap → navigate to sub-screen; standard opacity press feedback (0.85)
+Card height: ~110px
+
+
+The six cards (in order)
+
+LabelDescriptionAccent colorRouteAccountability BuddySet commitments and stay on track#C17B3F (terracotta)/(tools)/accountabilityTime ManagementBlock your time and protect your focus#5B7FA6 (slate blue)/(tools)/time-managementFitness PlannerPlan workouts and track progress#6B9E78 (sage green)/(tools)/fitnessMeal PlannerPlan meals for the week ahead#C17B3F (terracotta)/(tools)/meal-planGrocery ListBuild and manage your shopping list#A67C5B (warm brown)/(tools)/groceryProgress ChartsVisualize your data and trends#9B7BB8 (lavender)/(tools)/charts
+
+
+Step 4 — Six sub-module screens
+
+Each screen follows the same base pattern: sand background, consistent header (back button + title), then its own content. All screens are functional placeholders with meaningful structure — not blank "coming soon" pages. Use real UI scaffolding so Valo feels alive, but no backend wiring is required; use static placeholder data.
+
+
+4a. Accountability Buddy (accountability.tsx)
+
+Purpose: Track commitments the user makes to themselves. AI-assisted accountability nudges (UI only for now).
+
+Sections:
+
+
+Active Commitments — A vertical list of commitment cards. Each card shows:
+
+Commitment text (e.g., "Work out 4x this week")
+Due date badge
+Status pill: In Progress / Done / Overdue (terracotta for overdue, sage for done, amber for in progress)
+Seed 2–3 placeholder commitments
+
+
+
+Add Commitment — A tappable row at the bottom of the list (+ Add a commitment) that opens a simple TextInput inline form (commitment text + due date picker). Tapping "Save" appends to the list (in-memory state, no persistence needed).
+Valo Nudge banner at top — a soft terracotta-tinted card with copy: "You've completed 2 of 5 commitments this week. Keep going." — static placeholder.
+
+
+
+4b. Time Management (time-management.tsx)
+
+Purpose: Day-level time blocking and focus session launcher.
+
+Sections:
+
+
+Today's Blocks — A vertical timeline list showing hourly slots from 7am–10pm. Pre-seed 2–3 placeholder blocks (e.g., "Deep Work — 9am–11am", "Lunch — 12pm–1pm") rendered as colored bars inline in the timeline. Blocks use slate blue #5B7FA6 fill at 20% opacity with a left 3px solid accent.
+Focus Session — A card below the timeline with a large timer display (25:00), a "Start Focus" button (terracotta fill, white text, 12px radius), and a small "Customize" link. Timer is UI-only (no actual countdown needed).
++ Add Block — Tappable row that opens an inline mini-form: label, start time, end time. Appends to the list in component state.
+
+
+
+4c. Fitness Planner (fitness.tsx)
+
+Purpose: Weekly workout plan view with per-day workout cards.
+
+Sections:
+
+
+Week strip — 7 horizontal day pills (Mon–Sun). Active day highlighted in sage green #6B9E78. Tapping a pill switches the view to that day.
+Day's Workout — Below the strip, show the planned workout for the selected day. For the active day (seed as "Tuesday"), show a workout card:
+
+Workout name: "Push Day — Upper Body"
+Tag pills: Strength · 45 min · Gym
+Exercise list: 4–5 rows each showing exercise name, sets × reps (e.g., "Bench Press — 4×8"). Alternate white / subtle gray rows.
+
+
+
+Rest days — Other days show a quiet "Rest day" card with a small moon icon.
++ Add Workout at bottom — tappable, opens inline form: name, type, duration. Appends to selected day in state.
+
+
+
+4d. Meal Planner (meal-plan.tsx)
+
+Purpose: Weekly meal plan grid with per-day meal slots.
+
+Sections:
+
+
+Week strip — same pattern as Fitness (Mon–Sun pills, terracotta active state).
+Meal slots for selected day — Three rows: Breakfast, Lunch, Dinner. Each row shows:
+
+Meal slot label (bold, 13px)
+Meal name if assigned (e.g., "Greek yogurt + granola") or a faint "+ Add meal" tappable placeholder
+Macro summary badge (e.g., "420 kcal" — static placeholder text)
+
+
+
+Seeded data: Tuesday Breakfast = "Greek yogurt + granola · 420 kcal", Lunch = "Chicken rice bowl · 650 kcal", Dinner = empty.
+Tapping "+ Add meal" opens an inline input for the meal name. Saves to state.
+Weekly summary bar below the day view — a horizontal pill strip showing total kcal for each day of the week (static placeholder numbers). Acts as a quick nutrition overview.
+
+
+
+4e. Grocery List (grocery.tsx)
+
+Purpose: A running, categorized shopping list.
+
+Sections:
+
+
+Category groups — The list is grouped by category. Seed with three categories and items:
+
+Produce: Spinach, Bananas, Bell peppers
+Protein: Chicken breast, Greek yogurt, Eggs
+Pantry: Brown rice, Olive oil, Oats
+
+
+
+Each item row:
+
+Checkbox (tapping toggles a strikethrough + gray out)
+Item name (14px)
+Optional quantity label (muted, right-aligned, e.g., "2 lbs")
+
+
+
+Checked items stay visible but de-emphasized; a "Clear checked" button appears at top-right when any item is checked.
++ Add Item at the bottom — inline input with item name + category selector (dropdown among existing categories + "New category"). Appends to list in state.
+Category headers use warm brown #A67C5B accent, 11px uppercase label.
+
+
+
+4f. Progress Charts (charts.tsx)
+
+Purpose: Visualize trends from Valo's tracked data.
+
+Sections:
+
+
+Time range selector — 4 pills at top: 7D · 1M · 3M · 6M. Active pill filled lavender #9B7BB8, others outlined. Switching range updates chart labels (use static data sets per range).
+Chart cards — a vertical stack of chart cards, one per metric. Each card:
+
+Metric title (14px semibold)
+Trend badge (e.g., "↑ 12% vs last period" in sage green, or "↓ 5%" in a muted red)
+A simple SVG line chart drawn with React Native's react-native-svg (if available) or a pure-RN bar chart using View blocks. Use placeholder data points — 7 points for 7D, 4 for 1M, etc.
+Card height ~160px
+
+
+
+Seed three chart cards:
+
+Mood Score — scale 1–10, lavender line
+Sleep (hrs) — scale 0–10, slate blue line
+Habit Completion % — scale 0–100, sage green bars
+
+
+
+If react-native-svg is not installed, use View-based bar charts (a row of proportionally-sized colored rectangles with labels beneath). Do not import a charting library that isn't already in the project's package.json.
+
+
+
+Step 5 — Design tokens (use throughout, no new colors)
+
+Background:       #F7F5F2  (sand)
+Card background:  #FFFFFF
+Border:           #E8E4DE
+Text primary:     #1A1814
+Text muted:       #8B8780
+Terracotta:       #C17B3F
+Sage green:       #6B9E78
+Slate blue:       #5B7FA6
+Amber:            #D4A847
+Lavender:         #9B7BB8
+Warm brown:       #A67C5B
+Font:             Inter (system default fallback: -apple-system)
+Border radius:    12px (cards), 8px (inputs/pills)
+
+
+Guardrails
+
+
+Do not touch: _layout.tsx tab structure, CheckInSheet.tsx (except the Tools onPress), Recovery.tsx, GoalProgress.tsx, Motivation.tsx, any VAPI/Claude API connection code, backend routes.
+Scope: Create only the files listed in Step 2 plus components/ToolCard.tsx. Do not create or modify anything outside this list except the single onPress change in CheckInSheet.
+All state is local (useState) — no persistence, no API calls, no Supabase writes.
+If react-native-svg is not in package.json, do not install it. Use View-based charts as described in 4f.
+Run expo start --clear after building to avoid stale Metro cache.
+
+
+Verify when done
+
+
+Tapping "Tools" in the CheckInSheet opens the Tools hub (six-tile grid).
+Each tile navigates to its dedicated sub-screen.
+Back navigation returns to the hub, then closing returns to wherever the sheet was opened from.
+The + FAB → CheckInSheet modal still works normally (not regressed).
+All six screens render without errors on both iOS and Android simulators.
