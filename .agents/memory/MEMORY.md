@@ -2,3 +2,4 @@
 - [Auth routes](auth-routes.md) — custom session auth (not Clerk). change-password and delete-account added to auth.ts.
 - [Multi-reminder event editing](multi-reminder-event-editing.md) — AddEventModal supports edit mode via event? prop; PATCH /reminders/:id added for isActive toggle-off semantics.
 - [Dark mode](dark-mode.md) — ThemeContext + AsyncStorage override; useColors() reads from ThemeContext not useColorScheme(); toggle in Profile > Account section.
+- [Tools hub](tools-hub.md) — Check-in "Tools" (open_tools) → /tools 6-tile hub; flat routes not a group; Meal Planner tile reuses the full meal-planner.tsx, never overwrite it.

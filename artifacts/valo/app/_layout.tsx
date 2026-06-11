@@ -155,6 +155,12 @@ function RootLayoutNav() {
         <Stack.Screen name="settings" />
         <Stack.Screen name="goal/[id]" />
         <Stack.Screen name="meal-planner" options={{ presentation: "modal" }} />
+        <Stack.Screen name="tools" />
+        <Stack.Screen name="accountability-buddy" />
+        <Stack.Screen name="time-management" />
+        <Stack.Screen name="fitness" />
+        <Stack.Screen name="grocery" />
+        <Stack.Screen name="charts" />
         <Stack.Screen name="oauth2redirect/google" />
       </Stack>
     </>

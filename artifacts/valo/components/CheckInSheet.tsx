@@ -10,6 +10,7 @@ import {
   View,
 } from "react-native";
 import { Feather } from "@expo/vector-icons";
+import { useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useColors } from "@/hooks/useColors";
 import { useTheme } from "@/contexts/ThemeContext";
@@ -65,6 +66,7 @@ interface Props {
 
 export function CheckInSheet({ isOpen, onClose }: Props) {
   const colors = useColors();
+  const router = useRouter();
   const { colorScheme } = useTheme();
   const insets = useSafeAreaInsets();
   const isDark = colorScheme === "dark";
@@ -113,6 +115,10 @@ export function CheckInSheet({ isOpen, onClose }: Props) {
 
   function handleOption(actionType: string) {
     onClose();
+    if (actionType === "open_tools") {
+      router.push("/tools");
+      return;
+    }
     console.log("[CheckIn] action:", actionType);
   }
 
