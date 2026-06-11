@@ -386,6 +386,7 @@ function ValoCard({
         <ActivityIndicator size="small" color={colors.mutedForeground} style={{ marginTop: 8 }} />
       ) : (
         <>
+          <Text style={{ color: "red", fontWeight: "bold" }}>TEST_MARKER_123</Text>
           {/* Visible text + absolutely-positioned measuring ghost (same width, no height impact) */}
           <View style={{ position: "relative" }}>
             {/* Measuring ghost: no numberOfLines cap, invisible, not interactive */}
@@ -418,7 +419,7 @@ function ValoCard({
               {"Valo noticed something worth naming. Over the past week, your energy has been highest in the morning, yet most of your deep-work blocks are scheduled after lunch — right when your body is asking for rest. Your sleep logs show you're averaging around six hours, and your HRV has been quietly signalling the strain. It might be worth experimenting with an earlier anchor block, even just one day, to see how it feels."}
             </Text>
 
-            {overflows && !expanded && (
+            {!expanded && (
               <LinearGradient
                 colors={["transparent", colors.secondary]}
                 style={styles.valoFade}
@@ -427,20 +428,18 @@ function ValoCard({
             )}
           </View>
 
-          {overflows && (
-            <TouchableOpacity
-              onPress={(e) => {
-                e.stopPropagation();
-                setExpanded((v) => !v);
-              }}
-              style={styles.valoToggle}
-              activeOpacity={0.7}
-            >
-              <Text style={[styles.valoToggleLabel, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
-                {expanded ? "See less" : "See more"}
-              </Text>
-            </TouchableOpacity>
-          )}
+          <TouchableOpacity
+            onPress={(e) => {
+              e.stopPropagation();
+              setExpanded((v) => !v);
+            }}
+            style={styles.valoToggle}
+            activeOpacity={0.7}
+          >
+            <Text style={[styles.valoToggleLabel, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
+              {expanded ? "See less" : "See more"}
+            </Text>
+          </TouchableOpacity>
         </>
       )}
     </View>
