@@ -851,7 +851,7 @@ export default function HomeScreen() {
               <Feather name="grid" size={15} color={colors.mutedForeground} />
             )}
             <Text style={[styles.footerBtnText, { color: colors.foreground, fontFamily: "Inter_500Medium" }]}>
-              Text
+              Tools
             </Text>
           </TouchableOpacity>
 
