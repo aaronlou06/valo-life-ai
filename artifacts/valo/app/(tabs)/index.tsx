@@ -323,7 +323,7 @@ function AvatarDropdown({
                   {
                     backgroundColor: colors.card,
                     borderColor: colors.border,
-                    top: insets.top + 64,
+                    top: (Platform.OS === "web" ? Math.max(insets.top, 67) : insets.top) + 64,
                     opacity: opacityAnim,
                     transform: [{ scale: scaleAnim.interpolate({ inputRange: [0, 1], outputRange: [0.85, 1] }) }],
                   },

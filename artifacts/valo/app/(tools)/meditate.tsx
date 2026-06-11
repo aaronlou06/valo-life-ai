@@ -6,6 +6,7 @@ import {
   Text,
   TouchableOpacity,
   View,
+  Platform,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Feather } from "@expo/vector-icons";
@@ -105,7 +106,7 @@ export default function MeditateScreen() {
 
   return (
     <View style={{ flex: 1, backgroundColor: BG }}>
-      <View style={[styles.header, { paddingTop: insets.top + 12, borderBottomColor: BORDER }]}>
+      <View style={[styles.header, { paddingTop: (Platform.OS === "web" ? Math.max(insets.top, 67) : insets.top) + 12, borderBottomColor: BORDER }]}>
         <TouchableOpacity onPress={() => router.back()} activeOpacity={0.7} style={styles.iconBtn}>
           <Feather name="arrow-left" size={22} color={TERRA} />
         </TouchableOpacity>

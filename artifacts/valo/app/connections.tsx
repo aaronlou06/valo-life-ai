@@ -7,6 +7,7 @@ import {
   TextInput,
   StyleSheet,
   Alert,
+  Platform,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
@@ -314,7 +315,7 @@ export default function ConnectionsScreen() {
         style={[
           styles.topBar,
           {
-            paddingTop: insets.top + 12,
+            paddingTop: (Platform.OS === "web" ? Math.max(insets.top, 67) : insets.top) + 12,
             borderBottomColor: colors.border,
             backgroundColor: colors.background,
           },

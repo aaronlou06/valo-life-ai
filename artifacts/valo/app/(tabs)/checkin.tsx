@@ -2389,7 +2389,7 @@ export default function CheckInScreen() {
         onRequestClose={() => setActiveModal(null)}
       >
         <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
-          <View style={[fsModal.header, { borderBottomColor: colors.border, paddingTop: insets.top }]}>
+          <View style={[fsModal.header, { borderBottomColor: colors.border, paddingTop: (Platform.OS === "web" ? Math.max(insets.top, 67) : insets.top) }]}>
             <Text style={[fsModal.title, { color: colors.foreground, fontFamily: "Inter_700Bold" }]}>
               {activeModal && QUICK_LOG_CONFIG[activeModal].label}
             </Text>

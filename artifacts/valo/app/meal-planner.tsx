@@ -8,6 +8,7 @@ import {
   ActivityIndicator,
   Modal,
   Alert,
+  Platform,
 } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
@@ -157,7 +158,7 @@ function MealSwapModal({
   return (
     <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
       <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
-        <View style={swapStyles.header}>
+        <View style={[swapStyles.header, Platform.OS === "web" ? { paddingTop: 67 } : null]}>
           <Text style={[swapStyles.title, { color: colors.foreground, fontFamily: "Inter_600SemiBold" }]}>
             Swap Meal
           </Text>
@@ -253,7 +254,7 @@ function GroceryOrderSheet({ visible, onClose, itemCount, colors, retailerConnec
   return (
     <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
       <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }} edges={["top", "bottom"]}>
-        <View style={sheetStyles.header}>
+        <View style={[sheetStyles.header, Platform.OS === "web" ? { paddingTop: 67 } : null]}>
           <Text style={[sheetStyles.title, { color: colors.foreground, fontFamily: "Inter_600SemiBold" }]}>
             Order Groceries
           </Text>
@@ -482,12 +483,11 @@ export default function MealPlannerScreen() {
   };
 
   return (
-    <SafeAreaView
+    <View
       style={[styles.container, { backgroundColor: colors.background }]}
-      edges={["top"]}
     >
       {/* Header */}
-      <View style={[styles.header, { borderBottomColor: colors.border }]}>
+      <View style={[styles.header, { borderBottomColor: colors.border, paddingTop: (Platform.OS === "web" ? Math.max(insets.top, 67) : insets.top) + 12 }]}>
         <TouchableOpacity onPress={() => router.back()} hitSlop={{ top: 8, bottom: 8, left: 12, right: 12 }}>
           <Feather name="arrow-left" size={22} color={colors.foreground} />
         </TouchableOpacity>
@@ -804,7 +804,7 @@ export default function MealPlannerScreen() {
           getToken={getToken as () => Promise<string | null>}
         />
       )}
-    </SafeAreaView>
+    </View>
   );
 }
 

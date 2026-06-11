@@ -19,7 +19,11 @@ not the offset size but that three screens (Home, Health, Progress) used bare
 `insets.top` with no web floor while the others already had the `Math.max(..., 67)`
 guard. The screenshots were the web preview, not a real device.
 
-**How to apply:** when adding or editing any `(tabs)/*` screen, never wrap in
-`<SafeAreaView>` and add inset padding at the same time — pick one. Prefer
-`useSafeAreaInsets()` + the web-floor expression above on the scroll container or
-header. Keep all six tabs consistent.
+**How to apply:** applies to EVERY screen — tabs, `(tools)/*`, standalone pages
+(charts, help, connections, settings, goal/[id], meal-planner), and full-screen /
+pageSheet modal headers. Never wrap in `<SafeAreaView>` and add inset padding at the
+same time — pick one (prefer `useSafeAreaInsets()` + the web-floor expression on the
+scroll container or header). For modal components that lack `insets` in scope, a web-
+only guard `Platform.OS === "web" ? { paddingTop: 67 } : null` works (insets.top is 0
+on web anyway). For native pageSheet/card modals, guard the floor to web only so you
+don't double the inset on native.

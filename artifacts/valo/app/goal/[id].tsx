@@ -649,7 +649,7 @@ export default function GoalDetailScreen() {
       behavior={Platform.OS === "ios" ? "padding" : undefined}
     >
       {/* Header */}
-      <View style={{ paddingTop: insets.top, backgroundColor: colors.background, borderBottomWidth: 1, borderColor: colors.border }}>
+      <View style={{ paddingTop: (Platform.OS === "web" ? Math.max(insets.top, 67) : insets.top), backgroundColor: colors.background, borderBottomWidth: 1, borderColor: colors.border }}>
         <View style={{ flexDirection: "row", alignItems: "center", paddingHorizontal: 16, paddingVertical: 12, gap: 12 }}>
           <TouchableOpacity onPress={() => router.back()} style={{ width: 36, height: 36, justifyContent: "center", alignItems: "center" }}>
             <Feather name="arrow-left" size={20} color={colors.foreground} />

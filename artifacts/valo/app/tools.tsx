@@ -1,5 +1,5 @@
 import React from "react";
-import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { Platform, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Feather } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
@@ -132,7 +132,7 @@ export default function ToolsScreen() {
       <View
         style={[
           styles.header,
-          { paddingTop: insets.top + 12, borderBottomColor: "#E8E4DE" },
+          { paddingTop: (Platform.OS === "web" ? Math.max(insets.top, 67) : insets.top) + 12, borderBottomColor: "#E8E4DE" },
         ]}
       >
         <TouchableOpacity

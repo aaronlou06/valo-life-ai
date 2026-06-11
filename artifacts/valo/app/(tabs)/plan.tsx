@@ -2223,7 +2223,7 @@ function ManageModal({
   return (
     <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
       <View style={{ flex: 1, backgroundColor: colors.background }}>
-        <View style={[manStyles.header, { paddingTop: insets.top + 14, borderBottomColor: colors.border }]}>
+        <View style={[manStyles.header, { paddingTop: (Platform.OS === "web" ? Math.max(insets.top, 67) : insets.top) + 14, borderBottomColor: colors.border }]}>
           <TouchableOpacity onPress={onClose} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
             <Feather name="x" size={22} color={colors.foreground} />
           </TouchableOpacity>
