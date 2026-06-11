@@ -1,0 +1,269 @@
+Valo — Replit Prompt: Tier 1 Tools Batch (11 tools)
+
+Build the Tier 1 tool set for Valo's Tools hub. This supersedes the earlier 6-tile hub spec — same (tools) route group, expanded to the full Tier 1 list and grouped by category. UI-only build: no backend, no VAPI, no Supabase writes, no changes to tab nav or CheckInSheet beyond the single Tools→hub navigation already wired. Use local useState for all interactivity and static seed data throughout.
+
+App root: artifacts/valo/ (Expo Router, React Native, TypeScript).
+
+
+The 11 tools (grouped)
+
+Mind & Reflection
+
+
+Living Journal
+Breathe & Meditate
+
+
+Focus & Time
+3. Focus Timer (Pomodoro + app blocking + ambient/audio + breaks)
+4. Time-Management Assistant
+
+Fitness
+5. Workout Planner / Tracker
+
+Nutrition
+6. Meal Planner / Tracker / Recipe Browser
+7. Grocery Buyer
+8. Food Logging (photo → macros)
+9. Water Intake Tracker
+
+Connection
+10. Accountability Buddy
+11. Networking / Relationships
+
+
+Step 1 — Route structure
+
+Create/extend the route group at app/(tools)/:
+
+app/(tools)/
+  _layout.tsx          ← Stack navigator (sand header, terracotta back-chevron, Inter)
+  index.tsx            ← Tools hub (grouped tiles)
+  journal.tsx
+  meditate.tsx
+  focus-timer.tsx
+  time-management.tsx
+  fitness.tsx
+  meal-plan.tsx
+  grocery.tsx
+  food-log.tsx
+  water.tsx
+  accountability.tsx
+  networking.tsx
+
+If any of these files already exist from the prior hub build (e.g. time-management.tsx, fitness.tsx, meal-plan.tsx, grocery.tsx, accountability.tsx), replace their contents with the specs below — keep the filenames.
+
+The Tools option in CheckInSheet already navigates to /(tools). Do not change it again.
+
+
+Step 2 — Tools Hub (index.tsx)
+
+
+Full-screen ScrollView, sand #F7F5F2 background.
+Header: back button (top-left, router.back()), title "Tools" (18px semibold, slate #1A1814).
+Subtitle: "Everything you need, in one place." — 13px muted #8B8780.
+Tiles are organized under category section headers (11px uppercase, muted, letter-spaced). Order: Mind & Reflection → Focus & Time → Fitness → Nutrition → Connection.
+Each group renders a 2-column grid of ToolCard components.
+
+
+ToolCard component (components/ToolCard.tsx)
+
+Reusable. Props: icon, label, description, accentColor, onPress.
+
+
+12px radius, white bg, 1px border #E8E4DE, soft shadow (shadowOpacity 0.06 / elevation 2)
+Icon 24px inside a 44×44 rounded square tinted accentColor at 15% opacity; icon in accentColor
+Label 14px semibold slate; description 12px muted, 2-line max
+Press feedback opacity 0.85; ~110px tall
+
+
+Card map
+
+GroupLabelDescriptionAccentRouteMindLiving JournalCapture thoughts, see them compound#9B7BB8/(tools)/journalMindBreathe & MeditateGuided breathing and calm#6B9E78/(tools)/meditateFocusFocus TimerPomodoro, ambient sound, app blocking#5B7FA6/(tools)/focus-timerFocusTime ManagementBlock your time, protect your focus#5B7FA6/(tools)/time-managementFitnessWorkout PlannerPlan workouts and track progress#6B9E78/(tools)/fitnessNutritionMeal PlannerPlan meals, browse recipes#C17B3F/(tools)/meal-planNutritionGrocery BuyerBuild and manage your list#A67C5B/(tools)/groceryNutritionFood LoggingLog meals, snap a photo for macros#D4A847/(tools)/food-logNutritionWater IntakeTrack hydration through the day#5B9FB8/(tools)/waterConnectionAccountability BuddySet commitments and stay on track#C17B3F/(tools)/accountabilityConnectionNetworkingNurture your relationships#C8857A/(tools)/networking
+
+
+Step 3 — Sub-module screens
+
+Each screen: sand background, consistent header (back + title), then its own content. All are functional scaffolds with real structure and seed data, not blank "coming soon" pages. No backend wiring required unless explicitly flagged.
+
+
+3a. Living Journal (journal.tsx)
+
+Purpose: Freeform written entries that build a compounding record.
+
+
+New entry at top — multiline TextInput with placeholder "What's on your mind?", a "Save entry" button (terracotta fill). On save, prepend to the entry list in state and clear the field.
+Entry feed — reverse-chronological list of entry cards. Each shows: date/time header (muted, 12px), entry body (14px), and a small mood chip if set. Seed 2–3 placeholder entries with varied dates.
+Filter strip — horizontal pills: All · This Week · This Month (UI filter over seeded entries).
+Tone copy at top: "Nothing you tell me disappears. It all compounds." — 12px muted, italic.
+
+
+
+3b. Breathe & Meditate (meditate.tsx)
+
+Purpose: Guided breathing + short meditation launcher.
+
+
+Breathing orb — a large centered circle that scales in/out on a loop using Animated (inhale 4s → hold 2s → exhale 4s). Label beneath updates: "Breathe in" / "Hold" / "Breathe out". Sage green #6B9E78.
+Pattern selector — pills: Box (4-4-4-4) · Calm (4-7-8) · Simple (4-4). Switching changes the animation timing.
+Sessions list — below, a list of tappable session cards (placeholder): "5-min Reset", "10-min Focus", "Sleep Wind-down" — each with a duration badge and a small play icon. No audio wiring required; tapping just shows a "Starting…" state.
+A Start / Stop button controls the breathing animation.
+
+
+
+3c. Focus Timer (focus-timer.tsx)
+
+Purpose: Pomodoro timer with ambient sound, breaks, and (placeholder) app blocking.
+
+
+Timer display — large 25:00 countdown, functional with useEffect interval (Start / Pause / Reset). When work period ends, auto-switch to a 5-min break and update the label ("Focus" ↔ "Break").
+Session config — small stepper rows: Focus length (25m default), Break length (5m), Rounds (4). Adjusting updates the timer.
+Ambient sound — a row of selectable chips: None · Rain · Café · White Noise · Forest. Selection is visual-only (no audio file wiring required now — leave a // TODO: wire ambient audio comment).
+App blocking — a card with a toggle "Block distracting apps during focus" and a sub-line "Blocks selected apps while the timer runs." Toggle is UI-only with a // TODO: native app-blocking integration comment (this needs a native module / Screen Time API later — do not attempt to implement it).
+Round progress — a row of dots showing completed vs remaining rounds.
+
+
+
+3d. Time-Management Assistant (time-management.tsx)
+
+Purpose: Day-level time blocking + focus launcher.
+
+
+Today's blocks — vertical timeline 7am–10pm with 2–3 seeded blocks ("Deep Work 9–11am", "Lunch 12–1pm") as slate-blue #5B7FA6 bars (20% fill, 3px solid left accent).
++ Add Block — inline mini-form (label, start, end) appending to state.
+Quick suggestions — a card with 2–3 static "Valo suggests" rows (e.g. "You have a 2-hour gap at 2pm — block it for the project?") with an "Add" button each. Static placeholders.
+
+
+
+3e. Workout Planner / Tracker (fitness.tsx)
+
+Purpose: Weekly plan + logging.
+
+
+Week strip — Mon–Sun pills, sage-green #6B9E78 active state.
+Day's workout — for the seeded active day ("Tuesday"): card with name "Push Day — Upper Body", tag pills (Strength · 45 min · Gym), and an exercise list (4–5 rows: name + sets×reps, e.g. "Bench Press — 4×8"). Each exercise row has a checkbox to mark completed (strikethrough on check).
+Rest days — quiet "Rest day" card with moon icon.
++ Add Workout — inline form (name, type, duration) appending to the selected day.
+Quick stats strip at top: workouts this week, total minutes (static placeholders).
+
+
+
+3f. Meal Planner / Tracker / Recipe Browser (meal-plan.tsx)
+
+Purpose: Weekly meal plan + recipe browsing.
+Two tabs at the top: Plan and Recipes.
+
+Plan tab:
+
+
+Week strip (Mon–Sun pills, terracotta active).
+Breakfast / Lunch / Dinner rows per selected day. Each: slot label, meal name or + Add meal placeholder, kcal badge. Seed Tuesday with two meals filled, dinner empty.
+Weekly kcal summary pill strip (static numbers).
+
+
+Recipes tab:
+
+
+Search bar (UI only) + category chips (All · High-Protein · Quick · Vegetarian).
+Recipe grid — cards with a placeholder thumbnail (colored block or Image with a stock URL), title, time + kcal badges. Seed 4–6 recipes.
+Tapping a recipe opens a recipe detail (can be an in-screen modal or a pushed sub-route recipe-detail): hero image, ingredients list, steps, and a video placeholder (a 16:9 block with a play icon — leave // TODO: embed recipe video comment; no real video wiring now).
+Share — a share button on the detail using React Native's Share.share({ message }) with the recipe title + a placeholder link. This one IS functional (native Share sheet).
+Add to plan button on the detail — appends the recipe as a meal to the currently selected day in the Plan tab (state).
+
+
+
+3g. Grocery Buyer (grocery.tsx)
+
+Purpose: Categorized running shopping list.
+
+
+Category groups — seed Produce / Protein / Pantry with 3 items each. Category headers warm-brown #A67C5B, 11px uppercase.
+Item rows: checkbox (toggles strikethrough + gray-out), name, optional quantity (muted, right-aligned).
+Clear checked button top-right, appears when any item is checked.
++ Add Item — inline input with name + category selector (existing categories + "New category"), appends to state.
+Generate from meal plan button at top — static placeholder that, when tapped, appends a few seeded items (simulating pulling ingredients from the meal planner). Leave // TODO: derive from meal-plan ingredients comment.
+
+
+
+3h. Food Logging (food-log.tsx)
+
+Purpose: Log meals + photo→macros estimation.
+
+
+Today's log — list grouped by Breakfast / Lunch / Dinner / Snacks. Each entry: food name, macro line (e.g. "P 30 · C 45 · F 12 · 420 kcal"). Seed a couple entries.
+Daily totals bar at top — protein / carbs / fat / total kcal with small progress bars against static goals.
+Add food — two buttons: Log manually (inline form: name, macros) and Snap photo.
+Snap photo flow — Snap photo opens the image picker (expo-image-picker if already in package.json; if not, leave the button with a // TODO: wire expo-image-picker + Claude vision macros comment and a placeholder "Photo macros coming soon" state). The real implementation will send the image to the Claude API for macro estimation — do not build that call now, just scaffold the UI: after a photo is "selected", show a loading shimmer then a static example result card ("Estimated: Grilled chicken salad · P 35 · C 20 · F 15 · 350 kcal") with a "Log it" confirm button.
+Accent amber #D4A847.
+
+
+
+3i. Water Intake Tracker (water.tsx)
+
+Purpose: Daily hydration tracking.
+
+
+Progress ring or fill — a large visual showing today's intake vs goal (e.g. 5 / 8 cups). A vertical "glass fill" graphic or a circular ring; use simple View-based fill if no SVG.
+Quick-add buttons — +1 cup, +8 oz, +16 oz, + Custom. Each increments the count in state and updates the fill.
+Goal row — editable daily goal (default 8 cups) with a stepper.
+Today's log — small list of timestamped additions ("8:30am · 1 cup"). Each add appends a row.
+Undo — last entry removable. Accent blue #5B9FB8.
+
+
+
+3j. Accountability Buddy (accountability.tsx)
+
+Purpose: Track self-commitments.
+
+
+Valo nudge banner — soft terracotta card: "You've completed 2 of 5 commitments this week. Keep going." (static).
+Active commitments — list of cards: commitment text, due-date badge, status pill (In Progress amber / Done sage / Overdue terracotta). Seed 2–3.
++ Add commitment — inline form (text + due date) appending to state.
+Tapping a commitment toggles it Done (moves to a collapsed "Completed" section).
+
+
+
+3k. Networking / Relationships (networking.tsx)
+
+Purpose: Stay in touch with people who matter.
+
+
+Reach-out prompts — a top card list of people Valo suggests checking in with: name, last-contacted relative time ("3 weeks ago"), and a "Reach out" button. Seed 2–3 contacts.
+People list — cards per person: name, relationship tag (Family / Friend / Work / Mentor), preferred cadence ("every 2 weeks"), and a small "last contacted" line. Seed 4–5.
++ Add person — inline form (name, relationship, cadence) appending to state.
+Tapping "Reach out" marks last-contacted to now and resets the timer (state).
+Accent rose #C8857A.
+
+
+
+Step 4 — Design tokens (no new colors)
+
+Background      #F7F5F2     Card bg        #FFFFFF
+Border          #E8E4DE     Text primary   #1A1814
+Text muted      #8B8780     Terracotta     #C17B3F
+Sage            #6B9E78     Slate blue     #5B7FA6
+Amber           #D4A847     Lavender       #9B7BB8
+Warm brown      #A67C5B     Water blue     #5B9FB8
+Rose            #C8857A
+Font Inter · radius 12px cards / 8px inputs+pills
+
+
+Guardrails
+
+
+Create only the files in Step 1 plus components/ToolCard.tsx (and an optional recipe-detail sub-route if you push instead of modal). Touch nothing else.
+Do not modify: tab _layout.tsx, CheckInSheet.tsx, Recovery.tsx, GoalProgress.tsx, Motivation.tsx, any VAPI/Claude API/backend code.
+Do not install new packages. Only use libraries already in package.json. For expo-image-picker and react-native-svg: use them only if already present; otherwise fall back to View-based UI and leave the flagged // TODO comments. Native Share is fine to use.
+All interactivity is local useState — no persistence, no network calls.
+The four flagged integrations (ambient audio, native app-blocking, recipe video embed, photo→macros Claude vision) are scaffold-only — build the UI and leave TODO comments; do not implement the wiring in this pass.
+Run expo start --clear after building.
+
+
+Verify when done
+
+
+Tools hub shows all 11 tiles under the 5 category headers.
+Every tile routes to its screen; back returns to the hub.
+Functional pieces work: focus timer counts down, breathing orb animates, water count increments, journal/commitment/grocery adds persist in-session, Share sheet opens from a recipe.
+The + FAB → CheckInSheet is not regressed.
+No crashes on iOS and Android; no missing-package import errors.
