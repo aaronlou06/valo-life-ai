@@ -386,7 +386,6 @@ function ValoCard({
         <ActivityIndicator size="small" color={colors.mutedForeground} style={{ marginTop: 8 }} />
       ) : (
         <>
-          <Text style={{ color: "red", fontWeight: "bold" }}>TEST_MARKER_123</Text>
           {/* Visible text + absolutely-positioned measuring ghost (same width, no height impact) */}
           <View style={{ position: "relative" }}>
             {/* Measuring ghost: no numberOfLines cap, invisible, not interactive */}
@@ -408,7 +407,7 @@ function ValoCard({
                 setOverflows(e.nativeEvent.lines.length > 3);
               }}
             >
-              {"Valo noticed something worth naming. Over the past week, your energy has been highest in the morning, yet most of your deep-work blocks are scheduled after lunch — right when your body is asking for rest. Your sleep logs show you're averaging around six hours, and your HRV has been quietly signalling the strain. It might be worth experimenting with an earlier anchor block, even just one day, to see how it feels."}
+              {text}
             </Text>
 
             {/* Visible text */}
@@ -416,7 +415,7 @@ function ValoCard({
               style={[styles.valoText, { color: colors.foreground, fontFamily: "Inter_400Regular" }]}
               numberOfLines={expanded ? undefined : 3}
             >
-              {"Valo noticed something worth naming. Over the past week, your energy has been highest in the morning, yet most of your deep-work blocks are scheduled after lunch — right when your body is asking for rest. Your sleep logs show you're averaging around six hours, and your HRV has been quietly signalling the strain. It might be worth experimenting with an earlier anchor block, even just one day, to see how it feels."}
+              {text}
             </Text>
 
             {!expanded && (
