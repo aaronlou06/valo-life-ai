@@ -3215,7 +3215,7 @@ export default function PlanScreen() {
     <>
       <ScrollView
         style={{ flex: 1, backgroundColor: colors.background }}
-        contentContainerStyle={{ paddingTop: topPad + 4, paddingBottom: bottomPad + tabBarH + 20 }}
+        contentContainerStyle={{ paddingTop: topPad + 16, paddingBottom: bottomPad + tabBarH + 20 }}
         showsVerticalScrollIndicator={false}
         refreshControl={<RefreshControl refreshing={isFetching} onRefresh={refetch} tintColor={colors.primary} />}
       >

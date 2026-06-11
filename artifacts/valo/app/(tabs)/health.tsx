@@ -11,7 +11,7 @@ import {
   Platform,
   Alert,
 } from "react-native";
-import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Feather } from "@expo/vector-icons";
 import { useFocusEffect, useRouter } from "expo-router";
 import { useQueryClient } from "@tanstack/react-query";
@@ -1141,9 +1141,8 @@ export default function HealthScreen() {
     : workoutDays.slice(0, 5);
 
   return (
-    <SafeAreaView
+    <View
       style={[styles.container, { backgroundColor: colors.background }]}
-      edges={["top"]}
     >
       <ScrollView
         showsVerticalScrollIndicator={false}
@@ -1151,7 +1150,7 @@ export default function HealthScreen() {
       >
         {/* Header */}
         <View
-          style={[styles.header, { borderBottomColor: colors.border }]}
+          style={[styles.header, { borderBottomColor: colors.border, paddingTop: insets.top + 16 }]}
         >
           <Text style={[styles.headerTitle, { color: colors.foreground }]}>
             Health
@@ -1433,7 +1432,7 @@ export default function HealthScreen() {
           colors={colors}
         />
       )}
-    </SafeAreaView>
+    </View>
   );
 }
 
@@ -1447,7 +1446,6 @@ const styles = StyleSheet.create({
   // Header
   header: {
     paddingHorizontal: 20,
-    paddingTop: 12,
     paddingBottom: 16,
     borderBottomWidth: StyleSheet.hairlineWidth,
   },

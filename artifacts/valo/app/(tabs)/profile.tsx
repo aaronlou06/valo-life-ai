@@ -1443,7 +1443,7 @@ export default function ProfileScreen() {
       <ScrollView
         style={{ flex: 1, backgroundColor: colors.background }}
         contentContainerStyle={{
-          paddingTop: topPad + 12,
+          paddingTop: topPad + 16,
           paddingBottom: bottomPad + tabBarH + 32,
           paddingHorizontal: 20,
         }}
