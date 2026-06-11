@@ -155,6 +155,7 @@ function RootLayoutNav() {
         <Stack.Screen name="settings" />
         <Stack.Screen name="goal/[id]" />
         <Stack.Screen name="meal-planner" options={{ presentation: "modal" }} />
+        <Stack.Screen name="write" options={{ presentation: "modal" }} />
         <Stack.Screen name="tools" />
         <Stack.Screen name="(tools)" />
         <Stack.Screen name="accountability-buddy" />

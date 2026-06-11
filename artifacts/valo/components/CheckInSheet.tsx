@@ -14,6 +14,7 @@ import { useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useColors } from "@/hooks/useColors";
 import { useTheme } from "@/contexts/ThemeContext";
+import { triggerVoiceStart } from "@/lib/voiceTrigger";
 
 type Option = {
   icon: keyof typeof Feather.glyphMap;
@@ -115,11 +116,21 @@ export function CheckInSheet({ isOpen, onClose }: Props) {
 
   function handleOption(actionType: string) {
     onClose();
-    if (actionType === "open_tools") {
-      router.push("/tools");
-      return;
+    switch (actionType) {
+      case "start_voice_conversation":
+        triggerVoiceStart();
+        router.navigate("/(tabs)/checkin");
+        return;
+      case "start_guided_checkin":
+        router.navigate("/(tabs)/checkin");
+        return;
+      case "start_text_checkin":
+        router.push("/write");
+        return;
+      case "open_tools":
+        router.push("/tools");
+        return;
     }
-    console.log("[CheckIn] action:", actionType);
   }
 
   return (
