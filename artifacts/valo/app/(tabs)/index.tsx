@@ -17,6 +17,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Feather } from "@expo/vector-icons";
 import { SymbolView } from "expo-symbols";
 import { useRouter } from "expo-router";
+import { LinearGradient } from "expo-linear-gradient";
 import { useColors } from "@/hooks/useColors";
 import { useValoAuth } from "@/contexts/AuthContext";
 import { CheckInSheet } from "@/components/CheckInSheet";
@@ -364,6 +365,9 @@ function ValoCard({
   loading: boolean;
   colors: ReturnType<typeof useColors>;
 }) {
+  const [expanded, setExpanded] = useState(false);
+  const [overflows, setOverflows] = useState(false);
+
   return (
     <View
       style={[
@@ -381,9 +385,51 @@ function ValoCard({
       {loading ? (
         <ActivityIndicator size="small" color={colors.mutedForeground} style={{ marginTop: 8 }} />
       ) : (
-        <Text style={[styles.valoText, { color: colors.foreground, fontFamily: "Inter_400Regular" }]}>
-          {text}
-        </Text>
+        <>
+          {/* Invisible measuring pass — renders at full width, takes no height */}
+          <View style={{ height: 0, overflow: "hidden" }}>
+            <Text
+              style={[styles.valoText, { color: colors.foreground, fontFamily: "Inter_400Regular" }]}
+              onTextLayout={(e) => {
+                setOverflows(e.nativeEvent.lines.length > 3);
+              }}
+            >
+              {text}
+            </Text>
+          </View>
+
+          {/* Visible text + fade */}
+          <View style={{ position: "relative" }}>
+            <Text
+              style={[styles.valoText, { color: colors.foreground, fontFamily: "Inter_400Regular" }]}
+              numberOfLines={expanded ? undefined : 3}
+            >
+              {text}
+            </Text>
+            {overflows && !expanded && (
+              <LinearGradient
+                colors={["transparent", colors.secondary]}
+                style={styles.valoFade}
+                pointerEvents="none"
+              />
+            )}
+          </View>
+
+          {overflows && (
+            <TouchableOpacity
+              onPress={(e) => {
+                e.stopPropagation();
+                setExpanded((v) => !v);
+              }}
+              style={styles.valoToggle}
+              activeOpacity={0.7}
+            >
+              <Text style={[styles.valoToggleLabel, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
+                {expanded ? "See less" : "See more"}
+              </Text>
+            </TouchableOpacity>
+          )}
+        </>
       )}
     </View>
   );
@@ -896,6 +942,20 @@ const styles = StyleSheet.create({
   valoText: {
     fontSize: 15,
     lineHeight: 23,
+  },
+  valoFade: {
+    position: "absolute",
+    bottom: 0,
+    left: 0,
+    right: 0,
+    height: 40,
+  },
+  valoToggle: {
+    marginTop: 6,
+  },
+  valoToggleLabel: {
+    fontSize: 13,
+    lineHeight: 20,
   },
   sectionLabel: {
     fontSize: 11,

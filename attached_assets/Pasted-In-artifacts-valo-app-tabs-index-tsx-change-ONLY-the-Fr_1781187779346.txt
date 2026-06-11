@@ -1,0 +1,11 @@
+In artifacts/valo/app/(tabs)/index.tsx, change ONLY the "From Valo" card. Leave the ranked TODAY cards, the scoring logic, the /api/vapi/intel fetch, and every other file untouched.
+Make the card's body text collapsible:
+
+Collapsed by default to 3 lines using numberOfLines={3} on the body <Text>.
+Fade-out at the bottom: overlay a bottom gradient that fades from transparent to the card's own background color (the amber/terracotta tint this card already uses — pull the exact value from the existing style/token, do not fade to white). Use expo-linear-gradient (LinearGradient). If it isn't already a dependency, install it (npx expo install expo-linear-gradient). The gradient sits over the last line so the clipped text dissolves rather than hard-cuts. Position it absolutely along the bottom edge of the text block, ~40–48px tall, pointerEvents="none" so it doesn't block taps.
+"See more" button below the text. Tapping it expands the card: remove the line clamp (show full text), hide the gradient, and flip the label to "See less". Tapping again collapses back. Use a local useState boolean.
+Only show the fade + button when the text actually overflows 3 lines. Detect this with onTextLayout (count e.nativeEvent.lines.length on a hidden/initial measure). If the content fits in 3 lines or fewer, render it normally with no gradient and no "See more" button.
+Don't break the existing tap behavior. The From Valo card currently opens the check-in sheet when tapped. The "See more" / "See less" control must be its own TouchableOpacity (or Pressable) that toggles expansion and does NOT also trigger the card's open-sheet action — stop the event from propagating to the card's outer touchable.
+Match the card's existing typography, muted-text color, and spacing for the "See more" label. No new palette, no new font sizes beyond what's already in use.
+
+Report back: confirm the card collapses to 3 lines with a blended fade, expands/collapses on the button, the button only appears when text overflows, and tapping "See more" doesn't open the check-in sheet.
