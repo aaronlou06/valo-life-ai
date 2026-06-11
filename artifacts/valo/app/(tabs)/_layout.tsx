@@ -21,7 +21,6 @@ function ClassicTabLayout() {
     >
       <Tabs.Screen name="index" options={{ title: "Home" }} />
       <Tabs.Screen name="plan" options={{ title: "Plan" }} />
-      <Tabs.Screen name="checkin" options={{ title: "Check-In", href: null }} />
       <Tabs.Screen name="health" options={{ title: "Health" }} />
       <Tabs.Screen name="progress" options={{ title: "Progress" }} />
       <Tabs.Screen name="profile" options={{ title: "Profile", href: null }} />

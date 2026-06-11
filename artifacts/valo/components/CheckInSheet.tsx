@@ -119,10 +119,10 @@ export function CheckInSheet({ isOpen, onClose }: Props) {
     switch (actionType) {
       case "start_voice_conversation":
         triggerVoiceStart();
-        router.navigate("/(tabs)/checkin");
+        router.push("/voice");
         return;
       case "start_guided_checkin":
-        router.navigate("/(tabs)/checkin");
+        router.push("/guided-checkin");
         return;
       case "start_text_checkin":
         router.push("/write");
