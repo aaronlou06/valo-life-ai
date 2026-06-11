@@ -805,7 +805,7 @@ export default function HomeScreen() {
     <View style={[styles.safe, { backgroundColor: colors.background }]}>
       <ScrollView
         style={{ flex: 1 }}
-        contentContainerStyle={[styles.scroll, { paddingTop: insets.top + 24, paddingBottom: 120 }]}
+        contentContainerStyle={[styles.scroll, { paddingTop: (Platform.OS === "web" ? Math.max(insets.top, 67) : insets.top) + 24, paddingBottom: 120 }]}
         showsVerticalScrollIndicator={false}
       >
         {/* Header */}

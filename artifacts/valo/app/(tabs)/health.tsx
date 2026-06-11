@@ -1150,7 +1150,7 @@ export default function HealthScreen() {
       >
         {/* Header */}
         <View
-          style={[styles.header, { borderBottomColor: colors.border, paddingTop: insets.top + 16 }]}
+          style={[styles.header, { borderBottomColor: colors.border, paddingTop: (Platform.OS === "web" ? Math.max(insets.top, 67) : insets.top) + 16 }]}
         >
           <Text style={[styles.headerTitle, { color: colors.foreground }]}>
             Health

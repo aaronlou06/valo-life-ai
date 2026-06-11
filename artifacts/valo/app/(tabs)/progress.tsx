@@ -663,7 +663,7 @@ export default function ProgressScreen() {
 
   const ListHeader = useMemo(
     () => (
-      <View style={[headerStyles.wrap, { paddingTop: insets.top + 20 }]}>
+      <View style={[headerStyles.wrap, { paddingTop: (Platform.OS === "web" ? Math.max(insets.top, 67) : insets.top) + 20 }]}>
         <Text style={[headerStyles.title, { color: colors.foreground, fontFamily: "Inter_700Bold" }]}>
           Progress
         </Text>
