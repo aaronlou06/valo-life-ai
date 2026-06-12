@@ -1,0 +1,106 @@
+Valo — Replit Instructions: Home Morning Briefing
+
+Rebuild the Home screen so it surfaces Valo's intelligence as a daily briefing instead of a static dashboard. This is the highest-ROI usefulness change — most of the value comes from displaying intelligence you already generate.
+
+Scope: one small backend assembly endpoint + the Home screen UI. Do not touch the bottom nav, the center "+" FAB → CheckInSheet wiring, the Plan/Health/Progress screens, the Vapi prompts, or the Claude pipeline. Reuse existing data sources and components — do not duplicate the pipeline or invent new data models. Work on a branch (git checkout -b home-briefing).
+
+App location: artifacts/valo/ (Expo / React Native / TypeScript, Node/Express backend).
+
+
+Part A — Backend: briefing assembly endpoint
+
+Add one endpoint, e.g. GET /api/home-briefing, that assembles a briefing from sources that already exist. It only gathers and ranks existing data — it does not call Claude or generate anything new.
+
+It should collect these candidates (skip any whose source isn't connected/available):
+
+
+Next event — from the calendar data already used on Plan.
+Readiness — the recovery/readiness value already computed for the Health page (if wearable data exists).
+Habits remaining today — from the habit/completion data used on Plan/Progress.
+From Valo — the most relevant item from the existing pre-call intelligence the pipeline already produces (pattern_observation, unresolved_thread, suggested_question, data_anomaly, emotional_baseline). Read the latest stored intelligence; do not regenerate it here.
+Near countdown — the soonest item from the existing Countdown data, if within ~14 days.
+
+
+Return a typed payload:
+
+{
+  time_of_day: "morning" | "afternoon" | "evening",   // from server/user local time
+  greeting_name: string,
+  from_valo: { kind, text, cta_label?, cta_action? } | null,
+  cards: [ { type, title, subtitle, accent, action } ],  // already ranked, top 4
+  states: { calendar_connected: bool, wearable_connected: bool, has_intelligence: bool }
+}
+
+Ranking for cards: score each candidate on urgency (sooner / time-boxed ranks higher), time-of-day fit (readiness in morning, check-in prompt in evening), exception (an anomaly, a streak about to break, or a calendar conflict jumps the queue), and freshness (a new post-call summary or just-surfaced pattern ranks high, then decays). Return the top 4. The from_valo item is separate and always returned when one exists — it is not part of the 4-card cap.
+
+If a source is missing, omit its card and set the matching states flag false (drives empty states in the UI).
+
+
+Part B — Home screen UI
+
+Rebuild the Home screen to render the briefing. Keep the existing warm palette and tokens (terracotta #C17B3F, sand #F7F5F2, text #1A1814, muted #8B8780, border #E8E4DE, Inter, 12px radius).
+
+Remove the "Your Spaces" grid (Messages / Tasks / Calendar / Notes). Those launchers move behind an Apps button in the header (next to the "A" avatar); if an Apps button doesn't exist yet, add a simple one that opens a sheet listing those four. Do not lose access to them — just reclaim the home real estate.
+
+Layout, top to bottom:
+
+
+Greeting header (keep existing) — time-of-day aware text ("Good morning/afternoon/evening, {name}"), weather/location as-is, the "A" avatar (account dropdown) and the new Apps button on the right.
+From Valo card — render from_valo prominently as Valo's voice: the observation/thread text, and if cta_action is present, a tap-through (e.g. "Talk about it" → opens CheckInSheet, or "Add it" → opens the relevant create flow). This is the signature element — give it visual weight (subtle terracotta-tinted card). If from_valo is null, omit the card entirely (no placeholder).
+At a glance — render cards as the existing horizontal-scroll card style. Card types and accents:
+
+event (next event, time + title + countdown) — sage
+readiness (Optimal/Caution/Rest + one-line why) — color by status
+habits (e.g. "2 of 4 done today") — amber
+countdown (days remaining) — rose
+anomaly (the surfaced exception) — terracotta
+Tapping a card routes to its source (event → Plan day, readiness → Health, habits → Progress, etc.).
+
+
+
+Quick check-in — a full-width tappable prompt ("What's on your mind?") that opens the CheckInSheet. Reinforces the talk-to-Valo loop without using the FAB.
+
+
+Time-of-day ordering (driven by time_of_day):
+
+
+morning — readiness and event cards first; From Valo framed as today's intention.
+afternoon — next event and habits-remaining first.
+evening — lead with the quick check-in prompt ("Ready for today's check-in?"); show today's completed habits / wins; From Valo can surface a loop-close.
+
+
+Empty / first-run states (important — handle each):
+
+
+calendar_connected false → show a single "Connect your calendar" card instead of an event card.
+wearable_connected false → omit readiness entirely (no zero/empty ring).
+has_intelligence false (brand-new user) → replace From Valo with a warm "Let's do your first check-in" prompt that opens the CheckInSheet.
+No habits set up → a gentle "Add your first habit" card linking to Plan.
+
+
+
+Guardrails
+
+
+UI + one read-only assembly endpoint only. No changes to nav, the FAB/CheckInSheet, other tabs, Vapi prompts, or the Claude pipeline.
+Reuse existing calendar/health/habits/intelligence/countdown data sources. If you can't locate one, surface which and stub that card behind its empty state rather than inventing data.
+Do not modify the preserved components (Recovery, GoalProgress, Motivation).
+After building: expo start --clear and fully reopen the app.
+
+
+Verify when done
+
+
+Home shows greeting → From Valo → at-a-glance cards → quick check-in; no "Your Spaces" grid.
+The From Valo card shows real pre-call intelligence (not placeholder text).
+Cards change order by time of day.
+With calendar disconnected / no wearable / brand-new account, the correct empty states render (nothing looks broken).
+The "+" FAB still opens the CheckInSheet; the "A" dropdown still works; the new Apps button reaches the old spaces.
+
+
+Decisions baked in (flip any and I'll revise)
+
+
+Reuses existing pre-call intelligence; does not generate new Home intelligence.
+"Your Spaces" removed from Home, relocated behind an Apps button.
+Push notification delivery is a separate follow-on; this builds the surface only.
