@@ -26,6 +26,7 @@ import mealRouter from "./meal";
 import feedbackRouter from "./feedback";
 import remindersRouter from "./reminders";
 import personalDatesRouter from "./personal-dates";
+import homeBriefingRouter from "./home-briefing";
 
 const router: IRouter = Router();
 
@@ -56,5 +57,6 @@ router.use(mealRouter);
 router.use(feedbackRouter);
 router.use(remindersRouter);
 router.use(personalDatesRouter);
+router.use(homeBriefingRouter);
 
 export default router;
