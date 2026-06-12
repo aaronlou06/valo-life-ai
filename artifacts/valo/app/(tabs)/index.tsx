@@ -399,7 +399,7 @@ function AppsSheet({
   const apps = [
     { label: "Tools", icon: "grid" as const, path: "/tools" },
     { label: "Copilot Modules", icon: "cpu" as const, path: "/copilot-modules" },
-    { label: "Accountability Buddies", icon: "users" as const, path: "/accountability-buddies" },
+    { label: "Accountability Buddies", icon: "users" as const, path: "/(tools)/accountability" },
   ];
 
   if (!visible) return null;
