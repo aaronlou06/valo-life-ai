@@ -26,6 +26,7 @@ import { useRouter } from "expo-router";
 import { useColors } from "@/hooks/useColors";
 import { useValoAuth } from "@/contexts/AuthContext";
 import { CheckInSheet } from "@/components/CheckInSheet";
+import { triggerVoiceStart } from "@/lib/voiceTrigger";
 
 const isIOS = Platform.OS === "ios";
 const BUG_EMAIL = "support@govalo.app";
@@ -397,9 +398,8 @@ function AppsSheet({
 
   const apps = [
     { label: "Tools", icon: "grid" as const, path: "/tools" },
-    { label: "Plan", icon: "flag" as const, path: "/(tabs)/plan" },
-    { label: "Progress", icon: "bar-chart-2" as const, path: "/(tabs)/progress" },
-    { label: "Health", icon: "activity" as const, path: "/(tabs)/health" },
+    { label: "Copilot Modules", icon: "cpu" as const, path: "/copilot-modules" },
+    { label: "Accountability Buddies", icon: "users" as const, path: "/accountability-buddies" },
   ];
 
   if (!visible) return null;
@@ -491,19 +491,21 @@ function FromValoCard({
   fromValo,
   hasIntelligence,
   colors,
-  onCheckIn,
   onPlan,
+  onStartVoice,
 }: {
   fromValo: FromValo | null;
   hasIntelligence: boolean;
   colors: ReturnType<typeof useColors>;
-  onCheckIn: () => void;
   onPlan: () => void;
+  onStartVoice: () => void;
 }) {
+  const [expanded, setExpanded] = useState(false);
+
   if (!fromValo && !hasIntelligence) {
     return (
       <TouchableOpacity
-        onPress={onCheckIn}
+        onPress={onStartVoice}
         activeOpacity={0.85}
         style={[
           styles.valoCard,
@@ -554,9 +556,8 @@ function FromValoCard({
   if (!fromValo) return null;
 
   function handleCta() {
-    if (fromValo?.cta_action === "open_checkin") onCheckIn();
-    else if (fromValo?.cta_action === "open_plan") onPlan();
-    else onCheckIn();
+    if (fromValo?.cta_action === "open_plan") onPlan();
+    else onStartVoice();
   }
 
   return (
@@ -583,9 +584,24 @@ function FromValoCard({
           styles.valoText,
           { color: "#1A1814", fontFamily: "Inter_400Regular" },
         ]}
+        numberOfLines={expanded ? undefined : 2}
       >
         {fromValo.text}
       </Text>
+      <TouchableOpacity
+        onPress={() => setExpanded((v) => !v)}
+        activeOpacity={0.7}
+        hitSlop={{ top: 6, bottom: 6, left: 0, right: 0 }}
+      >
+        <Text
+          style={[
+            styles.valoToggle,
+            { color: colors.primary, fontFamily: "Inter_500Medium" },
+          ]}
+        >
+          {expanded ? "Show less" : "Show more"}
+        </Text>
+      </TouchableOpacity>
       {fromValo.cta_label && (
         <TouchableOpacity
           onPress={handleCta}
@@ -889,7 +905,7 @@ export default function HomeScreen() {
             fromValo={briefing?.from_valo ?? null}
             hasIntelligence={briefing?.states.has_intelligence ?? false}
             colors={colors}
-            onCheckIn={() => setCheckInOpen(true)}
+            onStartVoice={() => { triggerVoiceStart(); router.push("/voice"); }}
             onPlan={() => router.navigate("/(tabs)/plan")}
           />
         )}
@@ -948,7 +964,7 @@ export default function HomeScreen() {
         <QuickCheckIn
           tod={tod}
           colors={colors}
-          onPress={() => setCheckInOpen(true)}
+          onPress={() => { triggerVoiceStart(); router.push("/voice"); }}
         />
       </ScrollView>
 
@@ -1094,6 +1110,10 @@ const styles = StyleSheet.create({
   valoText: {
     fontSize: 15,
     lineHeight: 23,
+    marginBottom: 6,
+  },
+  valoToggle: {
+    fontSize: 13,
     marginBottom: 14,
   },
   valoCta: {

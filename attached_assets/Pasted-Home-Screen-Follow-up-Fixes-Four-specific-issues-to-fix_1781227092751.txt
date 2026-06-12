@@ -1,0 +1,44 @@
+Home Screen — Follow-up Fixes
+
+Four specific issues to fix on the new Home screen. Read the current Home screen and CheckInSheet files before touching anything.
+
+
+Fix 1 — From Valo card: restore Show more / Show less
+
+The From Valo card is missing its expand/collapse toggle. The card body text should be truncated to 2 lines by default with a "Show more" tappable label at the bottom. Tapping it expands to full text and the label becomes "Show less." Tapping again collapses. Use local useState for this — no backend involvement.
+
+
+Fix 2 — Apps sheet: replace nav tiles with three new items
+
+The Apps grid sheet currently shows Plan, Progress, Health, and Tools. Replace the entire contents with these three items:
+
+
+Tools → navigates to /tools
+Copilot Modules → placeholder screen for now (/copilot-modules), create a minimal screen if the route doesn't exist
+Accountability Buddies → placeholder screen for now (/accountability-buddies), create a minimal screen if the route doesn't exist
+
+
+Keep the same sheet UI pattern and tile design that was just built — just swap the items.
+
+
+Fix 3 — Microphone button triggers voice automatically
+
+Any button on the Home screen with a microphone icon should immediately start the Vapi voice call when tapped — not just navigate to the voice screen and wait for the user to tap again.
+
+Find how Vapi is initialized elsewhere in the app (look for Vapi, vapi.start(), useVapi, or similar). Then on mic button press, start the call programmatically before or immediately upon arriving at the voice screen. If the call can be started inline without navigating away, do that. If the voice screen is needed as a container, navigate to it and auto-start on mount.
+
+
+Fix 4 — Glance cards showing no data
+
+The cards are rendering empty states. Before assuming the data doesn't exist, verify the /api/home-briefing endpoint is actually returning populated arrays. Check:
+
+
+Is the authenticated user's ID being resolved correctly in the route?
+Are the DB queries using the right user ID column?
+Log the raw query results server-side and confirm data is coming back.
+
+
+Fix whatever is causing the empty response. Don't change the card UI — just make sure real data flows through.
+
+
+Don't touch Recovery.tsx, GoalProgress.tsx, Motivation.tsx, or any Vapi credentials/config.

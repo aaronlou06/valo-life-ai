@@ -185,6 +185,21 @@ router.get("/home-briefing", requireAuth, async (req, res): Promise<void> => {
     const insight = insightRows[0] ?? null;
     const hasIntelligence = !!(debrief || insight);
 
+    req.log.info(
+      {
+        userId,
+        tod,
+        calendarConnected,
+        wearableConnected,
+        hasIntelligence,
+        habitsTotal: habits.length,
+        calendarEventsTotal: calendarEvents.length,
+        hasDebrief: !!debrief,
+        hasInsight: !!insight,
+      },
+      "home-briefing assembled",
+    );
+
     // ── From Valo ─────────────────────────────────────────────────────────────
 
     let fromValo: FromValo | null = null;
@@ -235,19 +250,25 @@ router.get("/home-briefing", requireAuth, async (req, res): Promise<void> => {
         score: 5,
       });
     } else {
-      const todayEvs = calendarEvents
-        .filter((ev) => ev.date === today && ev.startTime != null)
-        .map((ev) => ({ ...ev, startMins: eventStartMinutes(ev.startTime) }))
-        .filter((ev) => ev.startMins != null)
-        .sort((a, b) => (a.startMins ?? 0) - (b.startMins ?? 0));
-
-      let nextEvent: typeof todayEvs[number] | null = null;
+      // Find the next upcoming event: today (applying the -15min cutoff) or any future date
+      let nextEvent: (typeof calendarEvents)[number] | null = null;
       let minutesAway: number | null = null;
-      for (const ev of todayEvs) {
-        const diff = (ev.startMins ?? 0) - nowMins;
-        if (diff > -15) {
+
+      for (const ev of calendarEvents) {
+        if (!ev.startTime) continue;
+        if (ev.date === today) {
+          const startMins = eventStartMinutes(ev.startTime);
+          if (startMins == null) continue;
+          const diff = startMins - nowMins;
+          if (diff > -15) {
+            nextEvent = ev;
+            minutesAway = Math.max(0, diff);
+            break;
+          }
+        } else {
+          // Future date — take the first one (already ordered by date asc)
           nextEvent = ev;
-          minutesAway = Math.max(0, diff);
+          minutesAway = null;
           break;
         }
       }
@@ -276,12 +297,18 @@ router.get("/home-briefing", requireAuth, async (req, res): Promise<void> => {
               : null
             : null;
 
+        // For future-date events, show the date
+        const isToday = nextEvent.date === today;
+        const subtitleBase = timeLabel
+          ? `At ${timeLabel}${countdownText ? ` · ${countdownText}` : ""}`
+          : isToday
+          ? "Up next on your calendar"
+          : `${new Date(nextEvent.date + "T12:00:00").toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })}`;
+
         candidates.push({
           type: "event",
           title: nextEvent.title,
-          subtitle: timeLabel
-            ? `At ${timeLabel}${countdownText ? ` · ${countdownText}` : ""}`
-            : "Up next on your calendar",
+          subtitle: subtitleBase,
           accent: "sage",
           action: "open_plan",
           score,
@@ -343,6 +370,16 @@ router.get("/home-briefing", requireAuth, async (req, res): Promise<void> => {
         accent: "amber",
         action: "open_plan",
         score: 4,
+      });
+    } else if (pendingHabits.length === 0) {
+      // All habits done — show a positive completion card
+      candidates.push({
+        type: "habits",
+        title: "Habits",
+        subtitle: `All ${habits.length} done today`,
+        accent: "amber",
+        action: "open_plan",
+        score: 8,
       });
     } else if (pendingHabits.length > 0) {
       let score = 0;
