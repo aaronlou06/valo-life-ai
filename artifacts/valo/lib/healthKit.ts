@@ -314,12 +314,33 @@ export type DailyWorkoutData = {
   workoutDuration: number; // minutes
 };
 
+/** Parse a workout sample from getAnchoredWorkouts into our normalized shape. */
+function parseWorkoutSamples(data: any[]): DailyWorkoutData | null {
+  if (!data.length) return null;
+  // Pick the workout with the longest duration (field is in seconds)
+  const best = data.reduce((top: any, w: any) =>
+    (w.duration ?? 0) > (top.duration ?? 0) ? w : top
+  );
+  const name: string = best.activityName ?? "";
+  // duration is in seconds per HKWorkoutQueriedSampleType
+  let durationSecs: number = best.duration ?? 0;
+  // Fallback: compute from start/end strings if duration is absent/zero
+  if (!durationSecs && best.start && best.end) {
+    durationSecs = (new Date(best.end).getTime() - new Date(best.start).getTime()) / 1000;
+  }
+  const durationMins = Math.round(durationSecs / 60);
+  if (!name || durationMins < 1) return null;
+  return { workoutType: name, workoutDuration: durationMins };
+}
+
 /**
  * Returns the most significant (longest) workout recorded in HealthKit today,
- * or null if none exist. Requires the "Workout" read permission.
+ * or null if none exist. Uses getAnchoredWorkouts (the correct react-native-health
+ * API — getWorkoutSamples does not exist in this library).
  */
 export async function fetchTodayWorkout(): Promise<DailyWorkoutData | null> {
   if (!AppleHealthKit) return null;
+  if (typeof AppleHealthKit.getAnchoredWorkouts !== "function") return null;
   return new Promise((resolve) => {
     const now = new Date();
     const midnight = new Date(now);
@@ -327,19 +348,11 @@ export async function fetchTodayWorkout(): Promise<DailyWorkoutData | null> {
     const options = {
       startDate: midnight.toISOString(),
       endDate: now.toISOString(),
-      ascending: false,
-      limit: 10,
     };
-    AppleHealthKit.getWorkoutSamples(options, (err: any, results: any) => {
-      if (err || !Array.isArray(results) || results.length === 0) { resolve(null); return; }
-      // Pick the workout with the longest duration
-      const best = results.reduce((top: any, w: any) =>
-        (w.duration ?? 0) > (top.duration ?? 0) ? w : top
-      );
-      const name: string = best.activityName ?? best.activity ?? "";
-      const durationMins = Math.round((best.duration ?? 0) / 60);
-      if (!name || durationMins < 1) { resolve(null); return; }
-      resolve({ workoutType: name, workoutDuration: durationMins });
+    AppleHealthKit.getAnchoredWorkouts(options, (err: any, results: any) => {
+      if (err?.message) { resolve(null); return; }
+      const data: any[] = Array.isArray(results?.data) ? results.data : [];
+      resolve(parseWorkoutSamples(data));
     });
   });
 }
@@ -350,6 +363,7 @@ export async function fetchTodayWorkout(): Promise<DailyWorkoutData | null> {
  */
 export async function fetchWorkoutsForDate(date: Date): Promise<DailyWorkoutData | null> {
   if (!AppleHealthKit) return null;
+  if (typeof AppleHealthKit.getAnchoredWorkouts !== "function") return null;
   return new Promise((resolve) => {
     const midnight = new Date(date);
     midnight.setHours(0, 0, 0, 0);
@@ -357,18 +371,11 @@ export async function fetchWorkoutsForDate(date: Date): Promise<DailyWorkoutData
     const options = {
       startDate: midnight.toISOString(),
       endDate: nextMidnight.toISOString(),
-      ascending: false,
-      limit: 10,
     };
-    AppleHealthKit.getWorkoutSamples(options, (err: any, results: any) => {
-      if (err || !Array.isArray(results) || results.length === 0) { resolve(null); return; }
-      const best = results.reduce((top: any, w: any) =>
-        (w.duration ?? 0) > (top.duration ?? 0) ? w : top
-      );
-      const name: string = best.activityName ?? best.activity ?? "";
-      const durationMins = Math.round((best.duration ?? 0) / 60);
-      if (!name || durationMins < 1) { resolve(null); return; }
-      resolve({ workoutType: name, workoutDuration: durationMins });
+    AppleHealthKit.getAnchoredWorkouts(options, (err: any, results: any) => {
+      if (err?.message) { resolve(null); return; }
+      const data: any[] = Array.isArray(results?.data) ? results.data : [];
+      resolve(parseWorkoutSamples(data));
     });
   });
 }

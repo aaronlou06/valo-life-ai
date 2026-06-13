@@ -11,10 +11,10 @@ import {
   HEALTHKIT_AUTHORIZED_DATE_KEY,
 } from "./healthKit";
 
-// v5: steps now use getDailyStepCountSamples (all-source aggregate) and workouts
-// are fetched from HealthKit. Users who completed v4 re-run so their stored
-// step totals and workout history are corrected. The server upsert is idempotent.
-export const BACKFILL_DONE_KEY = "@valo/healthkit-backfill-v5-done";
+// v6: fixes getAnchoredWorkouts (was calling non-existent getWorkoutSamples which
+// caused every Promise.all to reject and skip all data including steps). Each
+// source is now wrapped in safe() so one failure never zeros the whole day.
+export const BACKFILL_DONE_KEY = "@valo/healthkit-backfill-v6-done";
 
 // Fallback start when no stored authorization date exists (e.g. existing users
 // who authorized before this key was written). 30 days is a reasonable window
@@ -24,6 +24,11 @@ const INTER_REQUEST_DELAY_MS = 200;
 
 function sleep(ms: number): Promise<void> {
   return new Promise((r) => setTimeout(r, ms));
+}
+
+/** Wraps any HealthKit fetch so a rejection returns null instead of propagating. */
+async function safe<T>(fn: () => Promise<T | null>): Promise<T | null> {
+  try { return await fn(); } catch { return null; }
 }
 
 function getApiBase(): string {
@@ -90,14 +95,15 @@ export async function runHealthKitBackfill(
   while (current <= yesterday) {
     const dateStr = toLocalDateStr(current);
     try {
+      const day = new Date(current);
       const [hrv, sleepHours, restingHeartRate, steps, activeCalories, respiratoryRate, workout] = await Promise.all([
-        fetchHRVForDate(new Date(current)),
-        fetchSleepHoursForDate(new Date(current)),
-        fetchRestingHeartRateForDate(new Date(current)),
-        fetchStepsForDate(new Date(current)),
-        fetchActiveCaloriesForDate(new Date(current)),
-        fetchRespiratoryRateForDate(new Date(current)),
-        fetchWorkoutsForDate(new Date(current)),
+        safe(() => fetchHRVForDate(day)),
+        safe(() => fetchSleepHoursForDate(day)),
+        safe(() => fetchRestingHeartRateForDate(day)),
+        safe(() => fetchStepsForDate(day)),
+        safe(() => fetchActiveCaloriesForDate(day)),
+        safe(() => fetchRespiratoryRateForDate(day)),
+        safe(() => fetchWorkoutsForDate(day)),
       ]);
 
       const hasData =

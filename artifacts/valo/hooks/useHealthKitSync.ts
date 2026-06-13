@@ -55,7 +55,7 @@ export function useHealthKitSync(): HealthKitSyncState {
 
       const [data, workout] = await Promise.all([
         fetchTodayHealthData(),
-        fetchTodayWorkout(),
+        fetchTodayWorkout().catch(() => null),
       ]);
 
       const hasData =
