@@ -1,6 +1,11 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { AppState, AppStateStatus, Platform } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { useQueryClient } from "@tanstack/react-query";
+import {
+  getGetTodayLogQueryKey,
+  getListDailyLogHistoryQueryKey,
+} from "@workspace/api-client-react";
 import { useValoAuth } from "@/contexts/AuthContext";
 import {
   requestHealthKitPermissions,
@@ -33,6 +38,7 @@ export interface HealthKitSyncState {
 
 export function useHealthKitSync(): HealthKitSyncState {
   const { getToken, isSignedIn, handleUnauthorized } = useValoAuth();
+  const queryClient = useQueryClient();
   const [isSyncing, setIsSyncing] = useState(false);
   const [lastSynced, setLastSynced] = useState<Date | null>(null);
   const [isPermissionsGranted, setIsPermissionsGranted] = useState(false);
@@ -110,6 +116,11 @@ export function useHealthKitSync(): HealthKitSyncState {
             const now = new Date();
             setLastSynced(now);
             await AsyncStorage.setItem(LAST_SYNCED_KEY, now.toISOString());
+            // Invalidate every React Query cache that depends on daily-log data
+            // so the health screen averages and home briefing refresh immediately.
+            void queryClient.invalidateQueries({ queryKey: getGetTodayLogQueryKey() });
+            void queryClient.invalidateQueries({ queryKey: getListDailyLogHistoryQueryKey() });
+            void queryClient.invalidateQueries({ queryKey: ["/api/home-briefing"] });
             return;
           }
 
@@ -134,7 +145,7 @@ export function useHealthKitSync(): HealthKitSyncState {
       isSyncingRef.current = false;
       setIsSyncing(false);
     }
-  }, [getToken, handleUnauthorized]);
+  }, [getToken, handleUnauthorized, queryClient]);
 
   useEffect(() => {
     if (Platform.OS !== "ios") return;
@@ -159,7 +170,11 @@ export function useHealthKitSync(): HealthKitSyncState {
           await syncNow();
           // Silently backfill historical data in the background. runHealthKitBackfill
           // guards itself with an AsyncStorage flag and no-ops after the first run.
-          void runHealthKitBackfill(getToken, handleUnauthorized);
+          // Invalidate caches after the backfill so screens show fresh data immediately.
+          void runHealthKitBackfill(getToken, handleUnauthorized).then(() => {
+            void queryClient.invalidateQueries({ queryKey: getListDailyLogHistoryQueryKey() });
+            void queryClient.invalidateQueries({ queryKey: ["/api/home-briefing"] });
+          });
         }
       } catch {
         // ignore

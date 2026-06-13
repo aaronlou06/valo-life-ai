@@ -5,6 +5,7 @@ import React, {
   useEffect,
   useCallback,
 } from "react";
+import { useQuery } from "@tanstack/react-query";
 import {
   View,
   Text,
@@ -785,8 +786,20 @@ export default function HomeScreen() {
 
   const [checkInOpen, setCheckInOpen] = useState(false);
   const [appsOpen, setAppsOpen] = useState(false);
-  const [briefing, setBriefing] = useState<Briefing | null>(null);
-  const [loading, setLoading] = useState(true);
+
+  const { data: briefing = null, isLoading: loading } = useQuery<Briefing | null>({
+    queryKey: ["/api/home-briefing"],
+    queryFn: async () => {
+      const token = await getToken();
+      if (!token) return null;
+      const res = await fetch(`${getApiBase()}/api/home-briefing`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) return null;
+      return (await res.json()) as Briefing;
+    },
+    staleTime: 0,
+  });
 
   const dateLabel = useMemo(
     () =>
@@ -797,31 +810,6 @@ export default function HomeScreen() {
       }),
     [],
   );
-
-  const fetchBriefing = useCallback(async () => {
-    try {
-      const token = await getToken();
-      if (!token) {
-        setLoading(false);
-        return;
-      }
-      const res = await fetch(`${getApiBase()}/api/home-briefing`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (res.ok) {
-        const data = (await res.json()) as Briefing;
-        setBriefing(data);
-      }
-    } catch {
-      // briefing is non-critical — fail silently, show skeleton
-    } finally {
-      setLoading(false);
-    }
-  }, [getToken]);
-
-  useEffect(() => {
-    void fetchBriefing();
-  }, [fetchBriefing]);
 
   const tod = briefing?.time_of_day ?? "morning";
   const firstName = briefing?.greeting_name ?? (name ? name.split(" ")[0] : "there") ?? "there";
