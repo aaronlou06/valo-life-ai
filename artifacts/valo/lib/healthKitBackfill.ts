@@ -7,15 +7,14 @@ import {
   fetchStepsForDate,
   fetchActiveCaloriesForDate,
   fetchRespiratoryRateForDate,
+  fetchWorkoutsForDate,
   HEALTHKIT_AUTHORIZED_DATE_KEY,
 } from "./healthKit";
 
-// v4: backfill start is now dynamic — anchored to the date HealthKit was first
-// authorized on this device (stored in AsyncStorage) instead of a hardcoded
-// calendar date. Users who completed v3 will re-run so their backfill
-// window is corrected. The upsert on the server is safe to call again —
-// existing rows are updated, not duplicated.
-export const BACKFILL_DONE_KEY = "@valo/healthkit-backfill-v4-done";
+// v5: steps now use getDailyStepCountSamples (all-source aggregate) and workouts
+// are fetched from HealthKit. Users who completed v4 re-run so their stored
+// step totals and workout history are corrected. The server upsert is idempotent.
+export const BACKFILL_DONE_KEY = "@valo/healthkit-backfill-v5-done";
 
 // Fallback start when no stored authorization date exists (e.g. existing users
 // who authorized before this key was written). 30 days is a reasonable window
@@ -91,13 +90,14 @@ export async function runHealthKitBackfill(
   while (current <= yesterday) {
     const dateStr = toLocalDateStr(current);
     try {
-      const [hrv, sleepHours, restingHeartRate, steps, activeCalories, respiratoryRate] = await Promise.all([
+      const [hrv, sleepHours, restingHeartRate, steps, activeCalories, respiratoryRate, workout] = await Promise.all([
         fetchHRVForDate(new Date(current)),
         fetchSleepHoursForDate(new Date(current)),
         fetchRestingHeartRateForDate(new Date(current)),
         fetchStepsForDate(new Date(current)),
         fetchActiveCaloriesForDate(new Date(current)),
         fetchRespiratoryRateForDate(new Date(current)),
+        fetchWorkoutsForDate(new Date(current)),
       ]);
 
       const hasData =
@@ -106,7 +106,8 @@ export async function runHealthKitBackfill(
         restingHeartRate !== null ||
         steps !== null ||
         activeCalories !== null ||
-        respiratoryRate !== null;
+        respiratoryRate !== null ||
+        workout !== null;
       if (hasData) {
         const body: Record<string, unknown> = { date: dateStr };
         if (hrv !== null) body.hrv = hrv;
@@ -115,6 +116,8 @@ export async function runHealthKitBackfill(
         if (steps !== null) body.steps = steps;
         if (activeCalories !== null) body.activeCalories = activeCalories;
         if (respiratoryRate !== null) body.respiratoryRate = respiratoryRate;
+        if (workout?.workoutType) body.workoutType = workout.workoutType;
+        if (workout?.workoutDuration) body.workoutDuration = workout.workoutDuration;
 
         let posted = false;
         for (let attempt = 1; attempt <= 3; attempt++) {

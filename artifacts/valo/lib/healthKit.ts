@@ -37,6 +37,7 @@ export const HealthKitPermissions = {
       "OxygenSaturation",
       "BodyMass",
       "Height",
+      "Workout",
     ],
     write: [],
   },
@@ -87,13 +88,22 @@ export async function requestHealthKitPermissions(): Promise<boolean> {
 export async function fetchSteps(): Promise<number | null> {
   if (!AppleHealthKit) return null;
   return new Promise((resolve) => {
+    // getDailyStepCountSamples uses HKStatisticsCollectionQuery which aggregates
+    // across all sources (iPhone + Apple Watch + third-party devices) with
+    // de-duplication — the same total the Apple Health app displays.
+    // getStepCount only reads a single source and consistently under-counts.
+    const now = new Date();
+    const midnight = new Date(now);
+    midnight.setHours(0, 0, 0, 0);
     const options = {
-      date: new Date().toISOString(),
+      startDate: midnight.toISOString(),
+      endDate: now.toISOString(),
       includeManuallyAdded: true,
     };
-    AppleHealthKit.getStepCount(options, (err: any, result: any) => {
-      if (err) { resolve(null); return; }
-      resolve(result?.value ?? null);
+    AppleHealthKit.getDailyStepCountSamples(options, (err: any, results: any) => {
+      if (err || !Array.isArray(results) || results.length === 0) { resolve(null); return; }
+      const total = results.reduce((sum: number, s: any) => sum + (s.value ?? 0), 0);
+      resolve(total > 0 ? Math.round(total) : null);
     });
   });
 }
@@ -279,19 +289,86 @@ export async function fetchSleepHoursForDate(date: Date): Promise<number | null>
 export async function fetchStepsForDate(date: Date): Promise<number | null> {
   if (!AppleHealthKit) return null;
   return new Promise((resolve) => {
-    // getStepCount with a specific date returns the step total for that
-    // calendar day. Use local midnight of the target date so the date
-    // aligns with the same local calendar day as the dateStr we post.
+    // getDailyStepCountSamples uses HKStatisticsCollectionQuery — aggregates and
+    // de-duplicates across all sources, matching the Apple Health app's daily total.
     const midnight = new Date(date);
     midnight.setHours(0, 0, 0, 0);
+    const nextMidnight = new Date(midnight.getTime() + 24 * 60 * 60 * 1000);
     const options = {
-      date: midnight.toISOString(),
+      startDate: midnight.toISOString(),
+      endDate: nextMidnight.toISOString(),
       includeManuallyAdded: true,
     };
-    AppleHealthKit.getStepCount(options, (err: any, result: any) => {
-      if (err) { resolve(null); return; }
-      const steps = result?.value ?? null;
-      resolve(steps !== null ? Math.round(steps) : null);
+    AppleHealthKit.getDailyStepCountSamples(options, (err: any, results: any) => {
+      if (err || !Array.isArray(results) || results.length === 0) { resolve(null); return; }
+      const total = results.reduce((sum: number, s: any) => sum + (s.value ?? 0), 0);
+      resolve(total > 0 ? Math.round(total) : null);
+    });
+  });
+}
+
+// ── Workout data ────────────────────────────────────────────────────────────────
+
+export type DailyWorkoutData = {
+  workoutType: string;
+  workoutDuration: number; // minutes
+};
+
+/**
+ * Returns the most significant (longest) workout recorded in HealthKit today,
+ * or null if none exist. Requires the "Workout" read permission.
+ */
+export async function fetchTodayWorkout(): Promise<DailyWorkoutData | null> {
+  if (!AppleHealthKit) return null;
+  return new Promise((resolve) => {
+    const now = new Date();
+    const midnight = new Date(now);
+    midnight.setHours(0, 0, 0, 0);
+    const options = {
+      startDate: midnight.toISOString(),
+      endDate: now.toISOString(),
+      ascending: false,
+      limit: 10,
+    };
+    AppleHealthKit.getWorkoutSamples(options, (err: any, results: any) => {
+      if (err || !Array.isArray(results) || results.length === 0) { resolve(null); return; }
+      // Pick the workout with the longest duration
+      const best = results.reduce((top: any, w: any) =>
+        (w.duration ?? 0) > (top.duration ?? 0) ? w : top
+      );
+      const name: string = best.activityName ?? best.activity ?? "";
+      const durationMins = Math.round((best.duration ?? 0) / 60);
+      if (!name || durationMins < 1) { resolve(null); return; }
+      resolve({ workoutType: name, workoutDuration: durationMins });
+    });
+  });
+}
+
+/**
+ * Returns the most significant workout for a given calendar day, or null.
+ * Used by the backfill to populate historical daily-log records.
+ */
+export async function fetchWorkoutsForDate(date: Date): Promise<DailyWorkoutData | null> {
+  if (!AppleHealthKit) return null;
+  return new Promise((resolve) => {
+    const midnight = new Date(date);
+    midnight.setHours(0, 0, 0, 0);
+    const nextMidnight = new Date(midnight.getTime() + 24 * 60 * 60 * 1000);
+    const options = {
+      startDate: midnight.toISOString(),
+      endDate: nextMidnight.toISOString(),
+      ascending: false,
+      limit: 10,
+    };
+    AppleHealthKit.getWorkoutSamples(options, (err: any, results: any) => {
+      if (err || !Array.isArray(results) || results.length === 0) { resolve(null); return; }
+      const best = results.reduce((top: any, w: any) =>
+        (w.duration ?? 0) > (top.duration ?? 0) ? w : top
+      );
+      const name: string = best.activityName ?? best.activity ?? "";
+      const durationMins = Math.round((best.duration ?? 0) / 60);
+      if (!name || durationMins < 1) { resolve(null); return; }
+      resolve({ workoutType: name, workoutDuration: durationMins });
     });
   });
 }

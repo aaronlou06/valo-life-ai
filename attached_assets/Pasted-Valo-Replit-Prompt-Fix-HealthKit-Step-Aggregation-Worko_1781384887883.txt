@@ -1,0 +1,50 @@
+Valo — Replit Prompt: Fix HealthKit Step Aggregation + Workout Fetching
+
+Context
+
+The app is stable now, but two HealthKit data problems show on the Health screen and the "From Valo" briefing:
+
+
+Steps under-read badly. Valo shows a 7-day average of ~1181 steps/day. The Apple Health app's own Steps screen shows ~4742/day for the same period. So the data is in HealthKit — the app is only reading a subset.
+Workouts don't appear. Workouts the user has recorded aren't showing in the Health screen.
+
+
+Work on a branch: git checkout -b fix-healthkit-steps-workouts.
+
+Relevant code to inspect: artifacts/valo/lib/healthKit.ts (e.g. fetchSteps, fetchStepsForDate, the read-permissions array), the sync hook (artifacts/valo/hooks/useHealthKitSync.ts), and the backfill (artifacts/valo/lib/healthKitBackfill.ts). The Health screen reads a logHistory array and filters it with l.workoutType != null.
+
+
+Goal 1 — Steps must match Apple Health's daily total
+
+
+The under-read means the step query is reading a single source (likely iPhone-only) instead of the de-duplicated daily total across all sources (iPhone + Garmin/watch) that the Apple Health app shows.
+Inspect how steps are read (currently AppleHealthKit.getStepCount). Switch to / configure a query that returns the aggregated daily cumulative total across all sources — e.g. getDailyStepCountSamples (per-day cumulative) — and do not restrict it to a single source. For any given day, Valo's total must match the Apple Health app's Steps total for that same day (within rounding).
+After fixing the read, the stored historical daily values are still wrong (they were written by the old query). Re-run the backfill so the stored days and the 7-day average reflect the corrected numbers — otherwise the briefing keeps showing the old low average from cached data.
+
+
+Goal 2 — Workouts must fetch and appear
+
+Diagnose why workouts aren't showing, checking in this order:
+
+
+HealthKit read permissions include workouts (Workout / HKWorkoutType). If missing, add it.
+There is an actual fetch of workout samples from HealthKit (the workout query / getSamples for workout type), and it runs in the sync and/or backfill.
+Fetched workouts are mapped into whatever the Health screen consumes (the logHistory entries with workoutType set).
+If workouts are meant to come from somewhere other than HealthKit (manual logging / the check-in), trace that path and explain why it's empty rather than forcing a HealthKit source.
+
+
+
+Do NOT touch
+
+
+Dependencies / versions (the SDK-54 alignment is correct) — no package.json/lockfile changes, no prebuild, no native rebuild from your side.
+Vapi prompts, the Claude pipeline, navigation, tab layout.
+Protected components: Recovery.tsx, GoalProgress.tsx, Motivation.tsx.
+
+
+Verify before finishing
+
+
+For a sample day, Valo's step total matches the Apple Health app's Steps total (within rounding), and the 7-day average on the "From Valo" card reflects corrected numbers after the re-backfill.
+Recorded workouts appear in the Health screen's workout list.
+Report what the step query was changed to, whether workout permission and/or fetch were added, and which files changed.

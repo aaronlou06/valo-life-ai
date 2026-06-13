@@ -5,6 +5,7 @@ import { useValoAuth } from "@/contexts/AuthContext";
 import {
   requestHealthKitPermissions,
   fetchTodayHealthData,
+  fetchTodayWorkout,
 } from "@/lib/healthKit";
 import { runHealthKitBackfill } from "@/lib/healthKitBackfill";
 
@@ -52,7 +53,10 @@ export function useHealthKitSync(): HealthKitSyncState {
       if (!granted) return;
       setIsPermissionsGranted(true);
 
-      const data = await fetchTodayHealthData();
+      const [data, workout] = await Promise.all([
+        fetchTodayHealthData(),
+        fetchTodayWorkout(),
+      ]);
 
       const hasData =
         data.sleepHours !== null ||
@@ -60,7 +64,8 @@ export function useHealthKitSync(): HealthKitSyncState {
         data.restingHeartRate !== null ||
         data.steps !== null ||
         data.activeCalories !== null ||
-        data.respiratoryRate !== null;
+        data.respiratoryRate !== null ||
+        workout !== null;
 
       if (!hasData) return;
 
@@ -73,13 +78,15 @@ export function useHealthKitSync(): HealthKitSyncState {
       }
       if (!token) return;
 
-      const body: Record<string, number> = {};
+      const body: Record<string, string | number> = {};
       if (data.sleepHours !== null) body.sleepHours = data.sleepHours;
       if (data.hrv !== null) body.hrv = data.hrv;
       if (data.restingHeartRate !== null) body.restingHeartRate = data.restingHeartRate;
       if (data.steps !== null) body.steps = Math.round(data.steps);
       if (data.activeCalories !== null) body.activeCalories = Math.round(data.activeCalories);
       if (data.respiratoryRate !== null) body.respiratoryRate = data.respiratoryRate;
+      if (workout?.workoutType) body.workoutType = workout.workoutType;
+      if (workout?.workoutDuration) body.workoutDuration = workout.workoutDuration;
 
       // Retry only on network/server errors. A 401 means the token is stale
       // — retrying with the same token won't help. AuthContext now validates
