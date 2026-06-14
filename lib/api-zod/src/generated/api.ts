@@ -549,6 +549,10 @@ export const GetSettingsResponse = zod.object({
   notifHabits: zod.boolean().optional(),
   notifGoals: zod.boolean().optional(),
   morningBriefingTime: zod.string().nullish(),
+  maxHeartRate: zod.number().nullish(),
+  weightKg: zod.number().nullish(),
+  age: zod.number().nullish(),
+  biologicalSex: zod.string().nullish(),
 });
 
 /**
@@ -568,6 +572,8 @@ export const UpdateSettingsBody = zod.object({
   notifHabits: zod.boolean().optional(),
   notifGoals: zod.boolean().optional(),
   morningBriefingTime: zod.string().nullish(),
+  maxHeartRate: zod.number().nullish(),
+  weightKg: zod.number().nullish(),
 });
 
 export const UpdateSettingsResponse = zod.object({
@@ -1026,6 +1032,13 @@ export const ListWorkoutSessionsResponseItem = zod.object({
   durationSec: zod.number().nullish(),
   perceivedEffort: zod.number().nullish(),
   notes: zod.string().nullish(),
+  avgHr: zod.number().nullish(),
+  maxHr: zod.number().nullish(),
+  timeInZone: zod
+    .record(zod.string(), zod.number())
+    .nullish()
+    .describe("Seconds spent in each HR zone, keyed by zone (rest, z1..z5)"),
+  caloriesKcal: zod.number().nullish(),
   createdAt: zod.string(),
   updatedAt: zod.string(),
 });
@@ -1054,6 +1067,13 @@ export const GetWorkoutSessionResponse = zod
     durationSec: zod.number().nullish(),
     perceivedEffort: zod.number().nullish(),
     notes: zod.string().nullish(),
+    avgHr: zod.number().nullish(),
+    maxHr: zod.number().nullish(),
+    timeInZone: zod
+      .record(zod.string(), zod.number())
+      .nullish()
+      .describe("Seconds spent in each HR zone, keyed by zone (rest, z1..z5)"),
+    caloriesKcal: zod.number().nullish(),
     createdAt: zod.string(),
     updatedAt: zod.string(),
   })
@@ -1107,6 +1127,13 @@ export const UpdateWorkoutSessionResponse = zod.object({
   durationSec: zod.number().nullish(),
   perceivedEffort: zod.number().nullish(),
   notes: zod.string().nullish(),
+  avgHr: zod.number().nullish(),
+  maxHr: zod.number().nullish(),
+  timeInZone: zod
+    .record(zod.string(), zod.number())
+    .nullish()
+    .describe("Seconds spent in each HR zone, keyed by zone (rest, z1..z5)"),
+  caloriesKcal: zod.number().nullish(),
   createdAt: zod.string(),
   updatedAt: zod.string(),
 });
@@ -1200,6 +1227,13 @@ export const CompleteWorkoutSessionResponse = zod.object({
     durationSec: zod.number().nullish(),
     perceivedEffort: zod.number().nullish(),
     notes: zod.string().nullish(),
+    avgHr: zod.number().nullish(),
+    maxHr: zod.number().nullish(),
+    timeInZone: zod
+      .record(zod.string(), zod.number())
+      .nullish()
+      .describe("Seconds spent in each HR zone, keyed by zone (rest, z1..z5)"),
+    caloriesKcal: zod.number().nullish(),
     createdAt: zod.string(),
     updatedAt: zod.string(),
   }),
@@ -1225,6 +1259,38 @@ export const CompleteWorkoutSessionResponse = zod.object({
       value: zod.number().optional(),
     }),
   ),
+});
+
+/**
+ * @summary Upload captured heart-rate samples and compute/store the session HR summary
+ */
+export const UploadWorkoutHrParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const UploadWorkoutHrBody = zod.object({
+  samples: zod.array(
+    zod.object({
+      bpm: zod.number(),
+      sampledAt: zod
+        .string()
+        .describe("ISO-8601 timestamp when the sample was measured"),
+    }),
+  ),
+  maxHeartRate: zod
+    .number()
+    .nullish()
+    .describe(
+      "Override max HR used for zone bucketing; falls back to profile\/age estimate",
+    ),
+});
+
+export const UploadWorkoutHrResponse = zod.object({
+  avgHr: zod.number().nullable(),
+  maxHr: zod.number().nullable(),
+  timeInZone: zod.record(zod.string(), zod.number()),
+  caloriesKcal: zod.number().nullable(),
+  sampleCount: zod.number(),
 });
 
 /**

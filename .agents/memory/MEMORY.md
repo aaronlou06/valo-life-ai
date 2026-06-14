@@ -6,4 +6,5 @@
 - [Safe-area web floor](safe-area-web-floor.md) — Expo web preview gives insets.top=0; every tab top-pad needs `(web ? Math.max(insets.top,67) : insets.top) + offset`.
 - [Workout schema & seed](workout-schema-seed.md) — 8 workout tables; weights canonical kg; exercise library seeded from free-exercise-db via `scripts` seed:exercises, idempotent on slug, custom exercises have userId+null slug.
 - [Workout Co-Pilot shell](workout-copilot-shell.md) — persistent panel + WorkoutCopilotContext (AsyncStorage) mounted at ROOT in _layout (not tabs); 5 flat /copilot-* placeholder routes; gating excludes copilot-modules hub.
+- [Workout live HR tracking](workout-hr-tracking.md) — BLE (ble-plx 0x180D/0x2A37) in HeartRateContext; reconnect+scan timers must gate on shutdown/manualDisconnect refs; samples persist per-session, summary stored on session via POST /hr.
 - [Valo native config](valo-native-config.md) — static app.json only (no app.config.js); ios/android gitignored (CNG) so app.json is source of truth; react-native-ble-plx + BLE perms/bg-mode configured for HR.

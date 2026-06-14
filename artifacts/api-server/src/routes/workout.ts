@@ -3,6 +3,8 @@ import { and, desc, eq, gte, inArray } from "drizzle-orm";
 import {
   db,
   exercisesTable,
+  userProfilesTable,
+  workoutHrSamplesTable,
   workoutPersonalRecordsTable,
   workoutSessionsTable,
   workoutSetLogsTable,
@@ -12,6 +14,7 @@ import {
 import { requireAuth, type AuthenticatedRequest } from "../middlewares/requireAuth";
 import { generateWorkoutCoaching } from "../lib/workoutCoaching";
 import { completeWorkoutSession } from "../lib/workoutSummary";
+import { summarizeHrSamples, estimateMaxHr, type HrSampleInput } from "../lib/workoutHr";
 
 const router: IRouter = Router();
 
@@ -291,6 +294,81 @@ router.post("/workout/sessions/:id/complete", requireAuth, async (req, res): Pro
 
   const result = await completeWorkoutSession(userId, sessionId);
   res.json(result);
+});
+
+/**
+ * POST /workout/sessions/:id/hr
+ * Ingest captured heart-rate samples, compute the session HR summary
+ * (avg/max BPM, time-in-zone, estimated calories), and persist it.
+ */
+router.post("/workout/sessions/:id/hr", requireAuth, async (req, res): Promise<void> => {
+  const userId = (req as AuthenticatedRequest).userId;
+  const sessionId = parseIntParam(req.params.id);
+  if (sessionId === null) { res.status(400).json({ error: "Invalid id" }); return; }
+
+  const body = req.body as {
+    samples?: Array<{ bpm?: unknown; sampledAt?: unknown }>;
+    maxHeartRate?: number | null;
+  };
+  const rawSamples = Array.isArray(body.samples) ? body.samples : [];
+
+  const [session] = await db
+    .select()
+    .from(workoutSessionsTable)
+    .where(and(eq(workoutSessionsTable.id, sessionId), eq(workoutSessionsTable.userId, userId)));
+  if (!session) { res.status(404).json({ error: "Session not found" }); return; }
+
+  // Normalise + validate incoming samples.
+  const samples: HrSampleInput[] = [];
+  for (const s of rawSamples) {
+    const bpm = typeof s.bpm === "number" ? Math.round(s.bpm) : NaN;
+    const t = typeof s.sampledAt === "string" || typeof s.sampledAt === "number"
+      ? new Date(s.sampledAt)
+      : null;
+    if (!Number.isFinite(bpm) || bpm <= 0 || bpm > 300) continue;
+    if (!t || isNaN(t.getTime())) continue;
+    samples.push({ bpm, sampledAt: t });
+  }
+
+  const [profile] = await db
+    .select({
+      age: userProfilesTable.age,
+      weightKg: userProfilesTable.weightKg,
+      biologicalSex: userProfilesTable.biologicalSex,
+      maxHeartRate: userProfilesTable.maxHeartRate,
+    })
+    .from(userProfilesTable)
+    .where(eq(userProfilesTable.userId, userId))
+    .limit(1);
+
+  const maxHr =
+    (typeof body.maxHeartRate === "number" && body.maxHeartRate > 0 ? body.maxHeartRate : null) ??
+    profile?.maxHeartRate ??
+    estimateMaxHr(profile?.age ?? null);
+
+  const summary = summarizeHrSamples(samples, maxHr, {
+    age: profile?.age ?? null,
+    weightKg: profile?.weightKg ?? null,
+    biologicalSex: profile?.biologicalSex ?? null,
+  });
+
+  if (samples.length > 0) {
+    await db.insert(workoutHrSamplesTable).values(
+      samples.map((s) => ({ sessionId, bpm: s.bpm, sampledAt: s.sampledAt })),
+    );
+
+    await db
+      .update(workoutSessionsTable)
+      .set({
+        avgHr: summary.avgHr,
+        maxHr: summary.maxHr,
+        timeInZone: summary.timeInZone,
+        caloriesKcal: summary.caloriesKcal,
+      })
+      .where(eq(workoutSessionsTable.id, sessionId));
+  }
+
+  res.json(summary);
 });
 
 // ─── Exercise PR + History ────────────────────────────────────────────────────

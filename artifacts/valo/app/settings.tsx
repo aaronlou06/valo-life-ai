@@ -140,6 +140,9 @@ export default function SettingsScreen() {
   const [notifGoals, setNotifGoals] = useState(true);
   const [morningBriefingTime, setMorningBriefingTime] = useState("07:00");
 
+  const [maxHeartRate, setMaxHeartRate] = useState("");
+  const [weightKg, setWeightKg] = useState("");
+
   const topPad = Platform.OS === "web" ? Math.max(insets.top, 67) : insets.top;
   const bottomPad = Platform.OS === "web" ? 34 : insets.bottom;
 
@@ -163,6 +166,8 @@ export default function SettingsScreen() {
           notifHabits?: boolean;
           notifGoals?: boolean;
           morningBriefingTime?: string | null;
+          maxHeartRate?: number | null;
+          weightKg?: number | null;
         };
         if (data.phoneNumber) setPhoneNumber(data.phoneNumber);
         if (data.preferredCallTime) setPreferredCallTime(data.preferredCallTime);
@@ -174,6 +179,8 @@ export default function SettingsScreen() {
         setNotifHabits(data.notifHabits !== false);
         setNotifGoals(data.notifGoals !== false);
         if (data.morningBriefingTime) setMorningBriefingTime(data.morningBriefingTime);
+        if (data.maxHeartRate != null) setMaxHeartRate(String(data.maxHeartRate));
+        if (data.weightKg != null) setWeightKg(String(data.weightKg));
       }
     } catch {
       // ignore
@@ -204,6 +211,8 @@ export default function SettingsScreen() {
           notifHabits,
           notifGoals,
           morningBriefingTime,
+          maxHeartRate: maxHeartRate.trim() ? parseInt(maxHeartRate.trim(), 10) : null,
+          weightKg: weightKg.trim() ? Math.round(parseFloat(weightKg.trim())) : null,
         }),
       });
       if (res.ok) {
@@ -251,7 +260,7 @@ export default function SettingsScreen() {
     } finally {
       setSaving(false);
     }
-  }, [getToken, apiBase, phoneNumber, preferredCallTime, callTimezone, callsEnabled, checkinReminderEnabled, notifMorning, notifCheckin, notifHabits, notifGoals, morningBriefingTime, router]);
+  }, [getToken, apiBase, phoneNumber, preferredCallTime, callTimezone, callsEnabled, checkinReminderEnabled, notifMorning, notifCheckin, notifHabits, notifGoals, morningBriefingTime, maxHeartRate, weightKg, router]);
 
   const filteredTz = COMMON_TIMEZONES.filter((tz) =>
     tz.toLowerCase().includes(tzSearch.toLowerCase())
@@ -463,6 +472,50 @@ export default function SettingsScreen() {
               </Text>
               <Feather name="chevron-down" size={16} color={colors.mutedForeground} />
             </TouchableOpacity>
+          </View>
+        </View>
+
+        {/* Heart rate section */}
+        <Text style={[styles.sectionLabel, { color: colors.mutedForeground, fontFamily: "Inter_500Medium" }]}>
+          HEART RATE
+        </Text>
+        <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
+          <View style={styles.fieldGroup}>
+            <Text style={[styles.fieldLabel, { color: colors.mutedForeground, fontFamily: "Inter_500Medium" }]}>
+              MAX HEART RATE (BPM)
+            </Text>
+            <TextInput
+              value={maxHeartRate}
+              onChangeText={(t) => setMaxHeartRate(t.replace(/[^0-9]/g, ""))}
+              placeholder="Auto (220 - age)"
+              placeholderTextColor={colors.mutedForeground}
+              keyboardType="number-pad"
+              maxLength={3}
+              style={[styles.input, { color: colors.foreground, borderColor: colors.border, backgroundColor: colors.background, fontFamily: "Inter_400Regular" }]}
+            />
+            <Text style={[styles.fieldHint, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
+              Used to calculate live training zones. Leave blank to estimate from your age.
+            </Text>
+          </View>
+
+          <View style={[styles.divider, { backgroundColor: colors.border }]} />
+
+          <View style={styles.fieldGroup}>
+            <Text style={[styles.fieldLabel, { color: colors.mutedForeground, fontFamily: "Inter_500Medium" }]}>
+              BODY WEIGHT (KG)
+            </Text>
+            <TextInput
+              value={weightKg}
+              onChangeText={(t) => setWeightKg(t.replace(/[^0-9.]/g, ""))}
+              placeholder="e.g. 72"
+              placeholderTextColor={colors.mutedForeground}
+              keyboardType="decimal-pad"
+              maxLength={5}
+              style={[styles.input, { color: colors.foreground, borderColor: colors.border, backgroundColor: colors.background, fontFamily: "Inter_400Regular" }]}
+            />
+            <Text style={[styles.fieldHint, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
+              Improves the accuracy of workout calorie estimates.
+            </Text>
           </View>
         </View>
 

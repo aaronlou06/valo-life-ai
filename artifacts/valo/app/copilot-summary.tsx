@@ -4,6 +4,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Feather } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useColors } from "@/hooks/useColors";
+import { HR_ZONES, fmtZoneSeconds } from "@/lib/heartRate";
 
 function fmtDuration(secs: number): string {
   const h = Math.floor(secs / 3600);
@@ -69,6 +70,10 @@ export default function CopilotSummaryScreen() {
     totalSets?: string;
     tonnageKg?: string;
     prNames?: string;
+    avgHr?: string;
+    maxHr?: string;
+    caloriesKcal?: string;
+    timeInZone?: string;
   }>();
 
   const name = params.name ?? "Workout";
@@ -78,6 +83,22 @@ export default function CopilotSummaryScreen() {
   const prNames = params.prNames
     ? params.prNames.split(",").filter(Boolean)
     : [];
+
+  const avgHr = params.avgHr ? parseInt(params.avgHr, 10) : null;
+  const maxHr = params.maxHr ? parseInt(params.maxHr, 10) : null;
+  const caloriesKcal = params.caloriesKcal ? parseInt(params.caloriesKcal, 10) : null;
+  const timeInZone: Record<string, number> = (() => {
+    if (!params.timeInZone) return {};
+    try {
+      const parsed = JSON.parse(params.timeInZone) as Record<string, number>;
+      return parsed && typeof parsed === "object" ? parsed : {};
+    } catch {
+      return {};
+    }
+  })();
+  const hasHr = avgHr != null || maxHr != null;
+  const zoneRows = HR_ZONES.filter((z) => (timeInZone[z.key] ?? 0) > 0);
+  const maxZoneSecs = zoneRows.reduce((m, z) => Math.max(m, timeInZone[z.key] ?? 0), 0);
 
   function handleDone() {
     router.replace("/(tabs)" as never);
@@ -109,6 +130,59 @@ export default function CopilotSummaryScreen() {
             <StatTile icon="trending-up" label="Volume" value={fmtTonnage(tonnageKg)} colors={colors} />
           )}
         </View>
+
+        {/* Heart rate */}
+        {hasHr && (
+          <>
+            <View style={styles.statsRow}>
+              <StatTile
+                icon="heart"
+                label="Avg HR"
+                value={avgHr != null ? `${avgHr} bpm` : "--"}
+                colors={colors}
+              />
+              <StatTile
+                icon="activity"
+                label="Max HR"
+                value={maxHr != null ? `${maxHr} bpm` : "--"}
+                colors={colors}
+              />
+              {caloriesKcal != null && caloriesKcal > 0 && (
+                <StatTile icon="zap" label="Calories" value={`${caloriesKcal} kcal`} colors={colors} />
+              )}
+            </View>
+
+            {zoneRows.length > 0 && (
+              <View style={[styles.zoneCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+                <Text style={[styles.zoneTitle, { color: colors.foreground, fontFamily: "Inter_600SemiBold" }]}>
+                  Time in zone
+                </Text>
+                {zoneRows.map((z) => {
+                  const secs = timeInZone[z.key] ?? 0;
+                  const pct = maxZoneSecs > 0 ? secs / maxZoneSecs : 0;
+                  return (
+                    <View key={z.key} style={styles.zoneRow}>
+                      <Text style={[styles.zoneLabel, { color: colors.mutedForeground, fontFamily: "Inter_500Medium" }]}>
+                        {z.label}
+                      </Text>
+                      <View style={[styles.zoneTrack, { backgroundColor: colors.muted }]}>
+                        <View
+                          style={[
+                            styles.zoneFill,
+                            { backgroundColor: z.color, width: `${Math.max(6, pct * 100)}%` },
+                          ]}
+                        />
+                      </View>
+                      <Text style={[styles.zoneTime, { color: colors.foreground, fontFamily: "Inter_600SemiBold" }]}>
+                        {fmtZoneSeconds(secs)}
+                      </Text>
+                    </View>
+                  );
+                })}
+              </View>
+            )}
+          </>
+        )}
 
         {/* Personal records */}
         {prNames.length > 0 && (
@@ -177,6 +251,20 @@ const styles = StyleSheet.create({
     gap: 10,
     width: "100%",
   },
+
+  zoneCard: {
+    width: "100%",
+    borderRadius: 16,
+    borderWidth: StyleSheet.hairlineWidth,
+    padding: 16,
+    gap: 12,
+  },
+  zoneTitle: { fontSize: 15 },
+  zoneRow: { flexDirection: "row", alignItems: "center", gap: 10 },
+  zoneLabel: { fontSize: 12, width: 96 },
+  zoneTrack: { flex: 1, height: 8, borderRadius: 4, overflow: "hidden" },
+  zoneFill: { height: 8, borderRadius: 4 },
+  zoneTime: { fontSize: 12, width: 56, textAlign: "right" },
 
   prCard: {
     width: "100%",

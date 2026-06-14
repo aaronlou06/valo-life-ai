@@ -20,6 +20,10 @@ export const userProfilesTable = pgTable("user_profiles", {
   userMotivation: text("user_motivation"),
   biologicalSex: text("biological_sex"),
   age: integer("age"),
+  // Max heart rate (bpm). When null, zones fall back to an age estimate.
+  maxHeartRate: integer("max_heart_rate"),
+  // Body weight in kg — used for HR-based calorie estimation.
+  weightKg: integer("weight_kg"),
   wearableDevice: text("wearable_device"),
   workoutDaysPerWeek: integer("workout_days_per_week"),
   dietType: text("diet_type"),

@@ -5,6 +5,7 @@
  * Valo API specification
  * OpenAPI spec version: 0.1.0
  */
+import type { WorkoutSessionTimeInZone } from "./workoutSessionTimeInZone";
 
 export interface WorkoutSession {
   id: number;
@@ -26,6 +27,17 @@ export interface WorkoutSession {
   perceivedEffort?: number | null;
   /** @nullable */
   notes?: string | null;
+  /** @nullable */
+  avgHr?: number | null;
+  /** @nullable */
+  maxHr?: number | null;
+  /**
+   * Seconds spent in each HR zone, keyed by zone (rest, z1..z5)
+   * @nullable
+   */
+  timeInZone?: WorkoutSessionTimeInZone;
+  /** @nullable */
+  caloriesKcal?: number | null;
   createdAt: string;
   updatedAt: string;
 }

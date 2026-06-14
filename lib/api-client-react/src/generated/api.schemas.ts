@@ -28,6 +28,14 @@ export interface UserSettings {
   notifGoals?: boolean;
   /** @nullable */
   morningBriefingTime?: string | null;
+  /** @nullable */
+  maxHeartRate?: number | null;
+  /** @nullable */
+  weightKg?: number | null;
+  /** @nullable */
+  age?: number | null;
+  /** @nullable */
+  biologicalSex?: string | null;
 }
 
 export interface UpdateSettings {
@@ -51,6 +59,10 @@ export interface UpdateSettings {
   notifGoals?: boolean;
   /** @nullable */
   morningBriefingTime?: string | null;
+  /** @nullable */
+  maxHeartRate?: number | null;
+  /** @nullable */
+  weightKg?: number | null;
 }
 
 export interface HealthStatus {
@@ -608,6 +620,12 @@ export interface Exercise {
   updatedAt: string;
 }
 
+/**
+ * Seconds spent in each HR zone, keyed by zone (rest, z1..z5)
+ * @nullable
+ */
+export type WorkoutSessionTimeInZone = { [key: string]: number } | null;
+
 export interface WorkoutSession {
   id: number;
   userId: string;
@@ -628,8 +646,47 @@ export interface WorkoutSession {
   perceivedEffort?: number | null;
   /** @nullable */
   notes?: string | null;
+  /** @nullable */
+  avgHr?: number | null;
+  /** @nullable */
+  maxHr?: number | null;
+  /**
+   * Seconds spent in each HR zone, keyed by zone (rest, z1..z5)
+   * @nullable
+   */
+  timeInZone?: WorkoutSessionTimeInZone;
+  /** @nullable */
+  caloriesKcal?: number | null;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface WorkoutHrSample {
+  bpm: number;
+  /** ISO-8601 timestamp when the sample was measured */
+  sampledAt: string;
+}
+
+export interface WorkoutHrUpload {
+  samples: WorkoutHrSample[];
+  /**
+   * Override max HR used for zone bucketing; falls back to profile/age estimate
+   * @nullable
+   */
+  maxHeartRate?: number | null;
+}
+
+export type WorkoutHrSummaryTimeInZone = { [key: string]: number };
+
+export interface WorkoutHrSummary {
+  /** @nullable */
+  avgHr: number | null;
+  /** @nullable */
+  maxHr: number | null;
+  timeInZone: WorkoutHrSummaryTimeInZone;
+  /** @nullable */
+  caloriesKcal: number | null;
+  sampleCount: number;
 }
 
 export interface WorkoutSetLog {

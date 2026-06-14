@@ -15,9 +15,18 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Feather } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import * as Haptics from "expo-haptics";
+import Svg, { Polyline } from "react-native-svg";
 import { customFetch } from "@workspace/api-client-react";
 import { useColors } from "@/hooks/useColors";
 import { useWorkoutCopilot } from "@/contexts/WorkoutCopilotContext";
+import { useHeartRate } from "@/contexts/HeartRateContext";
+import {
+  computeLiveStats,
+  estimateMaxHr,
+  fmtZoneSeconds,
+  zoneForBpm,
+  type HrSample,
+} from "@/lib/heartRate";
 
 // ─── Types ─────────────────────────────────────────────────────────────────
 
@@ -261,6 +270,43 @@ const stepStyles = StyleSheet.create({
   value: { fontSize: 26 },
 });
 
+// ─── HR sparkline ──────────────────────────────────────────────────────────
+
+function HrSparkline({
+  samples,
+  color,
+  maxHr,
+}: {
+  samples: HrSample[];
+  color: string;
+  maxHr: number;
+}) {
+  const width = 280;
+  const height = 56;
+  if (samples.length < 2) {
+    return <View style={{ height }} />;
+  }
+  // Keep the most recent 60 readings so the trace stays legible.
+  const recent = samples.slice(-60);
+  const bpms = recent.map((s) => s.bpm);
+  const lo = Math.min(...bpms, 40);
+  const hi = Math.max(...bpms, maxHr * 0.5);
+  const range = Math.max(1, hi - lo);
+  const stepX = recent.length > 1 ? width / (recent.length - 1) : width;
+  const points = recent
+    .map((s, i) => {
+      const x = i * stepX;
+      const y = height - 4 - ((s.bpm - lo) / range) * (height - 8);
+      return `${x.toFixed(1)},${y.toFixed(1)}`;
+    })
+    .join(" ");
+  return (
+    <Svg width="100%" height={height} viewBox={`0 0 ${width} ${height}`} preserveAspectRatio="none">
+      <Polyline points={points} fill="none" stroke={color} strokeWidth={2} strokeLinejoin="round" strokeLinecap="round" />
+    </Svg>
+  );
+}
+
 // ─── Main screen ───────────────────────────────────────────────────────────
 
 export default function CopilotWorkoutScreen() {
@@ -268,6 +314,7 @@ export default function CopilotWorkoutScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { activeSession, endSession } = useWorkoutCopilot();
+  const hr = useHeartRate();
   const params = useLocalSearchParams<{ sessionId?: string; templateId?: string }>();
 
   const sessionId = params.sessionId
@@ -304,7 +351,48 @@ export default function CopilotWorkoutScreen() {
   const [librarySearch, setLibrarySearch] = useState("");
   const [loadingLibrary, setLoadingLibrary] = useState(false);
 
+  // ── Heart rate ──
+  const [maxHr, setMaxHr] = useState<number>(190);
+  const [showHrModal, setShowHrModal] = useState(false);
+
   const supersetLabels = buildSupersetLabels(exercises);
+
+  const hrStats = computeLiveStats(hr.samples);
+  const liveBpm = hr.bpm ?? hrStats.current;
+  const liveZone = liveBpm != null ? zoneForBpm(liveBpm, maxHr) : null;
+
+  // ── Load max HR from settings (fallback: 220 - age, else 190) ──
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const settings = await customFetch<{ maxHeartRate: number | null; age: number | null }>(
+          "/api/settings",
+        );
+        if (cancelled) return;
+        const resolved =
+          (settings.maxHeartRate && settings.maxHeartRate > 0 ? settings.maxHeartRate : null) ??
+          (settings.age ? estimateMaxHr(settings.age) : null) ??
+          190;
+        setMaxHr(resolved);
+      } catch {
+        // keep default
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // ── Capture HR samples for the active session ──
+  useEffect(() => {
+    if (sessionId == null) return;
+    void hr.beginCapture(sessionId);
+    return () => {
+      hr.stopCapture();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sessionId]);
 
   // ── Session elapsed timer ──
   useEffect(() => {
@@ -435,11 +523,43 @@ export default function CopilotWorkoutScreen() {
           onPress: async () => {
             setFinishing(true);
             try {
+              // Upload captured HR samples first (best-effort) so the session
+              // carries its avg/max/zone/calories summary.
+              let hrSummary: {
+                avgHr: number | null;
+                maxHr: number | null;
+                caloriesKcal: number | null;
+                timeInZone: Record<string, number>;
+              } | null = null;
+              const captured = hr.samples;
+              if (captured.length > 0) {
+                try {
+                  hrSummary = await customFetch<{
+                    avgHr: number | null;
+                    maxHr: number | null;
+                    caloriesKcal: number | null;
+                    timeInZone: Record<string, number>;
+                  }>(`/api/workout/sessions/${sessionId}/hr`, {
+                    method: "POST",
+                    body: JSON.stringify({
+                      samples: captured.map((s: HrSample) => ({
+                        bpm: s.bpm,
+                        sampledAt: s.sampledAt,
+                      })),
+                      maxHeartRate: maxHr,
+                    }),
+                  });
+                } catch {
+                  // HR upload is non-fatal; continue completing the session.
+                }
+              }
+
               const result = await customFetch<CompleteResult>(
                 `/api/workout/sessions/${sessionId}/complete`,
                 { method: "POST" },
               );
               endSession();
+              await hr.clearCapture(sessionId);
               const tonnageKg = Array.from(loggedSets.values())
                 .flat()
                 .reduce((t, s) => t + (s.weightKg ?? 0) * (s.reps ?? 1), 0);
@@ -456,6 +576,13 @@ export default function CopilotWorkoutScreen() {
                   totalSets: String(totalSets),
                   tonnageKg: String(Math.round(tonnageKg)),
                   prNames,
+                  avgHr: hrSummary?.avgHr != null ? String(hrSummary.avgHr) : "",
+                  maxHr: hrSummary?.maxHr != null ? String(hrSummary.maxHr) : "",
+                  caloriesKcal:
+                    hrSummary?.caloriesKcal != null ? String(hrSummary.caloriesKcal) : "",
+                  timeInZone: hrSummary?.timeInZone
+                    ? JSON.stringify(hrSummary.timeInZone)
+                    : "",
                 },
               });
             } catch {
@@ -759,6 +886,112 @@ export default function CopilotWorkoutScreen() {
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
       >
+        {/* ── Heart rate card ── */}
+        <View style={[styles.hrCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+          <View style={styles.hrTopRow}>
+            <View style={styles.hrHeadingRow}>
+              <Feather name="heart" size={16} color={liveZone?.color ?? colors.primary} />
+              <Text style={[styles.hrHeading, { color: colors.foreground, fontFamily: "Inter_600SemiBold" }]}>
+                Heart rate
+              </Text>
+            </View>
+            {hr.connectedDevice ? (
+              <TouchableOpacity
+                onPress={() => void hr.disconnect()}
+                style={[styles.hrConnectBtn, { borderColor: colors.border }]}
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              >
+                <View style={[styles.hrDot, { backgroundColor: hr.status === "connected" ? "#5B8C5A" : "#C9924E" }]} />
+                <Text style={[styles.hrConnectText, { color: colors.mutedForeground, fontFamily: "Inter_500Medium" }]}>
+                  {hr.status === "reconnecting" ? "Reconnecting" : "Disconnect"}
+                </Text>
+              </TouchableOpacity>
+            ) : (
+              <TouchableOpacity
+                onPress={() => {
+                  if (!hr.supported) {
+                    Alert.alert(
+                      "Heart rate unavailable",
+                      "Bluetooth heart-rate monitors require a development build of Valo on a physical device.",
+                    );
+                    return;
+                  }
+                  setShowHrModal(true);
+                  void hr.startScan();
+                }}
+                style={[styles.hrConnectBtn, { backgroundColor: colors.secondary }]}
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              >
+                <Feather name="bluetooth" size={13} color={colors.primary} />
+                <Text style={[styles.hrConnectText, { color: colors.primary, fontFamily: "Inter_600SemiBold" }]}>
+                  Connect
+                </Text>
+              </TouchableOpacity>
+            )}
+          </View>
+
+          {liveBpm != null ? (
+            <>
+              <View style={styles.hrMainRow}>
+                <View style={styles.hrBpmWrap}>
+                  <Text style={[styles.hrBpm, { color: liveZone?.color ?? colors.foreground, fontFamily: "Inter_700Bold" }]}>
+                    {liveBpm}
+                  </Text>
+                  <Text style={[styles.hrBpmUnit, { color: colors.mutedForeground, fontFamily: "Inter_500Medium" }]}>
+                    bpm
+                  </Text>
+                </View>
+                {liveZone && (
+                  <View style={[styles.hrZoneBadge, { backgroundColor: `${liveZone.color}22` }]}>
+                    <Text style={[styles.hrZoneText, { color: liveZone.color, fontFamily: "Inter_700Bold" }]}>
+                      {liveZone.label}
+                    </Text>
+                  </View>
+                )}
+              </View>
+
+              <HrSparkline samples={hr.samples} color={liveZone?.color ?? colors.primary} maxHr={maxHr} />
+
+              <View style={styles.hrStatsRow}>
+                <View style={styles.hrStat}>
+                  <Text style={[styles.hrStatValue, { color: colors.foreground, fontFamily: "Inter_700Bold" }]}>
+                    {hrStats.avg ?? "--"}
+                  </Text>
+                  <Text style={[styles.hrStatLabel, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
+                    Avg
+                  </Text>
+                </View>
+                <View style={styles.hrStat}>
+                  <Text style={[styles.hrStatValue, { color: colors.foreground, fontFamily: "Inter_700Bold" }]}>
+                    {hrStats.max ?? "--"}
+                  </Text>
+                  <Text style={[styles.hrStatLabel, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
+                    Max
+                  </Text>
+                </View>
+                <View style={styles.hrStat}>
+                  <Text style={[styles.hrStatValue, { color: colors.foreground, fontFamily: "Inter_700Bold" }]}>
+                    {maxHr}
+                  </Text>
+                  <Text style={[styles.hrStatLabel, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
+                    Max HR
+                  </Text>
+                </View>
+              </View>
+            </>
+          ) : (
+            <Text style={[styles.hrEmpty, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
+              {hr.status === "connecting"
+                ? "Connecting to monitor..."
+                : hr.status === "reconnecting"
+                  ? "Reconnecting to monitor..."
+                  : hr.connectedDevice
+                    ? "Waiting for first reading..."
+                    : "Connect a Bluetooth chest strap or watch to track your heart rate live."}
+            </Text>
+          )}
+        </View>
+
         {loadingExercises ? (
           <View style={styles.centerWrap}>
             <ActivityIndicator color={colors.primary} />
@@ -1042,12 +1275,157 @@ export default function CopilotWorkoutScreen() {
           )}
         </View>
       </Modal>
+
+      {/* ── HR pairing modal ── */}
+      <Modal
+        visible={showHrModal}
+        animationType="slide"
+        presentationStyle="pageSheet"
+        onRequestClose={() => {
+          hr.stopScan();
+          setShowHrModal(false);
+        }}
+      >
+        <View style={[styles.pickerRoot, { backgroundColor: colors.background }]}>
+          <View style={[styles.pickerHeader, { borderBottomColor: colors.border }]}>
+            <Text style={[styles.pickerTitle, { color: colors.foreground, fontFamily: "Inter_700Bold" }]}>
+              Pair heart-rate monitor
+            </Text>
+            <TouchableOpacity
+              onPress={() => {
+                hr.stopScan();
+                setShowHrModal(false);
+              }}
+            >
+              <Feather name="x" size={22} color={colors.foreground} />
+            </TouchableOpacity>
+          </View>
+
+          {!hr.poweredOn && (
+            <View style={[styles.hrNotice, { backgroundColor: colors.muted, borderColor: colors.border }]}>
+              <Feather name="bluetooth" size={14} color={colors.mutedForeground} />
+              <Text style={[styles.hrNoticeText, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
+                Turn on Bluetooth to find nearby monitors.
+              </Text>
+            </View>
+          )}
+
+          <View style={styles.hrScanRow}>
+            <Text style={[styles.hrScanLabel, { color: colors.mutedForeground, fontFamily: "Inter_500Medium" }]}>
+              {hr.scanning ? "Scanning for devices..." : "Nearby devices"}
+            </Text>
+            {hr.scanning ? (
+              <ActivityIndicator size="small" color={colors.primary} />
+            ) : (
+              <TouchableOpacity onPress={() => void hr.startScan()} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                <Text style={[styles.hrScanAction, { color: colors.primary, fontFamily: "Inter_600SemiBold" }]}>
+                  Rescan
+                </Text>
+              </TouchableOpacity>
+            )}
+          </View>
+
+          <FlatList
+            data={hr.devices}
+            keyExtractor={(item) => item.id}
+            renderItem={({ item }) => (
+              <TouchableOpacity
+                onPress={async () => {
+                  await hr.connect(item.id);
+                  setShowHrModal(false);
+                }}
+                style={[styles.pickerItem, { borderBottomColor: colors.border }]}
+              >
+                <View style={[styles.hrDeviceIcon, { backgroundColor: colors.secondary }]}>
+                  <Feather name="heart" size={16} color={colors.primary} />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.pickerItemName, { color: colors.foreground, fontFamily: "Inter_500Medium" }]}>
+                    {item.name}
+                  </Text>
+                  {item.rssi != null && (
+                    <Text style={[styles.pickerItemMeta, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
+                      Signal {item.rssi} dBm
+                    </Text>
+                  )}
+                </View>
+                <Feather name="chevron-right" size={18} color={colors.mutedForeground} />
+              </TouchableOpacity>
+            )}
+            ListEmptyComponent={
+              !hr.scanning ? (
+                <Text style={[styles.hrEmptyList, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
+                  No monitors found yet. Make sure your strap or watch is awake and broadcasting, then rescan.
+                </Text>
+              ) : null
+            }
+            contentContainerStyle={{ paddingBottom: 40 }}
+          />
+        </View>
+      </Modal>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   root: { flex: 1 },
+
+  hrCard: {
+    borderRadius: 18,
+    borderWidth: StyleSheet.hairlineWidth,
+    padding: 16,
+    marginBottom: 16,
+    gap: 12,
+  },
+  hrTopRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+  hrHeadingRow: { flexDirection: "row", alignItems: "center", gap: 8 },
+  hrHeading: { fontSize: 14 },
+  hrConnectBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: 10,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: "transparent",
+  },
+  hrConnectText: { fontSize: 12 },
+  hrDot: { width: 7, height: 7, borderRadius: 4 },
+  hrMainRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+  hrBpmWrap: { flexDirection: "row", alignItems: "baseline", gap: 6 },
+  hrBpm: { fontSize: 44, lineHeight: 48 },
+  hrBpmUnit: { fontSize: 14 },
+  hrZoneBadge: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 10 },
+  hrZoneText: { fontSize: 12 },
+  hrStatsRow: { flexDirection: "row", justifyContent: "space-between" },
+  hrStat: { alignItems: "center", flex: 1, gap: 2 },
+  hrStatValue: { fontSize: 18 },
+  hrStatLabel: { fontSize: 11 },
+  hrEmpty: { fontSize: 13, lineHeight: 19 },
+  hrNotice: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginHorizontal: 20,
+    marginTop: 16,
+    padding: 12,
+    borderRadius: 12,
+    borderWidth: StyleSheet.hairlineWidth,
+  },
+  hrNoticeText: { fontSize: 13, flex: 1 },
+  hrScanRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 20,
+    paddingTop: 18,
+    paddingBottom: 8,
+  },
+  hrScanLabel: { fontSize: 12, textTransform: "uppercase", letterSpacing: 0.5 },
+  hrScanAction: { fontSize: 13 },
+  hrDeviceIcon: { width: 34, height: 34, borderRadius: 17, alignItems: "center", justifyContent: "center", marginRight: 12 },
+  hrEmptyList: { fontSize: 13, lineHeight: 20, paddingHorizontal: 20, paddingTop: 24 },
 
   header: {
     flexDirection: "row",

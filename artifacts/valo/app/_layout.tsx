@@ -20,6 +20,7 @@ import { AuthProvider, useValoAuth } from "@/contexts/AuthContext";
 import { ThemeProvider } from "@/contexts/ThemeContext";
 import { HolidayRegionProvider } from "@/contexts/HolidayRegionContext";
 import { WorkoutCopilotProvider } from "@/contexts/WorkoutCopilotContext";
+import { HeartRateProvider } from "@/contexts/HeartRateContext";
 import { WorkoutCopilotPanel } from "@/components/WorkoutCopilotPanel";
 import { GOOGLE_OAUTH_PREFIX } from "@/lib/googleCalendar";
 import { installErrorLogger } from "@/lib/errorLogger";
@@ -282,15 +283,17 @@ export default function RootLayout() {
             <GestureHandlerRootView style={{ flex: 1 }}>
               <KeyboardProvider>
                 <WorkoutCopilotProvider>
-                  <RootLayoutNav />
-                  <WorkoutCopilotPanel />
-                  {serverStatus === "offline" && (
-                    <View style={styles.offlineBanner} pointerEvents="none">
-                      <Text style={styles.offlineBannerText}>
-                        Dev server is waking up, please wait...
-                      </Text>
-                    </View>
-                  )}
+                  <HeartRateProvider>
+                    <RootLayoutNav />
+                    <WorkoutCopilotPanel />
+                    {serverStatus === "offline" && (
+                      <View style={styles.offlineBanner} pointerEvents="none">
+                        <Text style={styles.offlineBannerText}>
+                          Dev server is waking up, please wait...
+                        </Text>
+                      </View>
+                    )}
+                  </HeartRateProvider>
                 </WorkoutCopilotProvider>
               </KeyboardProvider>
             </GestureHandlerRootView>

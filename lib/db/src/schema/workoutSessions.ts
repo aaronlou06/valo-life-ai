@@ -1,4 +1,4 @@
-import { pgTable, serial, text, timestamp, integer, index } from "drizzle-orm/pg-core";
+import { pgTable, serial, text, timestamp, integer, jsonb, index } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 import { workoutTemplatesTable } from "./workoutTemplates";
@@ -18,6 +18,12 @@ export const workoutSessionsTable = pgTable("workout_sessions", {
   durationSec: integer("duration_sec"),
   perceivedEffort: integer("perceived_effort"), // 1-10
   notes: text("notes"),
+  // Heart-rate summary — populated when a session finishes with captured HR data.
+  avgHr: integer("avg_hr"),
+  maxHr: integer("max_hr"),
+  // Seconds spent in each HR zone, e.g. { rest: 30, z1: 120, z2: 300, ... }.
+  timeInZone: jsonb("time_in_zone").$type<Record<string, number>>(),
+  caloriesKcal: integer("calories_kcal"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 }, (t) => [
@@ -37,6 +43,10 @@ export const insertWorkoutSessionSchema = createInsertSchema(workoutSessionsTabl
     durationSec: true,
     perceivedEffort: true,
     notes: true,
+    avgHr: true,
+    maxHr: true,
+    timeInZone: true,
+    caloriesKcal: true,
   });
 
 export type InsertWorkoutSession = z.infer<typeof insertWorkoutSessionSchema>;

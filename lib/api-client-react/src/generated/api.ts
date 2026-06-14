@@ -65,6 +65,8 @@ import type {
   UserSettings,
   WorkoutCoachingResponse,
   WorkoutCompleteResponse,
+  WorkoutHrSummary,
+  WorkoutHrUpload,
   WorkoutPersonalRecord,
   WorkoutSession,
   WorkoutSessionInput,
@@ -4830,6 +4832,93 @@ export const useCompleteWorkoutSession = <
   TContext
 > => {
   return useMutation(getCompleteWorkoutSessionMutationOptions(options));
+};
+
+/**
+ * @summary Upload captured heart-rate samples and compute/store the session HR summary
+ */
+export const getUploadWorkoutHrUrl = (id: number) => {
+  return `/api/workout/sessions/${id}/hr`;
+};
+
+export const uploadWorkoutHr = async (
+  id: number,
+  workoutHrUpload: WorkoutHrUpload,
+  options?: RequestInit,
+): Promise<WorkoutHrSummary> => {
+  return customFetch<WorkoutHrSummary>(getUploadWorkoutHrUrl(id), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(workoutHrUpload),
+  });
+};
+
+export const getUploadWorkoutHrMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof uploadWorkoutHr>>,
+    TError,
+    { id: number; data: BodyType<WorkoutHrUpload> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof uploadWorkoutHr>>,
+  TError,
+  { id: number; data: BodyType<WorkoutHrUpload> },
+  TContext
+> => {
+  const mutationKey = ["uploadWorkoutHr"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof uploadWorkoutHr>>,
+    { id: number; data: BodyType<WorkoutHrUpload> }
+  > = (props) => {
+    const { id, data } = props ?? {};
+
+    return uploadWorkoutHr(id, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type UploadWorkoutHrMutationResult = NonNullable<
+  Awaited<ReturnType<typeof uploadWorkoutHr>>
+>;
+export type UploadWorkoutHrMutationBody = BodyType<WorkoutHrUpload>;
+export type UploadWorkoutHrMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Upload captured heart-rate samples and compute/store the session HR summary
+ */
+export const useUploadWorkoutHr = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof uploadWorkoutHr>>,
+    TError,
+    { id: number; data: BodyType<WorkoutHrUpload> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof uploadWorkoutHr>>,
+  TError,
+  { id: number; data: BodyType<WorkoutHrUpload> },
+  TContext
+> => {
+  return useMutation(getUploadWorkoutHrMutationOptions(options));
 };
 
 /**

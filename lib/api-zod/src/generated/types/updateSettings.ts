@@ -27,4 +27,8 @@ export interface UpdateSettings {
   notifGoals?: boolean;
   /** @nullable */
   morningBriefingTime?: string | null;
+  /** @nullable */
+  maxHeartRate?: number | null;
+  /** @nullable */
+  weightKg?: number | null;
 }

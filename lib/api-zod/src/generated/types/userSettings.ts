@@ -29,4 +29,12 @@ export interface UserSettings {
   notifGoals?: boolean;
   /** @nullable */
   morningBriefingTime?: string | null;
+  /** @nullable */
+  maxHeartRate?: number | null;
+  /** @nullable */
+  weightKg?: number | null;
+  /** @nullable */
+  age?: number | null;
+  /** @nullable */
+  biologicalSex?: string | null;
 }

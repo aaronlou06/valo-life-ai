@@ -1103,6 +1103,31 @@ paths:
               schema:
                 $ref: "#/components/schemas/WorkoutCompleteResponse"
 
+  /workout/sessions/{id}/hr:
+    post:
+      operationId: uploadWorkoutHr
+      tags: [workout]
+      summary: Upload captured heart-rate samples and compute/store the session HR summary
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/WorkoutHrUpload"
+      responses:
+        "200":
+          description: Computed and stored heart-rate summary
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WorkoutHrSummary"
+
   /workout/exercises/{exerciseId}/prs:
     get:
       operationId: getExercisePrs
@@ -1203,6 +1228,14 @@ components:
           type: boolean
         morningBriefingTime:
           type: ["string", "null"]
+        maxHeartRate:
+          type: ["integer", "null"]
+        weightKg:
+          type: ["integer", "null"]
+        age:
+          type: ["integer", "null"]
+        biologicalSex:
+          type: ["string", "null"]
 
     UpdateSettings:
       type: object
@@ -1233,6 +1266,10 @@ components:
           type: boolean
         morningBriefingTime:
           type: ["string", "null"]
+        maxHeartRate:
+          type: ["integer", "null"]
+        weightKg:
+          type: ["integer", "null"]
 
     HealthStatus:
       type: object
@@ -2033,10 +2070,60 @@ components:
           type: ["integer", "null"]
         notes:
           type: ["string", "null"]
+        avgHr:
+          type: ["integer", "null"]
+        maxHr:
+          type: ["integer", "null"]
+        timeInZone:
+          type: ["object", "null"]
+          additionalProperties:
+            type: integer
+          description: Seconds spent in each HR zone, keyed by zone (rest, z1..z5)
+        caloriesKcal:
+          type: ["integer", "null"]
         createdAt:
           type: string
         updatedAt:
           type: string
+
+    WorkoutHrSample:
+      type: object
+      required: [bpm, sampledAt]
+      properties:
+        bpm:
+          type: integer
+        sampledAt:
+          type: string
+          description: ISO-8601 timestamp when the sample was measured
+
+    WorkoutHrUpload:
+      type: object
+      required: [samples]
+      properties:
+        samples:
+          type: array
+          items:
+            $ref: "#/components/schemas/WorkoutHrSample"
+        maxHeartRate:
+          type: ["integer", "null"]
+          description: Override max HR used for zone bucketing; falls back to profile/age estimate
+
+    WorkoutHrSummary:
+      type: object
+      required: [avgHr, maxHr, timeInZone, caloriesKcal, sampleCount]
+      properties:
+        avgHr:
+          type: ["integer", "null"]
+        maxHr:
+          type: ["integer", "null"]
+        timeInZone:
+          type: object
+          additionalProperties:
+            type: integer
+        caloriesKcal:
+          type: ["integer", "null"]
+        sampleCount:
+          type: integer
 
     WorkoutSetLog:
       type: object
