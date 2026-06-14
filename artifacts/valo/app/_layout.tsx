@@ -19,6 +19,8 @@ import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { AuthProvider, useValoAuth } from "@/contexts/AuthContext";
 import { ThemeProvider } from "@/contexts/ThemeContext";
 import { HolidayRegionProvider } from "@/contexts/HolidayRegionContext";
+import { WorkoutCopilotProvider } from "@/contexts/WorkoutCopilotContext";
+import { WorkoutCopilotPanel } from "@/components/WorkoutCopilotPanel";
 import { GOOGLE_OAUTH_PREFIX } from "@/lib/googleCalendar";
 import { installErrorLogger } from "@/lib/errorLogger";
 import { scheduleCheckinReminder, scheduleMorningBriefing } from "@/lib/notifications";
@@ -276,8 +278,9 @@ export default function RootLayout() {
           <QueryClientProvider client={queryClient}>
             <GestureHandlerRootView style={{ flex: 1 }}>
               <KeyboardProvider>
-                <>
+                <WorkoutCopilotProvider>
                   <RootLayoutNav />
+                  <WorkoutCopilotPanel />
                   {serverStatus === "offline" && (
                     <View style={styles.offlineBanner} pointerEvents="none">
                       <Text style={styles.offlineBannerText}>
@@ -285,7 +288,7 @@ export default function RootLayout() {
                       </Text>
                     </View>
                   )}
-                </>
+                </WorkoutCopilotProvider>
               </KeyboardProvider>
             </GestureHandlerRootView>
           </QueryClientProvider>
