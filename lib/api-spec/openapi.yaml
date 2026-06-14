@@ -37,6 +37,8 @@ tags:
     description: Personal recurring dates (birthdays, anniversaries)
   - name: exercises
     description: Exercise library — list, archive, and unarchive exercises
+  - name: workout
+    description: Workout sessions, set logging, coaching, PR tracking, and volume trends
 paths:
   /healthz:
     get:
@@ -915,6 +917,256 @@ paths:
         "404":
           description: Not found or not owned by the user
 
+  /workout/sessions:
+    post:
+      operationId: createWorkoutSession
+      tags: [workout]
+      summary: Start a new workout session
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/WorkoutSessionInput"
+      responses:
+        "201":
+          description: Created session
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WorkoutSession"
+    get:
+      operationId: listWorkoutSessions
+      tags: [workout]
+      summary: List recent sessions
+      parameters:
+        - name: status
+          in: query
+          schema:
+            type: string
+          description: Filter by status (in_progress | completed | abandoned)
+        - name: limit
+          in: query
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Session list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/WorkoutSession"
+
+  /workout/sessions/{id}:
+    get:
+      operationId: getWorkoutSession
+      tags: [workout]
+      summary: Get a session with its sets
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Session with set logs
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WorkoutSessionWithSets"
+    patch:
+      operationId: updateWorkoutSession
+      tags: [workout]
+      summary: Update mutable session fields
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/WorkoutSessionUpdate"
+      responses:
+        "200":
+          description: Updated session
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WorkoutSession"
+
+  /workout/sessions/{id}/sets:
+    get:
+      operationId: listWorkoutSets
+      tags: [workout]
+      summary: List set logs for a session
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Set list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/WorkoutSetLog"
+    post:
+      operationId: logWorkoutSet
+      tags: [workout]
+      summary: Log a set within a session
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/WorkoutSetLogInput"
+      responses:
+        "201":
+          description: Logged set
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WorkoutSetLog"
+
+  /workout/sessions/{id}/sets/{setId}:
+    delete:
+      operationId: deleteWorkoutSet
+      tags: [workout]
+      summary: Remove a set log
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: setId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+
+  /workout/sessions/{id}/coaching:
+    get:
+      operationId: getWorkoutCoaching
+      tags: [workout]
+      summary: Get a contextual coaching hint for the current session
+      description: Returns a 1-2 sentence observation or null when there is nothing useful to say. Rate-limit calls — once per 3+ sets logged is a good cadence.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Coaching hint (hint is null when nothing useful to say)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WorkoutCoachingResponse"
+
+  /workout/sessions/{id}/complete:
+    post:
+      operationId: completeWorkoutSession
+      tags: [workout]
+      summary: Finalise a session — detect PRs, generate summary, update memory
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Completion result with summary and any new PRs
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WorkoutCompleteResponse"
+
+  /workout/exercises/{exerciseId}/prs:
+    get:
+      operationId: getExercisePrs
+      tags: [workout]
+      summary: Personal records for an exercise
+      parameters:
+        - name: exerciseId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: PR list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/WorkoutPersonalRecord"
+
+  /workout/exercises/{exerciseId}/history:
+    get:
+      operationId: getExerciseHistory
+      tags: [workout]
+      summary: Recent set history for an exercise across completed sessions
+      parameters:
+        - name: exerciseId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Set history with session date
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/WorkoutSetLogWithSession"
+
+  /workout/volume:
+    get:
+      operationId: getWorkoutVolume
+      tags: [workout]
+      summary: Weekly training volume for the last N weeks
+      description: Returns one entry per week that had completed sessions, ordered oldest to newest.
+      parameters:
+        - name: weeks
+          in: query
+          schema:
+            type: integer
+          description: Look-back window in weeks (default 13, max 52)
+      responses:
+        "200":
+          description: Weekly volume series
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/WorkoutVolumeWeek"
+
 components:
   schemas:
     UserSettings:
@@ -1750,4 +2002,239 @@ components:
         createdAt:
           type: string
         updatedAt:
+          type: string
+
+    WorkoutSession:
+      type: object
+      required: [id, userId, date, name, status, startedAt, createdAt, updatedAt]
+      properties:
+        id:
+          type: integer
+        userId:
+          type: string
+        date:
+          type: string
+        templateId:
+          type: ["integer", "null"]
+        programId:
+          type: ["integer", "null"]
+        name:
+          type: string
+        status:
+          type: string
+          description: "in_progress | completed | abandoned"
+        startedAt:
+          type: string
+        completedAt:
+          type: ["string", "null"]
+        durationSec:
+          type: ["integer", "null"]
+        perceivedEffort:
+          type: ["integer", "null"]
+        notes:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+        updatedAt:
+          type: string
+
+    WorkoutSetLog:
+      type: object
+      required: [id, sessionId, exerciseId, setNumber, isWarmup, isPersonalBest, loggedAt]
+      properties:
+        id:
+          type: integer
+        sessionId:
+          type: integer
+        exerciseId:
+          type: integer
+        setNumber:
+          type: integer
+        weightKg:
+          type: ["number", "null"]
+        reps:
+          type: ["integer", "null"]
+        durationSec:
+          type: ["integer", "null"]
+        distanceM:
+          type: ["number", "null"]
+        rpe:
+          type: ["integer", "null"]
+        isWarmup:
+          type: boolean
+        isPersonalBest:
+          type: boolean
+        notes:
+          type: ["string", "null"]
+        loggedAt:
+          type: string
+
+    WorkoutSessionWithSets:
+      allOf:
+        - $ref: "#/components/schemas/WorkoutSession"
+        - type: object
+          required: [sets]
+          properties:
+            sets:
+              type: array
+              items:
+                $ref: "#/components/schemas/WorkoutSetLog"
+
+    WorkoutSetLogWithSession:
+      allOf:
+        - $ref: "#/components/schemas/WorkoutSetLog"
+        - type: object
+          required: [sessionDate, sessionName]
+          properties:
+            sessionDate:
+              type: string
+            sessionName:
+              type: string
+
+    WorkoutPersonalRecord:
+      type: object
+      required: [id, userId, exerciseId, metricType, value, achievedAt, createdAt, updatedAt]
+      properties:
+        id:
+          type: integer
+        userId:
+          type: string
+        exerciseId:
+          type: integer
+        metricType:
+          type: string
+          description: "1rm_kg | duration_sec | distance_m"
+        value:
+          type: number
+        weightKg:
+          type: ["number", "null"]
+        reps:
+          type: ["integer", "null"]
+        estimatedOneRepMax:
+          type: ["number", "null"]
+        durationSec:
+          type: ["integer", "null"]
+        distanceM:
+          type: ["number", "null"]
+        sessionId:
+          type: ["integer", "null"]
+        achievedAt:
+          type: string
+        createdAt:
+          type: string
+        updatedAt:
+          type: string
+
+    WorkoutCoachingResponse:
+      type: object
+      required: [hint]
+      properties:
+        hint:
+          type: ["string", "null"]
+          description: A 1-2 sentence coaching observation, or null if there is nothing useful to say
+
+    WorkoutSummary:
+      type: object
+      required: [id, userId, sessionId, summaryText, keyFacts, createdAt, updatedAt]
+      properties:
+        id:
+          type: integer
+        userId:
+          type: string
+        sessionId:
+          type: integer
+        summaryText:
+          type: string
+        keyFacts:
+          type: object
+        memoryMergedAt:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+        updatedAt:
+          type: string
+
+    WorkoutCompleteResponse:
+      type: object
+      required: [session, prs]
+      properties:
+        session:
+          $ref: "#/components/schemas/WorkoutSession"
+        summary:
+          oneOf:
+            - $ref: "#/components/schemas/WorkoutSummary"
+            - type: "null"
+        prs:
+          type: array
+          items:
+            type: object
+            properties:
+              exerciseName:
+                type: string
+              metricType:
+                type: string
+              value:
+                type: number
+
+    WorkoutVolumeWeek:
+      type: object
+      required: [label, sessions, sets, tonnageKg]
+      properties:
+        label:
+          type: string
+          description: ISO week-start date (YYYY-MM-DD, Monday)
+        sessions:
+          type: integer
+        sets:
+          type: integer
+        tonnageKg:
+          type: number
+
+    WorkoutSessionInput:
+      type: object
+      required: [name]
+      properties:
+        name:
+          type: string
+        date:
+          type: string
+          description: YYYY-MM-DD, defaults to today
+        templateId:
+          type: integer
+
+    WorkoutSessionUpdate:
+      type: object
+      properties:
+        name:
+          type: string
+        status:
+          type: string
+        notes:
+          type: string
+        perceivedEffort:
+          type: integer
+        durationSec:
+          type: integer
+
+    WorkoutSetLogInput:
+      type: object
+      required: [exerciseId]
+      properties:
+        exerciseId:
+          type: integer
+        setNumber:
+          type: integer
+        weightKg:
+          type: number
+        reps:
+          type: integer
+        durationSec:
+          type: integer
+        distanceM:
+          type: number
+        rpe:
+          type: integer
+        isWarmup:
+          type: boolean
+        notes:
           type: string

@@ -608,6 +608,154 @@ export interface Exercise {
   updatedAt: string;
 }
 
+export interface WorkoutSession {
+  id: number;
+  userId: string;
+  date: string;
+  /** @nullable */
+  templateId?: number | null;
+  /** @nullable */
+  programId?: number | null;
+  name: string;
+  /** in_progress | completed | abandoned */
+  status: string;
+  startedAt: string;
+  /** @nullable */
+  completedAt?: string | null;
+  /** @nullable */
+  durationSec?: number | null;
+  /** @nullable */
+  perceivedEffort?: number | null;
+  /** @nullable */
+  notes?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface WorkoutSetLog {
+  id: number;
+  sessionId: number;
+  exerciseId: number;
+  setNumber: number;
+  /** @nullable */
+  weightKg?: number | null;
+  /** @nullable */
+  reps?: number | null;
+  /** @nullable */
+  durationSec?: number | null;
+  /** @nullable */
+  distanceM?: number | null;
+  /** @nullable */
+  rpe?: number | null;
+  isWarmup: boolean;
+  isPersonalBest: boolean;
+  /** @nullable */
+  notes?: string | null;
+  loggedAt: string;
+}
+
+export type WorkoutSessionWithSets = WorkoutSession & {
+  sets: WorkoutSetLog[];
+};
+
+export type WorkoutSetLogWithSession = WorkoutSetLog & {
+  sessionDate: string;
+  sessionName: string;
+};
+
+export interface WorkoutPersonalRecord {
+  id: number;
+  userId: string;
+  exerciseId: number;
+  /** 1rm_kg | duration_sec | distance_m */
+  metricType: string;
+  value: number;
+  /** @nullable */
+  weightKg?: number | null;
+  /** @nullable */
+  reps?: number | null;
+  /** @nullable */
+  estimatedOneRepMax?: number | null;
+  /** @nullable */
+  durationSec?: number | null;
+  /** @nullable */
+  distanceM?: number | null;
+  /** @nullable */
+  sessionId?: number | null;
+  achievedAt: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface WorkoutCoachingResponse {
+  /**
+   * A 1-2 sentence coaching observation, or null if there is nothing useful to say
+   * @nullable
+   */
+  hint: string | null;
+}
+
+export type WorkoutSummaryKeyFacts = { [key: string]: unknown };
+
+export interface WorkoutSummary {
+  id: number;
+  userId: string;
+  sessionId: number;
+  summaryText: string;
+  keyFacts: WorkoutSummaryKeyFacts;
+  /** @nullable */
+  memoryMergedAt?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type WorkoutCompleteResponsePrsItem = {
+  exerciseName?: string;
+  metricType?: string;
+  value?: number;
+};
+
+export interface WorkoutCompleteResponse {
+  session: WorkoutSession;
+  summary?: WorkoutSummary | null;
+  prs: WorkoutCompleteResponsePrsItem[];
+}
+
+export interface WorkoutVolumeWeek {
+  /** ISO week-start date (YYYY-MM-DD, Monday) */
+  label: string;
+  sessions: number;
+  sets: number;
+  tonnageKg: number;
+}
+
+export interface WorkoutSessionInput {
+  name: string;
+  /** YYYY-MM-DD, defaults to today */
+  date?: string;
+  templateId?: number;
+}
+
+export interface WorkoutSessionUpdate {
+  name?: string;
+  status?: string;
+  notes?: string;
+  perceivedEffort?: number;
+  durationSec?: number;
+}
+
+export interface WorkoutSetLogInput {
+  exerciseId: number;
+  setNumber?: number;
+  weightKg?: number;
+  reps?: number;
+  durationSec?: number;
+  distanceM?: number;
+  rpe?: number;
+  isWarmup?: boolean;
+  notes?: string;
+}
+
 export type ListDailyLogHistoryParams = {
   /**
    * ISO date (YYYY-MM-DD). When provided, return all logs on or after this date. When omitted, defaults to the last 30 days.
@@ -651,4 +799,19 @@ export type ListExercisesParams = {
    * Exact category filter
    */
   category?: string;
+};
+
+export type ListWorkoutSessionsParams = {
+  /**
+   * Filter by status (in_progress | completed | abandoned)
+   */
+  status?: string;
+  limit?: number;
+};
+
+export type GetWorkoutVolumeParams = {
+  /**
+   * Look-back window in weeks (default 13, max 52)
+   */
+  weeks?: number;
 };

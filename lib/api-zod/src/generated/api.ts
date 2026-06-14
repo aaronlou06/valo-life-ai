@@ -992,3 +992,314 @@ export const UnarchiveExerciseResponse = zod.object({
   createdAt: zod.string(),
   updatedAt: zod.string(),
 });
+
+/**
+ * @summary Start a new workout session
+ */
+export const CreateWorkoutSessionBody = zod.object({
+  name: zod.string(),
+  date: zod.string().optional().describe("YYYY-MM-DD, defaults to today"),
+  templateId: zod.number().optional(),
+});
+
+/**
+ * @summary List recent sessions
+ */
+export const ListWorkoutSessionsQueryParams = zod.object({
+  status: zod.coerce
+    .string()
+    .optional()
+    .describe("Filter by status (in_progress | completed | abandoned)"),
+  limit: zod.coerce.number().optional(),
+});
+
+export const ListWorkoutSessionsResponseItem = zod.object({
+  id: zod.number(),
+  userId: zod.string(),
+  date: zod.string(),
+  templateId: zod.number().nullish(),
+  programId: zod.number().nullish(),
+  name: zod.string(),
+  status: zod.string().describe("in_progress | completed | abandoned"),
+  startedAt: zod.string(),
+  completedAt: zod.string().nullish(),
+  durationSec: zod.number().nullish(),
+  perceivedEffort: zod.number().nullish(),
+  notes: zod.string().nullish(),
+  createdAt: zod.string(),
+  updatedAt: zod.string(),
+});
+export const ListWorkoutSessionsResponse = zod.array(
+  ListWorkoutSessionsResponseItem,
+);
+
+/**
+ * @summary Get a session with its sets
+ */
+export const GetWorkoutSessionParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const GetWorkoutSessionResponse = zod
+  .object({
+    id: zod.number(),
+    userId: zod.string(),
+    date: zod.string(),
+    templateId: zod.number().nullish(),
+    programId: zod.number().nullish(),
+    name: zod.string(),
+    status: zod.string().describe("in_progress | completed | abandoned"),
+    startedAt: zod.string(),
+    completedAt: zod.string().nullish(),
+    durationSec: zod.number().nullish(),
+    perceivedEffort: zod.number().nullish(),
+    notes: zod.string().nullish(),
+    createdAt: zod.string(),
+    updatedAt: zod.string(),
+  })
+  .and(
+    zod.object({
+      sets: zod.array(
+        zod.object({
+          id: zod.number(),
+          sessionId: zod.number(),
+          exerciseId: zod.number(),
+          setNumber: zod.number(),
+          weightKg: zod.number().nullish(),
+          reps: zod.number().nullish(),
+          durationSec: zod.number().nullish(),
+          distanceM: zod.number().nullish(),
+          rpe: zod.number().nullish(),
+          isWarmup: zod.boolean(),
+          isPersonalBest: zod.boolean(),
+          notes: zod.string().nullish(),
+          loggedAt: zod.string(),
+        }),
+      ),
+    }),
+  );
+
+/**
+ * @summary Update mutable session fields
+ */
+export const UpdateWorkoutSessionParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const UpdateWorkoutSessionBody = zod.object({
+  name: zod.string().optional(),
+  status: zod.string().optional(),
+  notes: zod.string().optional(),
+  perceivedEffort: zod.number().optional(),
+  durationSec: zod.number().optional(),
+});
+
+export const UpdateWorkoutSessionResponse = zod.object({
+  id: zod.number(),
+  userId: zod.string(),
+  date: zod.string(),
+  templateId: zod.number().nullish(),
+  programId: zod.number().nullish(),
+  name: zod.string(),
+  status: zod.string().describe("in_progress | completed | abandoned"),
+  startedAt: zod.string(),
+  completedAt: zod.string().nullish(),
+  durationSec: zod.number().nullish(),
+  perceivedEffort: zod.number().nullish(),
+  notes: zod.string().nullish(),
+  createdAt: zod.string(),
+  updatedAt: zod.string(),
+});
+
+/**
+ * @summary List set logs for a session
+ */
+export const ListWorkoutSetsParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const ListWorkoutSetsResponseItem = zod.object({
+  id: zod.number(),
+  sessionId: zod.number(),
+  exerciseId: zod.number(),
+  setNumber: zod.number(),
+  weightKg: zod.number().nullish(),
+  reps: zod.number().nullish(),
+  durationSec: zod.number().nullish(),
+  distanceM: zod.number().nullish(),
+  rpe: zod.number().nullish(),
+  isWarmup: zod.boolean(),
+  isPersonalBest: zod.boolean(),
+  notes: zod.string().nullish(),
+  loggedAt: zod.string(),
+});
+export const ListWorkoutSetsResponse = zod.array(ListWorkoutSetsResponseItem);
+
+/**
+ * @summary Log a set within a session
+ */
+export const LogWorkoutSetParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const LogWorkoutSetBody = zod.object({
+  exerciseId: zod.number(),
+  setNumber: zod.number().optional(),
+  weightKg: zod.number().optional(),
+  reps: zod.number().optional(),
+  durationSec: zod.number().optional(),
+  distanceM: zod.number().optional(),
+  rpe: zod.number().optional(),
+  isWarmup: zod.boolean().optional(),
+  notes: zod.string().optional(),
+});
+
+/**
+ * @summary Remove a set log
+ */
+export const DeleteWorkoutSetParams = zod.object({
+  id: zod.coerce.number(),
+  setId: zod.coerce.number(),
+});
+
+/**
+ * Returns a 1-2 sentence observation or null when there is nothing useful to say. Rate-limit calls — once per 3+ sets logged is a good cadence.
+ * @summary Get a contextual coaching hint for the current session
+ */
+export const GetWorkoutCoachingParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const GetWorkoutCoachingResponse = zod.object({
+  hint: zod
+    .string()
+    .nullable()
+    .describe(
+      "A 1-2 sentence coaching observation, or null if there is nothing useful to say",
+    ),
+});
+
+/**
+ * @summary Finalise a session — detect PRs, generate summary, update memory
+ */
+export const CompleteWorkoutSessionParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const CompleteWorkoutSessionResponse = zod.object({
+  session: zod.object({
+    id: zod.number(),
+    userId: zod.string(),
+    date: zod.string(),
+    templateId: zod.number().nullish(),
+    programId: zod.number().nullish(),
+    name: zod.string(),
+    status: zod.string().describe("in_progress | completed | abandoned"),
+    startedAt: zod.string(),
+    completedAt: zod.string().nullish(),
+    durationSec: zod.number().nullish(),
+    perceivedEffort: zod.number().nullish(),
+    notes: zod.string().nullish(),
+    createdAt: zod.string(),
+    updatedAt: zod.string(),
+  }),
+  summary: zod
+    .union([
+      zod.object({
+        id: zod.number(),
+        userId: zod.string(),
+        sessionId: zod.number(),
+        summaryText: zod.string(),
+        keyFacts: zod.object({}).passthrough(),
+        memoryMergedAt: zod.string().nullish(),
+        createdAt: zod.string(),
+        updatedAt: zod.string(),
+      }),
+      zod.null(),
+    ])
+    .optional(),
+  prs: zod.array(
+    zod.object({
+      exerciseName: zod.string().optional(),
+      metricType: zod.string().optional(),
+      value: zod.number().optional(),
+    }),
+  ),
+});
+
+/**
+ * @summary Personal records for an exercise
+ */
+export const GetExercisePrsParams = zod.object({
+  exerciseId: zod.coerce.number(),
+});
+
+export const GetExercisePrsResponseItem = zod.object({
+  id: zod.number(),
+  userId: zod.string(),
+  exerciseId: zod.number(),
+  metricType: zod.string().describe("1rm_kg | duration_sec | distance_m"),
+  value: zod.number(),
+  weightKg: zod.number().nullish(),
+  reps: zod.number().nullish(),
+  estimatedOneRepMax: zod.number().nullish(),
+  durationSec: zod.number().nullish(),
+  distanceM: zod.number().nullish(),
+  sessionId: zod.number().nullish(),
+  achievedAt: zod.string(),
+  createdAt: zod.string(),
+  updatedAt: zod.string(),
+});
+export const GetExercisePrsResponse = zod.array(GetExercisePrsResponseItem);
+
+/**
+ * @summary Recent set history for an exercise across completed sessions
+ */
+export const GetExerciseHistoryParams = zod.object({
+  exerciseId: zod.coerce.number(),
+});
+
+export const GetExerciseHistoryResponseItem = zod
+  .object({
+    id: zod.number(),
+    sessionId: zod.number(),
+    exerciseId: zod.number(),
+    setNumber: zod.number(),
+    weightKg: zod.number().nullish(),
+    reps: zod.number().nullish(),
+    durationSec: zod.number().nullish(),
+    distanceM: zod.number().nullish(),
+    rpe: zod.number().nullish(),
+    isWarmup: zod.boolean(),
+    isPersonalBest: zod.boolean(),
+    notes: zod.string().nullish(),
+    loggedAt: zod.string(),
+  })
+  .and(
+    zod.object({
+      sessionDate: zod.string(),
+      sessionName: zod.string(),
+    }),
+  );
+export const GetExerciseHistoryResponse = zod.array(
+  GetExerciseHistoryResponseItem,
+);
+
+/**
+ * Returns one entry per week that had completed sessions, ordered oldest to newest.
+ * @summary Weekly training volume for the last N weeks
+ */
+export const GetWorkoutVolumeQueryParams = zod.object({
+  weeks: zod.coerce
+    .number()
+    .optional()
+    .describe("Look-back window in weeks (default 13, max 52)"),
+});
+
+export const GetWorkoutVolumeResponseItem = zod.object({
+  label: zod.string().describe("ISO week-start date (YYYY-MM-DD, Monday)"),
+  sessions: zod.number(),
+  sets: zod.number(),
+  tonnageKg: zod.number(),
+});
+export const GetWorkoutVolumeResponse = zod.array(GetWorkoutVolumeResponseItem);

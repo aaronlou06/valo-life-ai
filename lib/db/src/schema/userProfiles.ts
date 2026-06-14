@@ -37,6 +37,10 @@ export const userProfilesTable = pgTable("user_profiles", {
   notifGoals: boolean("notif_goals").notNull().default(true),
   morningBriefingTime: text("morning_briefing_time"),
   recurringStruggles: text("recurring_struggles"),
+  // Rolling window of recent workout facts (JSON array of strings).
+  // Updated after each completed session; read by buildVapiContext so voice
+  // check-ins can reference workout progress without re-querying the full DB.
+  workoutMemory: text("workout_memory"),
   topGoal: text("top_goal"),
   onboardingAnswers: text("onboarding_answers"),
   onboardingProgress: text("onboarding_progress"),

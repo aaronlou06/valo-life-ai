@@ -32,3 +32,5 @@ export * from "./workoutProgramDays";
 export * from "./workoutSessions";
 export * from "./workoutSetLogs";
 export * from "./workoutHrSamples";
+export * from "./workoutPersonalRecords";
+export * from "./workoutSummaries";

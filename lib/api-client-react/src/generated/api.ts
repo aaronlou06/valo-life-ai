@@ -27,6 +27,7 @@ import type {
   DailyLogOrNull,
   Dashboard,
   Exercise,
+  GetWorkoutVolumeParams,
   Goal,
   GoalInput,
   GoalUpdate,
@@ -40,6 +41,7 @@ import type {
   ListDailyLogHistoryParams,
   ListExercisesParams,
   ListRemindersParams,
+  ListWorkoutSessionsParams,
   LogEntry,
   LogEntryInput,
   MoodEntry,
@@ -61,6 +63,17 @@ import type {
   UpdateSettings,
   UpdateSettings200,
   UserSettings,
+  WorkoutCoachingResponse,
+  WorkoutCompleteResponse,
+  WorkoutPersonalRecord,
+  WorkoutSession,
+  WorkoutSessionInput,
+  WorkoutSessionUpdate,
+  WorkoutSessionWithSets,
+  WorkoutSetLog,
+  WorkoutSetLogInput,
+  WorkoutSetLogWithSession,
+  WorkoutVolumeWeek,
 } from "./api.schemas";
 
 import { customFetch } from "../custom-fetch";
@@ -4024,3 +4037,1078 @@ export const useUnarchiveExercise = <
 > => {
   return useMutation(getUnarchiveExerciseMutationOptions(options));
 };
+
+/**
+ * @summary Start a new workout session
+ */
+export const getCreateWorkoutSessionUrl = () => {
+  return `/api/workout/sessions`;
+};
+
+export const createWorkoutSession = async (
+  workoutSessionInput: WorkoutSessionInput,
+  options?: RequestInit,
+): Promise<WorkoutSession> => {
+  return customFetch<WorkoutSession>(getCreateWorkoutSessionUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(workoutSessionInput),
+  });
+};
+
+export const getCreateWorkoutSessionMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createWorkoutSession>>,
+    TError,
+    { data: BodyType<WorkoutSessionInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof createWorkoutSession>>,
+  TError,
+  { data: BodyType<WorkoutSessionInput> },
+  TContext
+> => {
+  const mutationKey = ["createWorkoutSession"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof createWorkoutSession>>,
+    { data: BodyType<WorkoutSessionInput> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return createWorkoutSession(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type CreateWorkoutSessionMutationResult = NonNullable<
+  Awaited<ReturnType<typeof createWorkoutSession>>
+>;
+export type CreateWorkoutSessionMutationBody = BodyType<WorkoutSessionInput>;
+export type CreateWorkoutSessionMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Start a new workout session
+ */
+export const useCreateWorkoutSession = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createWorkoutSession>>,
+    TError,
+    { data: BodyType<WorkoutSessionInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof createWorkoutSession>>,
+  TError,
+  { data: BodyType<WorkoutSessionInput> },
+  TContext
+> => {
+  return useMutation(getCreateWorkoutSessionMutationOptions(options));
+};
+
+/**
+ * @summary List recent sessions
+ */
+export const getListWorkoutSessionsUrl = (
+  params?: ListWorkoutSessionsParams,
+) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/workout/sessions?${stringifiedParams}`
+    : `/api/workout/sessions`;
+};
+
+export const listWorkoutSessions = async (
+  params?: ListWorkoutSessionsParams,
+  options?: RequestInit,
+): Promise<WorkoutSession[]> => {
+  return customFetch<WorkoutSession[]>(getListWorkoutSessionsUrl(params), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getListWorkoutSessionsQueryKey = (
+  params?: ListWorkoutSessionsParams,
+) => {
+  return [`/api/workout/sessions`, ...(params ? [params] : [])] as const;
+};
+
+export const getListWorkoutSessionsQueryOptions = <
+  TData = Awaited<ReturnType<typeof listWorkoutSessions>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: ListWorkoutSessionsParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listWorkoutSessions>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getListWorkoutSessionsQueryKey(params);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof listWorkoutSessions>>
+  > = ({ signal }) =>
+    listWorkoutSessions(params, { signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof listWorkoutSessions>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type ListWorkoutSessionsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listWorkoutSessions>>
+>;
+export type ListWorkoutSessionsQueryError = ErrorType<unknown>;
+
+/**
+ * @summary List recent sessions
+ */
+
+export function useListWorkoutSessions<
+  TData = Awaited<ReturnType<typeof listWorkoutSessions>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: ListWorkoutSessionsParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listWorkoutSessions>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getListWorkoutSessionsQueryOptions(params, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Get a session with its sets
+ */
+export const getGetWorkoutSessionUrl = (id: number) => {
+  return `/api/workout/sessions/${id}`;
+};
+
+export const getWorkoutSession = async (
+  id: number,
+  options?: RequestInit,
+): Promise<WorkoutSessionWithSets> => {
+  return customFetch<WorkoutSessionWithSets>(getGetWorkoutSessionUrl(id), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetWorkoutSessionQueryKey = (id: number) => {
+  return [`/api/workout/sessions/${id}`] as const;
+};
+
+export const getGetWorkoutSessionQueryOptions = <
+  TData = Awaited<ReturnType<typeof getWorkoutSession>>,
+  TError = ErrorType<unknown>,
+>(
+  id: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getWorkoutSession>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetWorkoutSessionQueryKey(id);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getWorkoutSession>>
+  > = ({ signal }) => getWorkoutSession(id, { signal, ...requestOptions });
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: !!id,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof getWorkoutSession>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetWorkoutSessionQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getWorkoutSession>>
+>;
+export type GetWorkoutSessionQueryError = ErrorType<unknown>;
+
+/**
+ * @summary Get a session with its sets
+ */
+
+export function useGetWorkoutSession<
+  TData = Awaited<ReturnType<typeof getWorkoutSession>>,
+  TError = ErrorType<unknown>,
+>(
+  id: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getWorkoutSession>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetWorkoutSessionQueryOptions(id, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Update mutable session fields
+ */
+export const getUpdateWorkoutSessionUrl = (id: number) => {
+  return `/api/workout/sessions/${id}`;
+};
+
+export const updateWorkoutSession = async (
+  id: number,
+  workoutSessionUpdate: WorkoutSessionUpdate,
+  options?: RequestInit,
+): Promise<WorkoutSession> => {
+  return customFetch<WorkoutSession>(getUpdateWorkoutSessionUrl(id), {
+    ...options,
+    method: "PATCH",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(workoutSessionUpdate),
+  });
+};
+
+export const getUpdateWorkoutSessionMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateWorkoutSession>>,
+    TError,
+    { id: number; data: BodyType<WorkoutSessionUpdate> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof updateWorkoutSession>>,
+  TError,
+  { id: number; data: BodyType<WorkoutSessionUpdate> },
+  TContext
+> => {
+  const mutationKey = ["updateWorkoutSession"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof updateWorkoutSession>>,
+    { id: number; data: BodyType<WorkoutSessionUpdate> }
+  > = (props) => {
+    const { id, data } = props ?? {};
+
+    return updateWorkoutSession(id, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type UpdateWorkoutSessionMutationResult = NonNullable<
+  Awaited<ReturnType<typeof updateWorkoutSession>>
+>;
+export type UpdateWorkoutSessionMutationBody = BodyType<WorkoutSessionUpdate>;
+export type UpdateWorkoutSessionMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Update mutable session fields
+ */
+export const useUpdateWorkoutSession = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateWorkoutSession>>,
+    TError,
+    { id: number; data: BodyType<WorkoutSessionUpdate> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof updateWorkoutSession>>,
+  TError,
+  { id: number; data: BodyType<WorkoutSessionUpdate> },
+  TContext
+> => {
+  return useMutation(getUpdateWorkoutSessionMutationOptions(options));
+};
+
+/**
+ * @summary List set logs for a session
+ */
+export const getListWorkoutSetsUrl = (id: number) => {
+  return `/api/workout/sessions/${id}/sets`;
+};
+
+export const listWorkoutSets = async (
+  id: number,
+  options?: RequestInit,
+): Promise<WorkoutSetLog[]> => {
+  return customFetch<WorkoutSetLog[]>(getListWorkoutSetsUrl(id), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getListWorkoutSetsQueryKey = (id: number) => {
+  return [`/api/workout/sessions/${id}/sets`] as const;
+};
+
+export const getListWorkoutSetsQueryOptions = <
+  TData = Awaited<ReturnType<typeof listWorkoutSets>>,
+  TError = ErrorType<unknown>,
+>(
+  id: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listWorkoutSets>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getListWorkoutSetsQueryKey(id);
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof listWorkoutSets>>> = ({
+    signal,
+  }) => listWorkoutSets(id, { signal, ...requestOptions });
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: !!id,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof listWorkoutSets>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type ListWorkoutSetsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listWorkoutSets>>
+>;
+export type ListWorkoutSetsQueryError = ErrorType<unknown>;
+
+/**
+ * @summary List set logs for a session
+ */
+
+export function useListWorkoutSets<
+  TData = Awaited<ReturnType<typeof listWorkoutSets>>,
+  TError = ErrorType<unknown>,
+>(
+  id: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listWorkoutSets>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getListWorkoutSetsQueryOptions(id, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Log a set within a session
+ */
+export const getLogWorkoutSetUrl = (id: number) => {
+  return `/api/workout/sessions/${id}/sets`;
+};
+
+export const logWorkoutSet = async (
+  id: number,
+  workoutSetLogInput: WorkoutSetLogInput,
+  options?: RequestInit,
+): Promise<WorkoutSetLog> => {
+  return customFetch<WorkoutSetLog>(getLogWorkoutSetUrl(id), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(workoutSetLogInput),
+  });
+};
+
+export const getLogWorkoutSetMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof logWorkoutSet>>,
+    TError,
+    { id: number; data: BodyType<WorkoutSetLogInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof logWorkoutSet>>,
+  TError,
+  { id: number; data: BodyType<WorkoutSetLogInput> },
+  TContext
+> => {
+  const mutationKey = ["logWorkoutSet"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof logWorkoutSet>>,
+    { id: number; data: BodyType<WorkoutSetLogInput> }
+  > = (props) => {
+    const { id, data } = props ?? {};
+
+    return logWorkoutSet(id, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type LogWorkoutSetMutationResult = NonNullable<
+  Awaited<ReturnType<typeof logWorkoutSet>>
+>;
+export type LogWorkoutSetMutationBody = BodyType<WorkoutSetLogInput>;
+export type LogWorkoutSetMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Log a set within a session
+ */
+export const useLogWorkoutSet = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof logWorkoutSet>>,
+    TError,
+    { id: number; data: BodyType<WorkoutSetLogInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof logWorkoutSet>>,
+  TError,
+  { id: number; data: BodyType<WorkoutSetLogInput> },
+  TContext
+> => {
+  return useMutation(getLogWorkoutSetMutationOptions(options));
+};
+
+/**
+ * @summary Remove a set log
+ */
+export const getDeleteWorkoutSetUrl = (id: number, setId: number) => {
+  return `/api/workout/sessions/${id}/sets/${setId}`;
+};
+
+export const deleteWorkoutSet = async (
+  id: number,
+  setId: number,
+  options?: RequestInit,
+): Promise<void> => {
+  return customFetch<void>(getDeleteWorkoutSetUrl(id, setId), {
+    ...options,
+    method: "DELETE",
+  });
+};
+
+export const getDeleteWorkoutSetMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deleteWorkoutSet>>,
+    TError,
+    { id: number; setId: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof deleteWorkoutSet>>,
+  TError,
+  { id: number; setId: number },
+  TContext
+> => {
+  const mutationKey = ["deleteWorkoutSet"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof deleteWorkoutSet>>,
+    { id: number; setId: number }
+  > = (props) => {
+    const { id, setId } = props ?? {};
+
+    return deleteWorkoutSet(id, setId, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type DeleteWorkoutSetMutationResult = NonNullable<
+  Awaited<ReturnType<typeof deleteWorkoutSet>>
+>;
+
+export type DeleteWorkoutSetMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Remove a set log
+ */
+export const useDeleteWorkoutSet = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deleteWorkoutSet>>,
+    TError,
+    { id: number; setId: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof deleteWorkoutSet>>,
+  TError,
+  { id: number; setId: number },
+  TContext
+> => {
+  return useMutation(getDeleteWorkoutSetMutationOptions(options));
+};
+
+/**
+ * Returns a 1-2 sentence observation or null when there is nothing useful to say. Rate-limit calls — once per 3+ sets logged is a good cadence.
+ * @summary Get a contextual coaching hint for the current session
+ */
+export const getGetWorkoutCoachingUrl = (id: number) => {
+  return `/api/workout/sessions/${id}/coaching`;
+};
+
+export const getWorkoutCoaching = async (
+  id: number,
+  options?: RequestInit,
+): Promise<WorkoutCoachingResponse> => {
+  return customFetch<WorkoutCoachingResponse>(getGetWorkoutCoachingUrl(id), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetWorkoutCoachingQueryKey = (id: number) => {
+  return [`/api/workout/sessions/${id}/coaching`] as const;
+};
+
+export const getGetWorkoutCoachingQueryOptions = <
+  TData = Awaited<ReturnType<typeof getWorkoutCoaching>>,
+  TError = ErrorType<unknown>,
+>(
+  id: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getWorkoutCoaching>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetWorkoutCoachingQueryKey(id);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getWorkoutCoaching>>
+  > = ({ signal }) => getWorkoutCoaching(id, { signal, ...requestOptions });
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: !!id,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof getWorkoutCoaching>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetWorkoutCoachingQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getWorkoutCoaching>>
+>;
+export type GetWorkoutCoachingQueryError = ErrorType<unknown>;
+
+/**
+ * @summary Get a contextual coaching hint for the current session
+ */
+
+export function useGetWorkoutCoaching<
+  TData = Awaited<ReturnType<typeof getWorkoutCoaching>>,
+  TError = ErrorType<unknown>,
+>(
+  id: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getWorkoutCoaching>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetWorkoutCoachingQueryOptions(id, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Finalise a session — detect PRs, generate summary, update memory
+ */
+export const getCompleteWorkoutSessionUrl = (id: number) => {
+  return `/api/workout/sessions/${id}/complete`;
+};
+
+export const completeWorkoutSession = async (
+  id: number,
+  options?: RequestInit,
+): Promise<WorkoutCompleteResponse> => {
+  return customFetch<WorkoutCompleteResponse>(
+    getCompleteWorkoutSessionUrl(id),
+    {
+      ...options,
+      method: "POST",
+    },
+  );
+};
+
+export const getCompleteWorkoutSessionMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof completeWorkoutSession>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof completeWorkoutSession>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  const mutationKey = ["completeWorkoutSession"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof completeWorkoutSession>>,
+    { id: number }
+  > = (props) => {
+    const { id } = props ?? {};
+
+    return completeWorkoutSession(id, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type CompleteWorkoutSessionMutationResult = NonNullable<
+  Awaited<ReturnType<typeof completeWorkoutSession>>
+>;
+
+export type CompleteWorkoutSessionMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Finalise a session — detect PRs, generate summary, update memory
+ */
+export const useCompleteWorkoutSession = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof completeWorkoutSession>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof completeWorkoutSession>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  return useMutation(getCompleteWorkoutSessionMutationOptions(options));
+};
+
+/**
+ * @summary Personal records for an exercise
+ */
+export const getGetExercisePrsUrl = (exerciseId: number) => {
+  return `/api/workout/exercises/${exerciseId}/prs`;
+};
+
+export const getExercisePrs = async (
+  exerciseId: number,
+  options?: RequestInit,
+): Promise<WorkoutPersonalRecord[]> => {
+  return customFetch<WorkoutPersonalRecord[]>(
+    getGetExercisePrsUrl(exerciseId),
+    {
+      ...options,
+      method: "GET",
+    },
+  );
+};
+
+export const getGetExercisePrsQueryKey = (exerciseId: number) => {
+  return [`/api/workout/exercises/${exerciseId}/prs`] as const;
+};
+
+export const getGetExercisePrsQueryOptions = <
+  TData = Awaited<ReturnType<typeof getExercisePrs>>,
+  TError = ErrorType<unknown>,
+>(
+  exerciseId: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getExercisePrs>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getGetExercisePrsQueryKey(exerciseId);
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getExercisePrs>>> = ({
+    signal,
+  }) => getExercisePrs(exerciseId, { signal, ...requestOptions });
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: !!exerciseId,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof getExercisePrs>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetExercisePrsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getExercisePrs>>
+>;
+export type GetExercisePrsQueryError = ErrorType<unknown>;
+
+/**
+ * @summary Personal records for an exercise
+ */
+
+export function useGetExercisePrs<
+  TData = Awaited<ReturnType<typeof getExercisePrs>>,
+  TError = ErrorType<unknown>,
+>(
+  exerciseId: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getExercisePrs>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetExercisePrsQueryOptions(exerciseId, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Recent set history for an exercise across completed sessions
+ */
+export const getGetExerciseHistoryUrl = (exerciseId: number) => {
+  return `/api/workout/exercises/${exerciseId}/history`;
+};
+
+export const getExerciseHistory = async (
+  exerciseId: number,
+  options?: RequestInit,
+): Promise<WorkoutSetLogWithSession[]> => {
+  return customFetch<WorkoutSetLogWithSession[]>(
+    getGetExerciseHistoryUrl(exerciseId),
+    {
+      ...options,
+      method: "GET",
+    },
+  );
+};
+
+export const getGetExerciseHistoryQueryKey = (exerciseId: number) => {
+  return [`/api/workout/exercises/${exerciseId}/history`] as const;
+};
+
+export const getGetExerciseHistoryQueryOptions = <
+  TData = Awaited<ReturnType<typeof getExerciseHistory>>,
+  TError = ErrorType<unknown>,
+>(
+  exerciseId: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getExerciseHistory>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getGetExerciseHistoryQueryKey(exerciseId);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getExerciseHistory>>
+  > = ({ signal }) =>
+    getExerciseHistory(exerciseId, { signal, ...requestOptions });
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: !!exerciseId,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof getExerciseHistory>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetExerciseHistoryQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getExerciseHistory>>
+>;
+export type GetExerciseHistoryQueryError = ErrorType<unknown>;
+
+/**
+ * @summary Recent set history for an exercise across completed sessions
+ */
+
+export function useGetExerciseHistory<
+  TData = Awaited<ReturnType<typeof getExerciseHistory>>,
+  TError = ErrorType<unknown>,
+>(
+  exerciseId: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getExerciseHistory>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetExerciseHistoryQueryOptions(exerciseId, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * Returns one entry per week that had completed sessions, ordered oldest to newest.
+ * @summary Weekly training volume for the last N weeks
+ */
+export const getGetWorkoutVolumeUrl = (params?: GetWorkoutVolumeParams) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/workout/volume?${stringifiedParams}`
+    : `/api/workout/volume`;
+};
+
+export const getWorkoutVolume = async (
+  params?: GetWorkoutVolumeParams,
+  options?: RequestInit,
+): Promise<WorkoutVolumeWeek[]> => {
+  return customFetch<WorkoutVolumeWeek[]>(getGetWorkoutVolumeUrl(params), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetWorkoutVolumeQueryKey = (
+  params?: GetWorkoutVolumeParams,
+) => {
+  return [`/api/workout/volume`, ...(params ? [params] : [])] as const;
+};
+
+export const getGetWorkoutVolumeQueryOptions = <
+  TData = Awaited<ReturnType<typeof getWorkoutVolume>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: GetWorkoutVolumeParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getWorkoutVolume>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getGetWorkoutVolumeQueryKey(params);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getWorkoutVolume>>
+  > = ({ signal }) => getWorkoutVolume(params, { signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getWorkoutVolume>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetWorkoutVolumeQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getWorkoutVolume>>
+>;
+export type GetWorkoutVolumeQueryError = ErrorType<unknown>;
+
+/**
+ * @summary Weekly training volume for the last N weeks
+ */
+
+export function useGetWorkoutVolume<
+  TData = Awaited<ReturnType<typeof getWorkoutVolume>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: GetWorkoutVolumeParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getWorkoutVolume>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetWorkoutVolumeQueryOptions(params, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}

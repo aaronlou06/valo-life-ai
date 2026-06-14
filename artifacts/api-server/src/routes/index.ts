@@ -28,6 +28,7 @@ import remindersRouter from "./reminders";
 import personalDatesRouter from "./personal-dates";
 import homeBriefingRouter from "./home-briefing";
 import exercisesRouter from "./exercises";
+import workoutRouter from "./workout";
 
 const router: IRouter = Router();
 
@@ -60,5 +61,6 @@ router.use(remindersRouter);
 router.use(personalDatesRouter);
 router.use(homeBriefingRouter);
 router.use(exercisesRouter);
+router.use(workoutRouter);
 
 export default router;
