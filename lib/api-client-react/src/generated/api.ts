@@ -26,6 +26,7 @@ import type {
   DailyLogInput,
   DailyLogOrNull,
   Dashboard,
+  Exercise,
   Goal,
   GoalInput,
   GoalUpdate,
@@ -37,6 +38,7 @@ import type {
   InsightEntry,
   InsightPattern,
   ListDailyLogHistoryParams,
+  ListExercisesParams,
   ListRemindersParams,
   LogEntry,
   LogEntryInput,
@@ -3756,4 +3758,269 @@ export const useDeletePersonalDate = <
   TContext
 > => {
   return useMutation(getDeletePersonalDateMutationOptions(options));
+};
+
+/**
+ * Returns system exercises plus the user's own exercises. Archived exercises are excluded by default.
+ * @summary List exercises available to the user
+ */
+export const getListExercisesUrl = (params?: ListExercisesParams) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/exercises?${stringifiedParams}`
+    : `/api/exercises`;
+};
+
+export const listExercises = async (
+  params?: ListExercisesParams,
+  options?: RequestInit,
+): Promise<Exercise[]> => {
+  return customFetch<Exercise[]>(getListExercisesUrl(params), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getListExercisesQueryKey = (params?: ListExercisesParams) => {
+  return [`/api/exercises`, ...(params ? [params] : [])] as const;
+};
+
+export const getListExercisesQueryOptions = <
+  TData = Awaited<ReturnType<typeof listExercises>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: ListExercisesParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listExercises>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getListExercisesQueryKey(params);
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof listExercises>>> = ({
+    signal,
+  }) => listExercises(params, { signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof listExercises>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type ListExercisesQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listExercises>>
+>;
+export type ListExercisesQueryError = ErrorType<unknown>;
+
+/**
+ * @summary List exercises available to the user
+ */
+
+export function useListExercises<
+  TData = Awaited<ReturnType<typeof listExercises>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: ListExercisesParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listExercises>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getListExercisesQueryOptions(params, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * Hides the exercise from pickers while preserving all logged set history. Only works on exercises owned by the authenticated user.
+ * @summary Archive a user-owned exercise
+ */
+export const getArchiveExerciseUrl = (id: number) => {
+  return `/api/exercises/${id}/archive`;
+};
+
+export const archiveExercise = async (
+  id: number,
+  options?: RequestInit,
+): Promise<Exercise> => {
+  return customFetch<Exercise>(getArchiveExerciseUrl(id), {
+    ...options,
+    method: "POST",
+  });
+};
+
+export const getArchiveExerciseMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof archiveExercise>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof archiveExercise>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  const mutationKey = ["archiveExercise"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof archiveExercise>>,
+    { id: number }
+  > = (props) => {
+    const { id } = props ?? {};
+
+    return archiveExercise(id, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type ArchiveExerciseMutationResult = NonNullable<
+  Awaited<ReturnType<typeof archiveExercise>>
+>;
+
+export type ArchiveExerciseMutationError = ErrorType<void>;
+
+/**
+ * @summary Archive a user-owned exercise
+ */
+export const useArchiveExercise = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof archiveExercise>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof archiveExercise>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  return useMutation(getArchiveExerciseMutationOptions(options));
+};
+
+/**
+ * Restores the exercise to pickers.
+ * @summary Unarchive a user-owned exercise
+ */
+export const getUnarchiveExerciseUrl = (id: number) => {
+  return `/api/exercises/${id}/unarchive`;
+};
+
+export const unarchiveExercise = async (
+  id: number,
+  options?: RequestInit,
+): Promise<Exercise> => {
+  return customFetch<Exercise>(getUnarchiveExerciseUrl(id), {
+    ...options,
+    method: "POST",
+  });
+};
+
+export const getUnarchiveExerciseMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof unarchiveExercise>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof unarchiveExercise>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  const mutationKey = ["unarchiveExercise"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof unarchiveExercise>>,
+    { id: number }
+  > = (props) => {
+    const { id } = props ?? {};
+
+    return unarchiveExercise(id, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type UnarchiveExerciseMutationResult = NonNullable<
+  Awaited<ReturnType<typeof unarchiveExercise>>
+>;
+
+export type UnarchiveExerciseMutationError = ErrorType<void>;
+
+/**
+ * @summary Unarchive a user-owned exercise
+ */
+export const useUnarchiveExercise = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof unarchiveExercise>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof unarchiveExercise>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  return useMutation(getUnarchiveExerciseMutationOptions(options));
 };

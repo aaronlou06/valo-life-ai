@@ -21,6 +21,10 @@ export const exercisesTable = pgTable("exercises", {
   level: text("level"),
   isSystem: boolean("is_system").notNull().default(false),
   notes: text("notes"),
+  // Soft-archive: exercises referenced by logged sets cannot be hard-deleted
+  // (RESTRICT FK). Set isArchived=true to hide from pickers while keeping history.
+  isArchived: boolean("is_archived").notNull().default(false),
+  archivedAt: timestamp("archived_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 }, (t) => [

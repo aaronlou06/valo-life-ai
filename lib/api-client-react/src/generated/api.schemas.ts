@@ -577,6 +577,37 @@ export interface InsightPattern {
   isActive: boolean;
 }
 
+export interface Exercise {
+  id: number;
+  /** @nullable */
+  userId?: string | null;
+  /** @nullable */
+  slug?: string | null;
+  name: string;
+  /** weight_reps | bodyweight_reps | weighted_bodyweight | reps_only | duration | distance_duration | cardio_machine */
+  trackingType: string;
+  category: string;
+  /** @nullable */
+  equipment?: string | null;
+  /** @nullable */
+  primaryMuscle?: string | null;
+  targetMuscles: string[];
+  /** @nullable */
+  force?: string | null;
+  /** @nullable */
+  mechanic?: string | null;
+  /** @nullable */
+  level?: string | null;
+  isSystem: boolean;
+  /** @nullable */
+  notes?: string | null;
+  isArchived: boolean;
+  /** @nullable */
+  archivedAt?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export type ListDailyLogHistoryParams = {
   /**
    * ISO date (YYYY-MM-DD). When provided, return all logs on or after this date. When omitted, defaults to the last 30 days.
@@ -605,4 +636,19 @@ export type ListRemindersParams = {
    * Filter by entity ID stored in metadata.entityId
    */
   entity_id?: string;
+};
+
+export type ListExercisesParams = {
+  /**
+   * Include the user's own archived exercises
+   */
+  includeArchived?: boolean;
+  /**
+   * Case-insensitive name search
+   */
+  search?: string;
+  /**
+   * Exact category filter
+   */
+  category?: string;
 };

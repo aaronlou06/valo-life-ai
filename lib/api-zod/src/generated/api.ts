@@ -884,3 +884,111 @@ export const UpdatePersonalDateResponse = zod.object({
 export const DeletePersonalDateParams = zod.object({
   id: zod.coerce.number(),
 });
+
+/**
+ * Returns system exercises plus the user's own exercises. Archived exercises are excluded by default.
+ * @summary List exercises available to the user
+ */
+export const ListExercisesQueryParams = zod.object({
+  includeArchived: zod.coerce
+    .boolean()
+    .optional()
+    .describe("Include the user's own archived exercises"),
+  search: zod.coerce
+    .string()
+    .optional()
+    .describe("Case-insensitive name search"),
+  category: zod.coerce.string().optional().describe("Exact category filter"),
+});
+
+export const ListExercisesResponseItem = zod.object({
+  id: zod.number(),
+  userId: zod.string().nullish(),
+  slug: zod.string().nullish(),
+  name: zod.string(),
+  trackingType: zod
+    .string()
+    .describe(
+      "weight_reps | bodyweight_reps | weighted_bodyweight | reps_only | duration | distance_duration | cardio_machine",
+    ),
+  category: zod.string(),
+  equipment: zod.string().nullish(),
+  primaryMuscle: zod.string().nullish(),
+  targetMuscles: zod.array(zod.string()),
+  force: zod.string().nullish(),
+  mechanic: zod.string().nullish(),
+  level: zod.string().nullish(),
+  isSystem: zod.boolean(),
+  notes: zod.string().nullish(),
+  isArchived: zod.boolean(),
+  archivedAt: zod.string().nullish(),
+  createdAt: zod.string(),
+  updatedAt: zod.string(),
+});
+export const ListExercisesResponse = zod.array(ListExercisesResponseItem);
+
+/**
+ * Hides the exercise from pickers while preserving all logged set history. Only works on exercises owned by the authenticated user.
+ * @summary Archive a user-owned exercise
+ */
+export const ArchiveExerciseParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const ArchiveExerciseResponse = zod.object({
+  id: zod.number(),
+  userId: zod.string().nullish(),
+  slug: zod.string().nullish(),
+  name: zod.string(),
+  trackingType: zod
+    .string()
+    .describe(
+      "weight_reps | bodyweight_reps | weighted_bodyweight | reps_only | duration | distance_duration | cardio_machine",
+    ),
+  category: zod.string(),
+  equipment: zod.string().nullish(),
+  primaryMuscle: zod.string().nullish(),
+  targetMuscles: zod.array(zod.string()),
+  force: zod.string().nullish(),
+  mechanic: zod.string().nullish(),
+  level: zod.string().nullish(),
+  isSystem: zod.boolean(),
+  notes: zod.string().nullish(),
+  isArchived: zod.boolean(),
+  archivedAt: zod.string().nullish(),
+  createdAt: zod.string(),
+  updatedAt: zod.string(),
+});
+
+/**
+ * Restores the exercise to pickers.
+ * @summary Unarchive a user-owned exercise
+ */
+export const UnarchiveExerciseParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const UnarchiveExerciseResponse = zod.object({
+  id: zod.number(),
+  userId: zod.string().nullish(),
+  slug: zod.string().nullish(),
+  name: zod.string(),
+  trackingType: zod
+    .string()
+    .describe(
+      "weight_reps | bodyweight_reps | weighted_bodyweight | reps_only | duration | distance_duration | cardio_machine",
+    ),
+  category: zod.string(),
+  equipment: zod.string().nullish(),
+  primaryMuscle: zod.string().nullish(),
+  targetMuscles: zod.array(zod.string()),
+  force: zod.string().nullish(),
+  mechanic: zod.string().nullish(),
+  level: zod.string().nullish(),
+  isSystem: zod.boolean(),
+  notes: zod.string().nullish(),
+  isArchived: zod.boolean(),
+  archivedAt: zod.string().nullish(),
+  createdAt: zod.string(),
+  updatedAt: zod.string(),
+});

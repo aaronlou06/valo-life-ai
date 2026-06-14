@@ -35,6 +35,8 @@ tags:
     description: User profile and streak data
   - name: personal-dates
     description: Personal recurring dates (birthdays, anniversaries)
+  - name: exercises
+    description: Exercise library — list, archive, and unarchive exercises
 paths:
   /healthz:
     get:
@@ -837,6 +839,82 @@ paths:
         "204":
           description: Deleted
 
+  /exercises:
+    get:
+      operationId: listExercises
+      tags: [exercises]
+      summary: List exercises available to the user
+      description: Returns system exercises plus the user's own exercises. Archived exercises are excluded by default.
+      parameters:
+        - name: includeArchived
+          in: query
+          schema:
+            type: boolean
+          description: Include the user's own archived exercises
+        - name: search
+          in: query
+          schema:
+            type: string
+          description: Case-insensitive name search
+        - name: category
+          in: query
+          schema:
+            type: string
+          description: Exact category filter
+      responses:
+        "200":
+          description: Exercise list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Exercise"
+
+  /exercises/{id}/archive:
+    post:
+      operationId: archiveExercise
+      tags: [exercises]
+      summary: Archive a user-owned exercise
+      description: Hides the exercise from pickers while preserving all logged set history. Only works on exercises owned by the authenticated user.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Archived exercise
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Exercise"
+        "404":
+          description: Not found or not owned by the user
+
+  /exercises/{id}/unarchive:
+    post:
+      operationId: unarchiveExercise
+      tags: [exercises]
+      summary: Unarchive a user-owned exercise
+      description: Restores the exercise to pickers.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Unarchived exercise
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Exercise"
+        "404":
+          description: Not found or not owned by the user
+
 components:
   schemas:
     UserSettings:
@@ -1629,3 +1707,47 @@ components:
           type: string
         isActive:
           type: boolean
+
+    Exercise:
+      type: object
+      required: [id, name, trackingType, category, isSystem, isArchived, targetMuscles, createdAt, updatedAt]
+      properties:
+        id:
+          type: integer
+        userId:
+          type: ["string", "null"]
+        slug:
+          type: ["string", "null"]
+        name:
+          type: string
+        trackingType:
+          type: string
+          description: "weight_reps | bodyweight_reps | weighted_bodyweight | reps_only | duration | distance_duration | cardio_machine"
+        category:
+          type: string
+        equipment:
+          type: ["string", "null"]
+        primaryMuscle:
+          type: ["string", "null"]
+        targetMuscles:
+          type: array
+          items:
+            type: string
+        force:
+          type: ["string", "null"]
+        mechanic:
+          type: ["string", "null"]
+        level:
+          type: ["string", "null"]
+        isSystem:
+          type: boolean
+        notes:
+          type: ["string", "null"]
+        isArchived:
+          type: boolean
+        archivedAt:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+        updatedAt:
+          type: string
