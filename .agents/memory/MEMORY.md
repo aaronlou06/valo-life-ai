@@ -4,3 +4,4 @@
 - [Dark mode](dark-mode.md) — ThemeContext + AsyncStorage override; useColors() reads from ThemeContext not useColorScheme(); toggle in Profile > Account section.
 - [Tools hub](tools-hub.md) — Check-in "Tools" (open_tools) → /tools 6-tile hub; flat routes not a group; Meal Planner tile reuses the full meal-planner.tsx, never overwrite it.
 - [Safe-area web floor](safe-area-web-floor.md) — Expo web preview gives insets.top=0; every tab top-pad needs `(web ? Math.max(insets.top,67) : insets.top) + offset`.
+- [Workout schema & seed](workout-schema-seed.md) — 8 workout tables; weights canonical kg; exercise library seeded from free-exercise-db via `scripts` seed:exercises, idempotent on slug, custom exercises have userId+null slug.
