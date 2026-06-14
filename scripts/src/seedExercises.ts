@@ -19,12 +19,21 @@ type SeedExercise = {
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const dataPath = path.join(__dirname, "data", "exercises.seed.json");
+const supplementalPath = path.join(__dirname, "data", "exercises-cardio-supplemental.seed.json");
 
 async function main() {
-  const raw = readFileSync(dataPath, "utf8");
-  const exercises = JSON.parse(raw) as SeedExercise[];
+  const primary = JSON.parse(readFileSync(dataPath, "utf8")) as SeedExercise[];
+  const supplemental = JSON.parse(readFileSync(supplementalPath, "utf8")) as SeedExercise[];
 
-  console.log(`Seeding ${exercises.length} system exercises...`);
+  // Merge: primary first, then any supplemental entries whose slug doesn't
+  // already appear in the primary set (guards against future upstream additions).
+  const primarySlugs = new Set(primary.map((e) => e.slug));
+  const deduped = supplemental.filter((e) => !primarySlugs.has(e.slug));
+  const exercises = [...primary, ...deduped];
+
+  console.log(
+    `Seeding ${exercises.length} system exercises (${primary.length} primary + ${deduped.length} supplemental)...`
+  );
 
   const rows = exercises.map((e) => ({
     userId: null,
