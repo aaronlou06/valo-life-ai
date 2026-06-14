@@ -13,18 +13,14 @@ export type CopilotPanelState = "minimized" | "expanded";
 export type WorkoutSessionSource = "start" | "template" | "program" | "import";
 
 export interface ActiveWorkoutSession {
-  /** Server-side session id once persisted; null while the session is local-only. */
   sessionId: number | null;
-  /** Human-readable label shown in the slim bar and expanded panel. */
   name: string;
-  /** ISO timestamp of when the session began — used to derive elapsed time. */
   startedAt: string;
-  /** How the session was created, so later flows can branch on origin. */
   source: WorkoutSessionSource;
+  templateId?: number | null;
 }
 
 interface WorkoutCopilotContextType {
-  /** True once persisted state has been read from storage (avoids first-frame flicker). */
   hydrated: boolean;
   panelState: CopilotPanelState;
   expand: () => void;
@@ -35,6 +31,7 @@ interface WorkoutCopilotContextType {
     name: string;
     source: WorkoutSessionSource;
     sessionId?: number | null;
+    templateId?: number | null;
   }) => void;
   endSession: () => void;
 }
@@ -58,8 +55,6 @@ export function WorkoutCopilotProvider({ children }: { children: React.ReactNode
   const [panelState, setPanelState] = useState<CopilotPanelState>("minimized");
   const [activeSession, setActiveSession] = useState<ActiveWorkoutSession | null>(null);
 
-  // Hydrate persisted state once on mount so an in-progress session and the
-  // panel's open/closed preference survive an app restart.
   useEffect(() => {
     let cancelled = false;
     (async () => {
@@ -79,7 +74,7 @@ export function WorkoutCopilotProvider({ children }: { children: React.ReactNode
           }
         }
       } catch {
-        // Corrupt or unavailable storage — start clean rather than crash.
+        // Corrupt or unavailable storage — start clean.
       } finally {
         if (!cancelled) setHydrated(true);
       }
@@ -89,7 +84,6 @@ export function WorkoutCopilotProvider({ children }: { children: React.ReactNode
     };
   }, []);
 
-  // Persist panel state after hydration (skip the initial pre-hydration write).
   const persistedPanel = useRef(false);
   useEffect(() => {
     if (!hydrated) return;
@@ -99,7 +93,6 @@ export function WorkoutCopilotProvider({ children }: { children: React.ReactNode
     AsyncStorage.setItem(PANEL_STATE_KEY, panelState).catch(() => {});
   }, [panelState, hydrated]);
 
-  // Persist the active session whenever it changes.
   useEffect(() => {
     if (!hydrated) return;
     if (activeSession) {
@@ -117,12 +110,18 @@ export function WorkoutCopilotProvider({ children }: { children: React.ReactNode
   );
 
   const startSession = useCallback(
-    (input: { name: string; source: WorkoutSessionSource; sessionId?: number | null }) => {
+    (input: {
+      name: string;
+      source: WorkoutSessionSource;
+      sessionId?: number | null;
+      templateId?: number | null;
+    }) => {
       setActiveSession({
         sessionId: input.sessionId ?? null,
         name: input.name,
         source: input.source,
         startedAt: new Date().toISOString(),
+        templateId: input.templateId ?? null,
       });
     },
     [],

@@ -162,9 +162,12 @@ export function WorkoutCopilotPanel() {
   // bar doesn't float over the very screen it launched). The launcher hub
   // (copilot-modules) is intentionally NOT hidden.
   const isFlowRoute = MENU_OPTIONS.some((o) => pathname.startsWith(o.route));
+  const isWorkoutRoute =
+    pathname.startsWith("/copilot-workout") || pathname.startsWith("/copilot-summary");
   const hideOnRoute =
     pathname.startsWith("/onboarding") ||
     isFlowRoute ||
+    isWorkoutRoute ||
     pathname.includes("sign-in") ||
     pathname.includes("sign-up");
 
@@ -303,7 +306,15 @@ export function WorkoutCopilotPanel() {
                   </View>
                   <View style={styles.activeActions}>
                     <TouchableOpacity
-                      onPress={() => go("/copilot-start")}
+                      onPress={() => {
+                        minimize();
+                        router.push({
+                          pathname: "/copilot-workout" as never,
+                          params: activeSession?.sessionId
+                            ? { sessionId: String(activeSession.sessionId) }
+                            : undefined,
+                        });
+                      }}
                       activeOpacity={0.85}
                       style={[styles.activeBtn, { backgroundColor: colors.primary }]}
                     >

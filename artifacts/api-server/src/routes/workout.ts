@@ -6,6 +6,8 @@ import {
   workoutPersonalRecordsTable,
   workoutSessionsTable,
   workoutSetLogsTable,
+  workoutTemplatesTable,
+  workoutTemplateExercisesTable,
 } from "@workspace/db";
 import { requireAuth, type AuthenticatedRequest } from "../middlewares/requireAuth";
 import { generateWorkoutCoaching } from "../lib/workoutCoaching";
@@ -450,5 +452,65 @@ router.get("/workout/volume", requireAuth, async (req, res): Promise<void> => {
 
   res.json(result);
 });
+
+// ─── Templates ────────────────────────────────────────────────────────────────
+
+/**
+ * GET /workout/templates
+ * List all workout templates owned by the authenticated user.
+ */
+router.get("/workout/templates", requireAuth, async (req, res): Promise<void> => {
+  const userId = (req as AuthenticatedRequest).userId;
+  const templates = await db
+    .select()
+    .from(workoutTemplatesTable)
+    .where(eq(workoutTemplatesTable.userId, userId))
+    .orderBy(desc(workoutTemplatesTable.createdAt));
+  res.json(templates);
+});
+
+/**
+ * GET /workout/templates/:id/exercises
+ * Exercises for a template, joined with full exercise details, ordered by orderIndex.
+ */
+router.get(
+  "/workout/templates/:id/exercises",
+  requireAuth,
+  async (req, res): Promise<void> => {
+    const userId = (req as AuthenticatedRequest).userId;
+    const templateId = parseIntParam(req.params.id);
+    if (templateId === null) { res.status(400).json({ error: "Invalid id" }); return; }
+
+    const [template] = await db
+      .select({ id: workoutTemplatesTable.id })
+      .from(workoutTemplatesTable)
+      .where(and(eq(workoutTemplatesTable.id, templateId), eq(workoutTemplatesTable.userId, userId)));
+    if (!template) { res.status(404).json({ error: "Template not found" }); return; }
+
+    const exercises = await db
+      .select({
+        id: workoutTemplateExercisesTable.id,
+        exerciseId: workoutTemplateExercisesTable.exerciseId,
+        name: exercisesTable.name,
+        category: exercisesTable.category,
+        trackingType: exercisesTable.trackingType,
+        orderIndex: workoutTemplateExercisesTable.orderIndex,
+        prescribedSets: workoutTemplateExercisesTable.prescribedSets,
+        prescribedReps: workoutTemplateExercisesTable.prescribedReps,
+        prescribedWeightKg: workoutTemplateExercisesTable.prescribedWeightKg,
+        prescribedDurationSec: workoutTemplateExercisesTable.prescribedDurationSec,
+        prescribedDistanceM: workoutTemplateExercisesTable.prescribedDistanceM,
+        restSec: workoutTemplateExercisesTable.restSec,
+        supersetGroupId: workoutTemplateExercisesTable.supersetGroupId,
+        notes: workoutTemplateExercisesTable.notes,
+      })
+      .from(workoutTemplateExercisesTable)
+      .innerJoin(exercisesTable, eq(workoutTemplateExercisesTable.exerciseId, exercisesTable.id))
+      .where(eq(workoutTemplateExercisesTable.templateId, templateId))
+      .orderBy(workoutTemplateExercisesTable.orderIndex);
+
+    res.json(exercises);
+  },
+);
 
 export default router;

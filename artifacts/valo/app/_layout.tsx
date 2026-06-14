@@ -164,6 +164,9 @@ function RootLayoutNav() {
         <Stack.Screen name="(tools)" />
         <Stack.Screen name="accountability-buddy" />
         <Stack.Screen name="charts" />
+        <Stack.Screen name="copilot-start" />
+        <Stack.Screen name="copilot-workout" options={{ gestureEnabled: false }} />
+        <Stack.Screen name="copilot-summary" options={{ gestureEnabled: false }} />
         <Stack.Screen name="oauth2redirect/google" />
       </Stack>
     </>
