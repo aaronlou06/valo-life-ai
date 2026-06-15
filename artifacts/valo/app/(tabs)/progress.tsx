@@ -5,6 +5,8 @@ import {
   TouchableOpacity,
   StyleSheet,
   ActivityIndicator,
+  Modal,
+  ScrollView,
   Platform,
   UIManager,
 } from "react-native";
@@ -20,6 +22,7 @@ import {
   useListHabits,
   listHabitCompletions,
   getListHabitCompletionsQueryKey,
+  customFetch,
 } from "@workspace/api-client-react";
 import { useColors } from "@/hooks/useColors";
 
@@ -534,6 +537,745 @@ const cardStyles = StyleSheet.create({
   },
 });
 
+// ─── Workout types ────────────────────────────────────────────────────────────
+
+type WSession = { id: number; date: string; name: string; durationSec: number | null };
+type VolumeWeek = { label: string; sessions: number; sets: number; tonnageKg: number };
+type WorkoutPR = {
+  id: number;
+  exerciseId: number | null;
+  exerciseName: string | null;
+  metricType: string;
+  value: number | null;
+  weightKg: number | null;
+  reps: number | null;
+  achievedAt: string | null;
+};
+type RecentExercise = { exerciseId: number; exerciseName: string | null; lastDate: string };
+type ExerciseSetLog = {
+  id: number;
+  sessionDate: string;
+  sessionName: string;
+  weightKg: number | null;
+  reps: number | null;
+  durationSec: number | null;
+  isPersonalBest: boolean | null;
+};
+
+// ─── Workout helpers ──────────────────────────────────────────────────────────
+
+function computeWorkoutStreak(sessions: WSession[]): number {
+  if (sessions.length === 0) return 0;
+  const dateSet = new Set(sessions.map((s) => s.date));
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const startOffset = dateSet.has(toISODate(today)) ? 0 : 1;
+  let streak = 0;
+  for (let i = startOffset; i <= 365; i++) {
+    const d = new Date(today);
+    d.setDate(today.getDate() - i);
+    if (dateSet.has(toISODate(d))) {
+      streak++;
+    } else {
+      break;
+    }
+  }
+  return streak;
+}
+
+function formatKg(kg: number): string {
+  return kg >= 1000 ? `${(kg / 1000).toFixed(1)}t` : `${Math.round(kg)}kg`;
+}
+
+function shortDate(iso: string): string {
+  const d = new Date(iso.slice(0, 10) + "T00:00:00");
+  return d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+}
+
+// ─── WorkoutVolumeBars ────────────────────────────────────────────────────────
+
+function WorkoutVolumeBars({ volume, colors }: { volume: VolumeWeek[]; colors: Colors }) {
+  const maxTonnage = Math.max(...volume.map((w) => w.tonnageKg), 1);
+  const maxH = 36;
+
+  if (volume.length === 0) {
+    return (
+      <View style={wStyles.emptyBar}>
+        <Text style={[wStyles.emptyBarText, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
+          No data yet
+        </Text>
+      </View>
+    );
+  }
+
+  return (
+    <View style={barStyles.wrapper}>
+      {volume.map((week, i) => {
+        const isLast = i === volume.length - 1;
+        const height =
+          week.tonnageKg > 0 ? Math.max(4, Math.round((week.tonnageKg / maxTonnage) * maxH)) : 3;
+        return (
+          <View key={week.label} style={barStyles.barCol}>
+            <View
+              style={[
+                barStyles.bar,
+                {
+                  height,
+                  backgroundColor: isLast ? colors.primary : colors.primary + "60",
+                },
+              ]}
+            />
+          </View>
+        );
+      })}
+    </View>
+  );
+}
+
+// ─── WorkoutProgressionModal ──────────────────────────────────────────────────
+
+function WorkoutProgressionModal({
+  exercise,
+  onClose,
+  colors,
+}: {
+  exercise: { id: number; name: string } | null;
+  onClose: () => void;
+  colors: Colors;
+}) {
+  const [history, setHistory] = useState<ExerciseSetLog[]>([]);
+  const [histLoading, setHistLoading] = useState(false);
+  const [windowSize, setWindowSize] = useState(20);
+
+  useEffect(() => {
+    if (!exercise) return;
+    void loadHistory(exercise.id, windowSize);
+  }, [exercise, windowSize]);
+
+  async function loadHistory(id: number, limit: number) {
+    setHistLoading(true);
+    try {
+      const data = await customFetch<ExerciseSetLog[]>(
+        `/api/workout/exercises/${id}/history?limit=${limit}`,
+      );
+      setHistory(data);
+    } catch {
+      // ignore
+    } finally {
+      setHistLoading(false);
+    }
+  }
+
+  const sessionPoints = useMemo(() => {
+    const byDate = new Map<
+      string,
+      { date: string; maxWeight: number; maxReps: number; isPR: boolean }
+    >();
+    for (const set of history) {
+      const existing = byDate.get(set.sessionDate);
+      const weight = set.weightKg ?? 0;
+      const reps = set.reps ?? 0;
+      if (!existing || weight > existing.maxWeight) {
+        byDate.set(set.sessionDate, {
+          date: set.sessionDate,
+          maxWeight: weight,
+          maxReps: reps,
+          isPR: !!set.isPersonalBest,
+        });
+      } else if (set.isPersonalBest && existing) {
+        existing.isPR = true;
+      }
+    }
+    return Array.from(byDate.values()).sort((a, b) => a.date.localeCompare(b.date));
+  }, [history]);
+
+  const maxWeight = Math.max(...sessionPoints.map((p) => p.maxWeight), 1);
+  const chartH = 60;
+
+  return (
+    <Modal
+      visible={!!exercise}
+      animationType="slide"
+      presentationStyle="pageSheet"
+      onRequestClose={onClose}
+    >
+      <View style={[wModal.root, { backgroundColor: colors.background }]}>
+        <View style={[wModal.header, { borderBottomColor: colors.border }]}>
+          <Text
+            style={[wModal.title, { color: colors.foreground, fontFamily: "Inter_700Bold" }]}
+            numberOfLines={1}
+          >
+            {exercise?.name ?? ""}
+          </Text>
+          <TouchableOpacity onPress={onClose} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+            <Feather name="x" size={20} color={colors.mutedForeground} />
+          </TouchableOpacity>
+        </View>
+
+        <ScrollView
+          contentContainerStyle={wModal.content}
+          showsVerticalScrollIndicator={false}
+        >
+          <View style={wModal.windowRow}>
+            {([10, 20, 50] as const).map((n) => (
+              <TouchableOpacity
+                key={n}
+                onPress={() => setWindowSize(n)}
+                activeOpacity={0.75}
+                style={[
+                  wModal.windowBtn,
+                  {
+                    backgroundColor: windowSize === n ? colors.primary : colors.secondary,
+                    borderColor: colors.border,
+                  },
+                ]}
+              >
+                <Text
+                  style={[
+                    wModal.windowBtnText,
+                    {
+                      color: windowSize === n ? colors.primaryForeground : colors.foreground,
+                      fontFamily: "Inter_500Medium",
+                    },
+                  ]}
+                >
+                  Last {n}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+
+          {histLoading ? (
+            <View style={wModal.centerWrap}>
+              <ActivityIndicator color={colors.primary} />
+            </View>
+          ) : sessionPoints.length === 0 ? (
+            <View style={wModal.centerWrap}>
+              <Text
+                style={[wModal.emptyText, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}
+              >
+                No history logged yet.
+              </Text>
+            </View>
+          ) : (
+            <>
+              <View style={[wModal.chartCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+                <Text
+                  style={[wModal.chartLabel, { color: colors.mutedForeground, fontFamily: "Inter_600SemiBold" }]}
+                >
+                  BEST SET WEIGHT PER SESSION
+                </Text>
+                <View style={{ height: chartH, justifyContent: "flex-end" }}>
+                  <View style={[wModal.chartBars, { height: chartH }]}>
+                    {sessionPoints.map((pt, i) => {
+                      const height =
+                        pt.maxWeight > 0
+                          ? Math.max(4, Math.round((pt.maxWeight / maxWeight) * chartH))
+                          : 3;
+                      const isLatest = i === sessionPoints.length - 1;
+                      return (
+                        <View key={pt.date} style={wModal.barCol}>
+                          <View
+                            style={[
+                              wModal.bar,
+                              {
+                                height,
+                                backgroundColor: pt.isPR
+                                  ? "#C17B3F"
+                                  : isLatest
+                                  ? colors.primary
+                                  : colors.primary + "55",
+                              },
+                            ]}
+                          />
+                        </View>
+                      );
+                    })}
+                  </View>
+                </View>
+                <View style={wModal.chartMeta}>
+                  <Text
+                    style={[wModal.chartMetaText, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}
+                  >
+                    {shortDate(sessionPoints[0]!.date)}
+                  </Text>
+                  <Text
+                    style={[wModal.chartMetaText, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}
+                  >
+                    {shortDate(sessionPoints[sessionPoints.length - 1]!.date)}
+                  </Text>
+                </View>
+                <View style={wModal.legendRow}>
+                  <View style={[wModal.legendDot, { backgroundColor: "#C17B3F" }]} />
+                  <Text
+                    style={[wModal.legendText, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}
+                  >
+                    Personal record
+                  </Text>
+                </View>
+              </View>
+
+              <View style={[wModal.listCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+                <Text
+                  style={[wModal.chartLabel, { color: colors.mutedForeground, fontFamily: "Inter_600SemiBold" }]}
+                >
+                  SESSIONS
+                </Text>
+                {[...sessionPoints].reverse().map((pt, i) => (
+                  <View
+                    key={pt.date}
+                    style={[
+                      wModal.sessionRow,
+                      { borderBottomColor: colors.border },
+                      i === sessionPoints.length - 1 && { borderBottomWidth: 0, paddingBottom: 0 },
+                    ]}
+                  >
+                    <Text
+                      style={[wModal.sessionDate, { color: colors.foreground, fontFamily: "Inter_500Medium" }]}
+                    >
+                      {shortDate(pt.date)}
+                    </Text>
+                    <Text
+                      style={[
+                        wModal.sessionWeight,
+                        {
+                          color: pt.isPR ? colors.primary : colors.foreground,
+                          fontFamily: pt.isPR ? "Inter_700Bold" : "Inter_500Medium",
+                        },
+                      ]}
+                    >
+                      {pt.maxWeight > 0 ? `${pt.maxWeight}kg` : "—"}
+                      {pt.maxReps > 0 ? ` × ${pt.maxReps}` : ""}
+                      {pt.isPR ? "  PR" : ""}
+                    </Text>
+                  </View>
+                ))}
+              </View>
+            </>
+          )}
+        </ScrollView>
+      </View>
+    </Modal>
+  );
+}
+
+const wModal = StyleSheet.create({
+  root: { flex: 1 },
+  header: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 20,
+    paddingTop: 24,
+    paddingBottom: 16,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+  },
+  title: { fontSize: 18, flex: 1, marginRight: 12 },
+  content: { padding: 16, gap: 14, paddingBottom: 60 },
+  windowRow: { flexDirection: "row", gap: 8 },
+  windowBtn: {
+    flex: 1,
+    paddingVertical: 9,
+    borderRadius: 10,
+    borderWidth: 1,
+    alignItems: "center",
+  },
+  windowBtnText: { fontSize: 13 },
+  centerWrap: { paddingVertical: 48, alignItems: "center" },
+  emptyText: { fontSize: 14 },
+  chartCard: {
+    borderRadius: 14,
+    borderWidth: StyleSheet.hairlineWidth,
+    padding: 14,
+    gap: 10,
+  },
+  chartLabel: { fontSize: 10, letterSpacing: 0.8 },
+  chartBars: { flexDirection: "row", alignItems: "flex-end", gap: 3 },
+  barCol: { flex: 1, alignItems: "center", justifyContent: "flex-end" },
+  bar: { width: "80%", borderRadius: 3 },
+  chartMeta: { flexDirection: "row", justifyContent: "space-between", marginTop: 2 },
+  chartMetaText: { fontSize: 10 },
+  legendRow: { flexDirection: "row", alignItems: "center", gap: 6 },
+  legendDot: { width: 8, height: 8, borderRadius: 4 },
+  legendText: { fontSize: 11 },
+  listCard: {
+    borderRadius: 14,
+    borderWidth: StyleSheet.hairlineWidth,
+    padding: 14,
+    gap: 10,
+  },
+  sessionRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingBottom: 10,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+  },
+  sessionDate: { fontSize: 14 },
+  sessionWeight: { fontSize: 14 },
+});
+
+// ─── WorkoutsSection ──────────────────────────────────────────────────────────
+
+function WorkoutsSection({ colors }: { colors: Colors }) {
+  const [sessions, setSessions] = useState<WSession[]>([]);
+  const [volume, setVolume] = useState<VolumeWeek[]>([]);
+  const [prs, setPrs] = useState<WorkoutPR[]>([]);
+  const [recentExercises, setRecentExercises] = useState<RecentExercise[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [selectedExercise, setSelectedExercise] = useState<{ id: number; name: string } | null>(
+    null,
+  );
+
+  const todayStr = useMemo(() => todayISO(), []);
+  const weekDates = useMemo(() => getCurrentWeekDates(), []);
+
+  useEffect(() => {
+    void load();
+  }, []);
+
+  async function load() {
+    setLoading(true);
+    try {
+      const [s, v, p, re] = await Promise.all([
+        customFetch<WSession[]>("/api/workout/sessions?status=completed&limit=60"),
+        customFetch<VolumeWeek[]>("/api/workout/volume?weeks=13"),
+        customFetch<WorkoutPR[]>("/api/workout/prs?limit=6"),
+        customFetch<RecentExercise[]>("/api/workout/recent-exercises?limit=10"),
+      ]);
+      setSessions(s);
+      setVolume(v);
+      setPrs(p);
+      setRecentExercises(re);
+    } catch {
+      // fail silently — section just stays in "loading" never resolved; user sees nothing
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  const sessionDates = useMemo(() => new Set(sessions.map((s) => s.date)), [sessions]);
+  const thisWeekCount = useMemo(
+    () => weekDates.filter((d) => sessionDates.has(d)).length,
+    [weekDates, sessionDates],
+  );
+  const streak = useMemo(() => computeWorkoutStreak(sessions), [sessions]);
+
+  const thisWeek = volume[volume.length - 1];
+  const lastWeek = volume[volume.length - 2];
+  const thisWeekTonnage = thisWeek?.tonnageKg ?? 0;
+  const lastWeekTonnage = lastWeek?.tonnageKg ?? 0;
+  const volumeDeltaPct =
+    lastWeekTonnage > 0
+      ? Math.round(((thisWeekTonnage - lastWeekTonnage) / lastWeekTonnage) * 100)
+      : null;
+
+  const noWorkouts = !loading && sessions.length === 0;
+
+  return (
+    <View style={wStyles.section}>
+      <View style={wStyles.sectionHeader}>
+        <View style={[wStyles.sectionDivider, { backgroundColor: colors.border }]} />
+        <Feather name="activity" size={12} color={colors.mutedForeground} />
+        <Text
+          style={[wStyles.sectionTitle, { color: colors.mutedForeground, fontFamily: "Inter_600SemiBold" }]}
+        >
+          WORKOUTS
+        </Text>
+        <View style={[wStyles.sectionDivider, { backgroundColor: colors.border }]} />
+      </View>
+
+      {loading ? (
+        <View style={wStyles.loadingWrap}>
+          <ActivityIndicator color={colors.primary} />
+        </View>
+      ) : noWorkouts ? (
+        <View style={[wStyles.emptyCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+          <Feather name="activity" size={28} color={colors.mutedForeground} />
+          <Text
+            style={[wStyles.emptyTitle, { color: colors.foreground, fontFamily: "Inter_600SemiBold" }]}
+          >
+            No workouts yet
+          </Text>
+          <Text
+            style={[wStyles.emptyText, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}
+          >
+            Complete a workout session to see your progress here.
+          </Text>
+        </View>
+      ) : (
+        <>
+          {/* Summary strip */}
+          <View
+            style={[wStyles.summaryCard, { backgroundColor: colors.card, borderColor: colors.border }]}
+          >
+            <View style={wStyles.summaryItem}>
+              <Text
+                style={[wStyles.summaryValue, { color: colors.foreground, fontFamily: "Inter_700Bold" }]}
+              >
+                {thisWeekCount}
+              </Text>
+              <Text
+                style={[wStyles.summaryLabel, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}
+              >
+                this week
+              </Text>
+            </View>
+            <View style={[wStyles.summaryDivider, { backgroundColor: colors.border }]} />
+            <View style={wStyles.summaryItem}>
+              <Text
+                style={[wStyles.summaryValue, { color: colors.foreground, fontFamily: "Inter_700Bold" }]}
+              >
+                {streak > 0 ? `${streak}d` : "0"}
+              </Text>
+              <Text
+                style={[wStyles.summaryLabel, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}
+              >
+                streak
+              </Text>
+            </View>
+            <View style={[wStyles.summaryDivider, { backgroundColor: colors.border }]} />
+            <View style={wStyles.summaryItem}>
+              <Text
+                style={[
+                  wStyles.summaryValue,
+                  {
+                    color: thisWeekTonnage > 0 ? colors.foreground : colors.mutedForeground,
+                    fontFamily: "Inter_700Bold",
+                  },
+                ]}
+              >
+                {thisWeekTonnage > 0 ? formatKg(thisWeekTonnage) : "—"}
+              </Text>
+              <Text
+                style={[wStyles.summaryLabel, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}
+              >
+                {volumeDeltaPct !== null
+                  ? `${volumeDeltaPct >= 0 ? "+" : ""}${volumeDeltaPct}% vs last wk`
+                  : "volume this wk"}
+              </Text>
+            </View>
+          </View>
+
+          {/* Workout-day consistency grid */}
+          <View
+            style={[wStyles.innerCard, { backgroundColor: colors.card, borderColor: colors.border }]}
+          >
+            <Text
+              style={[wStyles.cardLabel, { color: colors.mutedForeground, fontFamily: "Inter_600SemiBold" }]}
+            >
+              THIS WEEK
+            </Text>
+            <WeeklyGrid
+              weekDates={weekDates}
+              todayStr={todayStr}
+              completedSet={sessionDates}
+              colors={colors}
+            />
+          </View>
+
+          {/* Volume trend chart */}
+          {volume.length > 0 && (
+            <View
+              style={[wStyles.innerCard, { backgroundColor: colors.card, borderColor: colors.border }]}
+            >
+              <Text
+                style={[wStyles.cardLabel, { color: colors.mutedForeground, fontFamily: "Inter_600SemiBold" }]}
+              >
+                VOLUME — LAST 13 WEEKS (KG LIFTED)
+              </Text>
+              <WorkoutVolumeBars volume={volume} colors={colors} />
+            </View>
+          )}
+
+          {/* Personal records */}
+          {prs.length > 0 && (
+            <View>
+              <Text
+                style={[
+                  wStyles.listLabel,
+                  { color: colors.mutedForeground, fontFamily: "Inter_600SemiBold" },
+                ]}
+              >
+                PERSONAL RECORDS
+              </Text>
+              {prs.map((pr) => (
+                <TouchableOpacity
+                  key={pr.id}
+                  onPress={() =>
+                    pr.exerciseId
+                      ? setSelectedExercise({ id: pr.exerciseId, name: pr.exerciseName ?? "Exercise" })
+                      : null
+                  }
+                  activeOpacity={pr.exerciseId ? 0.75 : 1}
+                  style={[wStyles.prCard, { backgroundColor: colors.card, borderColor: colors.border }]}
+                >
+                  <View style={[wStyles.prIcon, { backgroundColor: "#F5EBE0" }]}>
+                    <Feather name="award" size={16} color="#C17B3F" />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text
+                      style={[wStyles.prName, { color: colors.foreground, fontFamily: "Inter_600SemiBold" }]}
+                      numberOfLines={1}
+                    >
+                      {pr.exerciseName ?? "Exercise"}
+                    </Text>
+                    <Text
+                      style={[wStyles.prDetail, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}
+                    >
+                      {pr.metricType === "1rm_kg"
+                        ? `${pr.weightKg}kg × ${pr.reps} rep${(pr.reps ?? 1) !== 1 ? "s" : ""}`
+                        : pr.metricType === "duration_sec"
+                        ? `${Math.round((pr.value ?? 0) / 60)}m duration`
+                        : `${pr.value} ${pr.metricType}`}
+                      {pr.achievedAt ? ` · ${shortDate(pr.achievedAt)}` : ""}
+                    </Text>
+                  </View>
+                  {pr.exerciseId ? (
+                    <Feather name="chevron-right" size={16} color={colors.mutedForeground} />
+                  ) : null}
+                </TouchableOpacity>
+              ))}
+            </View>
+          )}
+
+          {/* Recently trained exercises */}
+          {recentExercises.length > 0 && (
+            <View>
+              <Text
+                style={[
+                  wStyles.listLabel,
+                  { color: colors.mutedForeground, fontFamily: "Inter_600SemiBold" },
+                ]}
+              >
+                RECENT EXERCISES
+              </Text>
+              <View
+                style={[wStyles.exerciseList, { backgroundColor: colors.card, borderColor: colors.border }]}
+              >
+                {recentExercises.map((ex, i) => (
+                  <TouchableOpacity
+                    key={ex.exerciseId}
+                    onPress={() =>
+                      setSelectedExercise({ id: ex.exerciseId, name: ex.exerciseName ?? "Exercise" })
+                    }
+                    activeOpacity={0.75}
+                    style={[
+                      wStyles.exerciseRow,
+                      { borderBottomColor: colors.border },
+                      i === recentExercises.length - 1 && { borderBottomWidth: 0 },
+                    ]}
+                  >
+                    <Text
+                      style={[wStyles.exerciseName, { color: colors.foreground, fontFamily: "Inter_500Medium" }]}
+                      numberOfLines={1}
+                    >
+                      {ex.exerciseName ?? "Exercise"}
+                    </Text>
+                    <Text
+                      style={[wStyles.exerciseDate, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}
+                    >
+                      {shortDate(ex.lastDate)}
+                    </Text>
+                    <Feather name="chevron-right" size={14} color={colors.mutedForeground} />
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </View>
+          )}
+        </>
+      )}
+
+      <WorkoutProgressionModal
+        exercise={selectedExercise}
+        onClose={() => setSelectedExercise(null)}
+        colors={colors}
+      />
+    </View>
+  );
+}
+
+const wStyles = StyleSheet.create({
+  section: { paddingTop: 8, paddingBottom: 8, gap: 12 },
+  sectionHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    paddingHorizontal: 16,
+    marginBottom: 4,
+    marginTop: 16,
+  },
+  sectionDivider: { flex: 1, height: StyleSheet.hairlineWidth },
+  sectionTitle: { fontSize: 11, letterSpacing: 0.8 },
+  loadingWrap: { paddingVertical: 32, alignItems: "center" },
+  emptyCard: {
+    marginHorizontal: 16,
+    borderRadius: 14,
+    borderWidth: StyleSheet.hairlineWidth,
+    padding: 24,
+    alignItems: "center",
+    gap: 10,
+  },
+  emptyTitle: { fontSize: 15 },
+  emptyText: { fontSize: 13, textAlign: "center", lineHeight: 19 },
+  summaryCard: {
+    marginHorizontal: 16,
+    borderRadius: 14,
+    borderWidth: StyleSheet.hairlineWidth,
+    flexDirection: "row",
+    paddingVertical: 16,
+  },
+  summaryItem: { flex: 1, alignItems: "center", gap: 3 },
+  summaryValue: { fontSize: 20, lineHeight: 24 },
+  summaryLabel: { fontSize: 10, textAlign: "center", lineHeight: 14 },
+  summaryDivider: { width: StyleSheet.hairlineWidth, height: 36, alignSelf: "center" },
+  innerCard: {
+    marginHorizontal: 16,
+    borderRadius: 14,
+    borderWidth: StyleSheet.hairlineWidth,
+    padding: 14,
+    gap: 10,
+  },
+  cardLabel: { fontSize: 10, letterSpacing: 0.8 },
+  emptyBar: { height: 44, alignItems: "center", justifyContent: "center" },
+  emptyBarText: { fontSize: 12 },
+  listLabel: {
+    fontSize: 10,
+    letterSpacing: 0.8,
+    paddingHorizontal: 16,
+    marginBottom: 8,
+  },
+  prCard: {
+    marginHorizontal: 16,
+    borderRadius: 14,
+    borderWidth: StyleSheet.hairlineWidth,
+    padding: 14,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    marginBottom: 8,
+  },
+  prIcon: { width: 36, height: 36, borderRadius: 10, alignItems: "center", justifyContent: "center" },
+  prName: { fontSize: 14, lineHeight: 18 },
+  prDetail: { fontSize: 12, marginTop: 2 },
+  exerciseList: {
+    marginHorizontal: 16,
+    borderRadius: 14,
+    borderWidth: StyleSheet.hairlineWidth,
+    overflow: "hidden",
+  },
+  exerciseRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 14,
+    paddingVertical: 13,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    gap: 8,
+  },
+  exerciseName: { flex: 1, fontSize: 14 },
+  exerciseDate: { fontSize: 12 },
+});
+
 // ─── EmptyState ───────────────────────────────────────────────────────────────
 
 function EmptyState({ colors }: { colors: Colors }) {
@@ -704,6 +1446,7 @@ export default function ProgressScreen() {
         renderItem={renderItem}
         ListHeaderComponent={ListHeader}
         ListEmptyComponent={ListEmpty}
+        ListFooterComponent={<WorkoutsSection colors={colors} />}
         contentContainerStyle={{ paddingBottom: 120 }}
         showsVerticalScrollIndicator={false}
         activationDistance={5}

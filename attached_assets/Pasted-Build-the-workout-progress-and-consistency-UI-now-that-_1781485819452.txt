@@ -1,0 +1,18 @@
+Build the workout progress and consistency UI, now that the session, PR, volume, and summary backend exists. Build it fresh — there's no shared progress component, so reuse the visual language of the existing inline components in the Progress tab (the weekly/30-day grids and the trend chart) so it feels native to that screen.
+
+Add a Workouts section to the Progress tab showing:
+- A summary strip: workouts completed this week, current workout streak, and this week's total volume compared to last week.
+- Recent personal records as cards, newest first; tapping a PR opens that exercise's progression.
+- A volume-over-time chart (weekly volume across roughly the last three months), matching the existing trend-chart style.
+- A workout-day consistency view (which days the user trained), reusing the existing grid pattern.
+- A list of recently trained exercises; tapping one opens a per-exercise progression chart (weight and estimated 1RM or volume over time) driven by the exercise-history endpoint. This progression should support windowing to a recent number of sessions — if the exercise-history endpoint's limit query param was dropped earlier to resolve a naming collision, restore it under a renamed parameter so the collision doesn't return.
+
+Also add two lightweight overlay cards to the Home briefing (not a new screen): the latest personal record, and this week's workout consistency. Keep these glanceable and consistent with the existing "From Valo" card style — insights as an overlay, not a destination.
+
+Pull all values from the existing workout session/PR/volume/summary endpoints; don't recompute on the client. Handle the empty state gracefully (no sessions yet) so the screen reads well before the user has logged workouts.
+
+Acceptance criteria:
+- The Progress tab has a Workouts section with the summary strip, recent PRs, volume chart, consistency view, and per-exercise progression on tap.
+- Per-exercise progression uses the exercise-history endpoint and supports limiting to a recent window.
+- Home shows the two overlay cards, styled consistently with existing cards.
+- Empty states render cleanly with no logged workouts.

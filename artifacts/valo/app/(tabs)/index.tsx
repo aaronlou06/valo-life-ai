@@ -28,6 +28,7 @@ import { useColors } from "@/hooks/useColors";
 import { useValoAuth } from "@/contexts/AuthContext";
 import { CheckInSheet } from "@/components/CheckInSheet";
 import { triggerVoiceStart } from "@/lib/voiceTrigger";
+import { customFetch } from "@workspace/api-client-react";
 
 const isIOS = Platform.OS === "ios";
 const BUG_EMAIL = "support@govalo.app";
@@ -776,6 +777,216 @@ function QuickCheckIn({
   );
 }
 
+// ── WorkoutSnapshot ────────────────────────────────────────────────────────────
+
+type SnapPR = {
+  exerciseName: string | null;
+  weightKg: number | null;
+  reps: number | null;
+  achievedAt: string | null;
+};
+
+function WorkoutSnapshot({
+  colors,
+  router,
+}: {
+  colors: ReturnType<typeof useColors>;
+  router: ReturnType<typeof useRouter>;
+}) {
+  const [pr, setPr] = useState<SnapPR | null>(null);
+  const [weekSessions, setWeekSessions] = useState<number | null>(null);
+  const [sessionDates, setSessionDates] = useState<Set<string>>(new Set());
+  const [loaded, setLoaded] = useState(false);
+
+  useEffect(() => {
+    void load();
+  }, []);
+
+  async function load() {
+    try {
+      const [prs, sessions] = await Promise.all([
+        customFetch<SnapPR[]>("/api/workout/prs?limit=1"),
+        customFetch<{ id: number; date: string; status: string }[]>(
+          "/api/workout/sessions?status=completed&limit=60",
+        ),
+      ]);
+      if (prs.length > 0) setPr(prs[0]!);
+
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const dow = today.getDay();
+      const mondayOffset = dow === 0 ? -6 : 1 - dow;
+      const monday = new Date(today);
+      monday.setDate(today.getDate() + mondayOffset);
+      const weekSet = new Set(
+        Array.from({ length: 7 }, (_, i) => {
+          const d = new Date(monday);
+          d.setDate(monday.getDate() + i);
+          return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+        }),
+      );
+
+      const sessionDateSet = new Set(sessions.map((s) => s.date));
+      const count = [...weekSet].filter((d) => sessionDateSet.has(d)).length;
+      setWeekSessions(count);
+      setSessionDates(sessionDateSet);
+    } catch {
+      // ignore — no cards shown on error
+    } finally {
+      setLoaded(true);
+    }
+  }
+
+  if (!loaded) return null;
+  const hasPR = !!pr;
+  const hasAnySession = sessionDates.size > 0;
+  if (!hasPR && !hasAnySession) return null;
+
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const dow = today.getDay();
+  const mondayOffset = dow === 0 ? -6 : 1 - dow;
+  const monday = new Date(today);
+  monday.setDate(today.getDate() + mondayOffset);
+  const weekDates = Array.from({ length: 7 }, (_, i) => {
+    const d = new Date(monday);
+    d.setDate(monday.getDate() + i);
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  });
+  const todayStr = weekDates[dow === 0 ? 6 : dow - 1]!;
+
+  return (
+    <View style={snapStyles.container}>
+      {hasPR && (
+        <TouchableOpacity
+          onPress={() => router.navigate("/(tabs)/progress")}
+          activeOpacity={0.78}
+          style={[
+            snapStyles.card,
+            {
+              backgroundColor: "#FDF6F0",
+              borderColor: "#E8D9CC",
+              borderLeftColor: "#C17B3F",
+            },
+          ]}
+        >
+          <View style={snapStyles.cardHeader}>
+            <Text
+              style={[snapStyles.cardLabel, { color: "#C17B3F", fontFamily: "Inter_600SemiBold" }]}
+            >
+              Latest PR
+            </Text>
+            <Feather name="award" size={13} color="#C17B3F" />
+          </View>
+          <Text
+            style={[snapStyles.cardMain, { color: "#1A1814", fontFamily: "Inter_600SemiBold" }]}
+            numberOfLines={1}
+          >
+            {pr!.exerciseName ?? "Exercise"}
+          </Text>
+          <Text
+            style={[snapStyles.cardSub, { color: "#8A7060", fontFamily: "Inter_400Regular" }]}
+          >
+            {pr!.weightKg ? `${pr!.weightKg}kg` : ""}
+            {pr!.weightKg && pr!.reps ? " × " : ""}
+            {pr!.reps ? `${pr!.reps} rep${pr!.reps !== 1 ? "s" : ""}` : ""}
+            {pr!.achievedAt
+              ? ` · ${new Date(pr!.achievedAt).toLocaleDateString("en-US", { month: "short", day: "numeric" })}`
+              : ""}
+          </Text>
+        </TouchableOpacity>
+      )}
+      {hasAnySession && (
+        <TouchableOpacity
+          onPress={() => router.navigate("/(tabs)/progress")}
+          activeOpacity={0.78}
+          style={[
+            snapStyles.card,
+            {
+              backgroundColor: (weekSessions ?? 0) > 0 ? "#F0F6F2" : "#F5F4F2",
+              borderColor: (weekSessions ?? 0) > 0 ? "#C2DAC9" : "#E0DDD8",
+              borderLeftColor: (weekSessions ?? 0) > 0 ? "#4A7D68" : "#C0BBB4",
+            },
+          ]}
+        >
+          <View style={snapStyles.cardHeader}>
+            <Text
+              style={[
+                snapStyles.cardLabel,
+                {
+                  color: (weekSessions ?? 0) > 0 ? "#4A7D68" : "#8B8780",
+                  fontFamily: "Inter_600SemiBold",
+                },
+              ]}
+            >
+              Workouts this week
+            </Text>
+            <Feather
+              name="activity"
+              size={13}
+              color={(weekSessions ?? 0) > 0 ? "#4A7D68" : "#8B8780"}
+            />
+          </View>
+          <View style={snapStyles.dotRow}>
+            {weekDates.map((d) => {
+              const isCompleted = sessionDates.has(d);
+              const isFuture = d > todayStr;
+              return (
+                <View
+                  key={d}
+                  style={[
+                    snapStyles.dot,
+                    {
+                      backgroundColor: isCompleted
+                        ? "#4A7D68"
+                        : isFuture
+                        ? "#E8E4E0"
+                        : "#D0CCC8",
+                    },
+                  ]}
+                />
+              );
+            })}
+          </View>
+          <Text
+            style={[
+              snapStyles.cardSub,
+              {
+                color: (weekSessions ?? 0) > 0 ? "#3A6A55" : "#8B8780",
+                fontFamily: "Inter_400Regular",
+              },
+            ]}
+          >
+            {weekSessions ?? 0} workout{(weekSessions ?? 0) !== 1 ? "s" : ""} logged
+          </Text>
+        </TouchableOpacity>
+      )}
+    </View>
+  );
+}
+
+const snapStyles = StyleSheet.create({
+  container: { gap: 10, marginBottom: 24 },
+  card: {
+    borderRadius: 14,
+    borderWidth: 1,
+    borderLeftWidth: 3,
+    padding: 14,
+    gap: 4,
+  },
+  cardHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 2,
+  },
+  cardLabel: { fontSize: 11, letterSpacing: 0.8, textTransform: "uppercase" },
+  cardMain: { fontSize: 15, lineHeight: 20 },
+  cardSub: { fontSize: 13, lineHeight: 18, marginTop: 2 },
+  dotRow: { flexDirection: "row", gap: 5, marginVertical: 4 },
+  dot: { flex: 1, height: 14, borderRadius: 3 },
+});
+
 // ── HomeScreen ─────────────────────────────────────────────────────────────────
 
 export default function HomeScreen() {
@@ -947,6 +1158,9 @@ export default function HomeScreen() {
             </Text>
           </View>
         )}
+
+        {/* ── Workout snapshot ── */}
+        <WorkoutSnapshot colors={colors} router={router} />
 
         {/* ── Quick check-in ── */}
         <QuickCheckIn

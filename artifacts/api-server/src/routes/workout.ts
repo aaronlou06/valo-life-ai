@@ -470,6 +470,74 @@ router.get(
   },
 );
 
+/**
+ * GET /workout/prs
+ * All personal records across all exercises for the authenticated user, newest first.
+ * Query: ?limit=20
+ */
+router.get("/workout/prs", requireAuth, async (req, res): Promise<void> => {
+  const userId = (req as AuthenticatedRequest).userId;
+  const limit = Math.min(parseInt((req.query.limit as string | undefined) ?? "20", 10) || 20, 100);
+
+  const prs = await db
+    .select({
+      id: workoutPersonalRecordsTable.id,
+      exerciseId: workoutPersonalRecordsTable.exerciseId,
+      exerciseName: exercisesTable.name,
+      metricType: workoutPersonalRecordsTable.metricType,
+      value: workoutPersonalRecordsTable.value,
+      weightKg: workoutPersonalRecordsTable.weightKg,
+      reps: workoutPersonalRecordsTable.reps,
+      estimatedOneRepMax: workoutPersonalRecordsTable.estimatedOneRepMax,
+      achievedAt: workoutPersonalRecordsTable.achievedAt,
+    })
+    .from(workoutPersonalRecordsTable)
+    .leftJoin(exercisesTable, eq(workoutPersonalRecordsTable.exerciseId, exercisesTable.id))
+    .where(eq(workoutPersonalRecordsTable.userId, userId))
+    .orderBy(desc(workoutPersonalRecordsTable.achievedAt))
+    .limit(limit);
+
+  res.json(prs);
+});
+
+/**
+ * GET /workout/recent-exercises
+ * Most recently trained unique exercises across completed sessions.
+ * Query: ?limit=12
+ */
+router.get("/workout/recent-exercises", requireAuth, async (req, res): Promise<void> => {
+  const userId = (req as AuthenticatedRequest).userId;
+  const limit = Math.min(parseInt((req.query.limit as string | undefined) ?? "12", 10) || 12, 50);
+
+  const rows = await db
+    .select({
+      exerciseId: workoutSetLogsTable.exerciseId,
+      exerciseName: exercisesTable.name,
+      lastDate: workoutSessionsTable.date,
+    })
+    .from(workoutSetLogsTable)
+    .innerJoin(workoutSessionsTable, eq(workoutSetLogsTable.sessionId, workoutSessionsTable.id))
+    .leftJoin(exercisesTable, eq(workoutSetLogsTable.exerciseId, exercisesTable.id))
+    .where(
+      and(
+        eq(workoutSessionsTable.userId, userId),
+        eq(workoutSessionsTable.status, "completed"),
+      ),
+    )
+    .orderBy(desc(workoutSetLogsTable.loggedAt));
+
+  const seen = new Set<number>();
+  const result: (typeof rows)[number][] = [];
+  for (const row of rows) {
+    if (row.exerciseId !== null && !seen.has(row.exerciseId)) {
+      seen.add(row.exerciseId);
+      result.push(row);
+      if (result.length >= limit) break;
+    }
+  }
+  res.json(result);
+});
+
 // ─── Volume Trend ─────────────────────────────────────────────────────────────
 
 /**
