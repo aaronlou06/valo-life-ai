@@ -1,0 +1,24 @@
+The live workout screen (copilot-workout.tsx, shown during an active session) is broken. There's a large empty gap filling the top half of the screen while all the content is crammed into the bottom, and the set-logging area — the most important part — is cut off behind the rest-timer bar, so the screen is currently unusable for actually logging a workout.
+
+Rebuild the layout of this screen so it fills naturally top-to-bottom and puts the things the user interacts with most where they belong. This is a layout and hierarchy fix, not a restyle — keep the existing warm palette and stay visually consistent with the other workout screens. Don't change any workout logic, data flow, or the underlying functionality; only reorganize the presentation of what's already there.
+
+Target hierarchy, top to bottom:
+
+1. Compact header: a collapse control, the workout name and elapsed timer, and a clearly-labeled control to finish/complete the workout. Keep it thin. (The current top-right control is an ambiguous spinner — make every control on this screen visibly say what it does.)
+2. A slim exercise-progress indicator near the top (the current dots are fine, just compact) showing which exercise the user is on.
+3. The current exercise as the hero of the screen, placed high up where the empty gap currently sits: category tag, exercise position (e.g. 2/2), exercise name, and target.
+4. The set-logging table directly below it as the primary, always-visible interaction: one row per set with weight and reps inputs and a complete-set control, the current set clearly highlighted, large tap targets, and an add-set option. This must be fully visible and usable and never cut off — it is the focal point of the screen.
+5. The rest timer as a contextual banner that appears after a set is logged and never covers or pushes the set inputs out of view. Keep its Skip control.
+6. Prev / Next exercise navigation fixed at the bottom.
+
+Heart rate: demote it from the large card it currently is. Give it a single entry point — a compact "Connect" chip or slim strip when no monitor is paired, and a compact live BPM + zone readout when one is connected. The detailed HR breakdown already lives on the summary screen, so the live screen only needs the glanceable current value. Don't let HR occupy hero space, and don't have two separate heart-rate controls.
+
+Eliminate the empty vertical gap entirely — content flows from the header downward, scrolling within the set area if it overflows, while the header and the Prev/Next bar stay fixed.
+
+Acceptance criteria:
+- No large empty space; the screen fills naturally from the top.
+- The set-logging table is fully visible and is the focal point; entering weight/reps and completing a set works with nothing cut off.
+- The rest banner appears contextually without obscuring the set inputs.
+- Heart rate is a single compact affordance (connect chip when off, live BPM + zone when on).
+- Every control is clearly labeled, including a clear finish-workout action.
+- Prev/Next stays fixed at the bottom; the warm palette and existing styling are preserved.
