@@ -48,7 +48,7 @@ function isoWeekStart(dateStr: string): string {
  */
 router.post("/workout/sessions", requireAuth, async (req, res): Promise<void> => {
   const userId = (req as AuthenticatedRequest).userId;
-  const { name, templateId, date } = req.body as Record<string, unknown>;
+  const { name, templateId, date, calendarEventId } = req.body as Record<string, unknown>;
   if (!name || typeof name !== "string") {
     res.status(400).json({ error: "name is required" });
     return;
@@ -64,6 +64,7 @@ router.post("/workout/sessions", requireAuth, async (req, res): Promise<void> =>
       status: "in_progress",
       startedAt: new Date(),
       templateId: typeof templateId === "number" ? templateId : null,
+      calendarEventId: typeof calendarEventId === "number" ? calendarEventId : null,
     })
     .returning();
   res.status(201).json(session);
@@ -297,6 +298,19 @@ router.post("/workout/sessions/:id/complete", requireAuth, async (req, res): Pro
   }
 
   const result = await completeWorkoutSession(userId, sessionId);
+
+  if (session.calendarEventId) {
+    await db
+      .update(calendarEventsTable)
+      .set({ isCompleted: true })
+      .where(
+        and(
+          eq(calendarEventsTable.id, session.calendarEventId),
+          eq(calendarEventsTable.userId, userId),
+        ),
+      );
+  }
+
   res.json(result);
 });
 
@@ -980,12 +994,64 @@ router.put("/workout/programs/:id/days", requireAuth, async (req, res): Promise<
   if (!prog) { res.status(404).json({ error: "Not found" }); return; }
   const { days } = req.body as { days: Array<{ weekNumber: number; dayOfWeek: string; templateId?: number | null }> };
   if (!Array.isArray(days)) { res.status(400).json({ error: "days must be an array" }); return; }
-  await db.delete(workoutProgramDaysTable).where(eq(workoutProgramDaysTable.programId, id));
-  if (days.length > 0) {
-    await db.insert(workoutProgramDaysTable).values(
-      days.map((d) => ({ programId: id, weekNumber: d.weekNumber, dayOfWeek: d.dayOfWeek, templateId: d.templateId ?? null })),
-    );
-  }
+
+  await db.transaction(async (tx) => {
+    await tx.delete(workoutProgramDaysTable).where(eq(workoutProgramDaysTable.programId, id));
+    if (days.length > 0) {
+      await tx.insert(workoutProgramDaysTable).values(
+        days.map((d) => ({ programId: id, weekNumber: d.weekNumber, dayOfWeek: d.dayOfWeek, templateId: d.templateId ?? null })),
+      );
+    }
+
+    if (prog.startDate) {
+      await tx.delete(calendarEventsTable).where(
+        and(
+          eq(calendarEventsTable.userId, userId),
+          eq(calendarEventsTable.type, "workout"),
+          like(calendarEventsTable.notes!, `%"programId":${id}%`),
+        ),
+      );
+
+      const templateIds = days.map((d) => d.templateId).filter((t): t is number => t != null);
+      const tplRows = templateIds.length > 0
+        ? await tx.select({ id: workoutTemplatesTable.id, name: workoutTemplatesTable.name })
+            .from(workoutTemplatesTable)
+            .where(inArray(workoutTemplatesTable.id, templateIds))
+        : [];
+      const tplMap = new Map(tplRows.map((t) => [t.id, t.name]));
+
+      const sd = new Date(prog.startDate + "T12:00:00");
+      const dow = sd.getDay();
+      const daysToMon = dow === 0 ? 1 : (dow === 1 ? 0 : 8 - dow);
+      const week1Mon = new Date(sd);
+      week1Mon.setDate(sd.getDate() + daysToMon);
+      const dayOffsets: Record<string, number> = { mon: 0, tue: 1, wed: 2, thu: 3, fri: 4, sat: 5, sun: 6 };
+
+      const eventsToInsert = days
+        .filter((d) => d.templateId != null)
+        .map((d) => {
+          const weekOffset = (d.weekNumber - 1) * 7;
+          const dayOffset = dayOffsets[d.dayOfWeek] ?? 0;
+          const eventDate = new Date(week1Mon);
+          eventDate.setDate(week1Mon.getDate() + weekOffset + dayOffset);
+          const dateStr = eventDate.toISOString().split("T")[0]!;
+          const templateName = tplMap.get(d.templateId!) ?? prog.name;
+          return {
+            userId,
+            date: dateStr,
+            title: templateName,
+            type: "workout",
+            notes: JSON.stringify({ programId: id, programName: prog.name, templateId: d.templateId, templateName }),
+            recurrenceType: "none",
+          };
+        });
+
+      if (eventsToInsert.length > 0) {
+        await tx.insert(calendarEventsTable).values(eventsToInsert);
+      }
+    }
+  });
+
   res.sendStatus(204);
 });
 

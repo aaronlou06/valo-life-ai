@@ -185,6 +185,7 @@ type CalendarEvent = {
   recurrenceInterval?: number | null;
   recurrenceEndDate?: string | null;
   deletedOccurrences?: string | null;
+  isCompleted?: boolean | null;
 };
 type RepeatType = "none" | "daily" | "weekly" | "monthly" | "custom";
 type RecurrenceType = "every_day" | "every_week" | "every_other_week" | "custom_days" | "every_month";
@@ -1270,8 +1271,8 @@ function DayDetailSheet({
                     onPress={isRoutine ? () => onRoutineTap(ev) : isWorkout ? () => {
                       onClose();
                       router.push(workoutTemplateId
-                        ? ({ pathname: "/copilot-start" as never, params: { autoTemplateId: String(workoutTemplateId) } })
-                        : ("/copilot-start" as never));
+                        ? ({ pathname: "/copilot-start" as never, params: { autoTemplateId: String(workoutTemplateId), calendarEventId: String(ev.id) } })
+                        : ({ pathname: "/copilot-start" as never, params: { calendarEventId: String(ev.id) } }));
                     } : undefined}
                     activeOpacity={isRoutine || isWorkout ? 0.75 : 1}
                   >
@@ -1284,10 +1285,17 @@ function DayDetailSheet({
                           <Feather name="chevron-right" size={10} color={bc} />
                         </View>
                       ) : isWorkout ? (
-                        <View style={[planStyles.typeBadge, { backgroundColor: bc + "22", flexDirection: "row", alignItems: "center", gap: 3 }]}>
-                          <Text style={[planStyles.typeBadgeText, { color: bc, fontFamily: "Inter_500Medium" }]}>Workout</Text>
-                          <Feather name="chevron-right" size={10} color={bc} />
-                        </View>
+                        ev.isCompleted ? (
+                          <View style={[planStyles.typeBadge, { backgroundColor: "#D4EDDA", flexDirection: "row", alignItems: "center", gap: 3 }]}>
+                            <Feather name="check" size={10} color="#3A7A52" />
+                            <Text style={[planStyles.typeBadgeText, { color: "#3A7A52", fontFamily: "Inter_500Medium" }]}>Done</Text>
+                          </View>
+                        ) : (
+                          <View style={[planStyles.typeBadge, { backgroundColor: bc + "22", flexDirection: "row", alignItems: "center", gap: 3 }]}>
+                            <Text style={[planStyles.typeBadgeText, { color: bc, fontFamily: "Inter_500Medium" }]}>Workout</Text>
+                            <Feather name="chevron-right" size={10} color={bc} />
+                          </View>
+                        )
                       ) : (
                         <View style={[planStyles.typeBadge, { backgroundColor: bc + "22" }]}>
                           <Text style={[planStyles.typeBadgeText, { color: bc, fontFamily: "Inter_500Medium" }]}>{typeBadgeLabel(ev.type)}</Text>

@@ -15,7 +15,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Feather } from "@expo/vector-icons";
-import { useRouter } from "expo-router";
+import { useRouter, useLocalSearchParams } from "expo-router";
 import * as Haptics from "expo-haptics";
 import { customFetch } from "@workspace/api-client-react";
 import { useColors } from "@/hooks/useColors";
@@ -58,6 +58,8 @@ export default function CopilotStartScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { activeSession, startSession, endSession } = useWorkoutCopilot();
+  const { autoTemplateId, calendarEventId: calendarEventIdParam } = useLocalSearchParams<{ autoTemplateId?: string; calendarEventId?: string }>();
+  const linkedCalendarEventId = calendarEventIdParam ? parseInt(calendarEventIdParam, 10) : null;
 
   const [templates, setTemplates] = useState<WorkoutTemplate[]>([]);
   const [loadingTemplates, setLoadingTemplates] = useState(true);
@@ -82,14 +84,19 @@ export default function CopilotStartScreen() {
     }
   }
 
-  async function startFromTemplate(template: WorkoutTemplate) {
+  async function startFromTemplate(template: WorkoutTemplate, overrideCalendarEventId?: number | null) {
     if (creating) return;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
     setCreating(true);
+    const calEvId = overrideCalendarEventId !== undefined ? overrideCalendarEventId : linkedCalendarEventId;
     try {
       const session = await customFetch<WorkoutSession>("/api/workout/sessions", {
         method: "POST",
-        body: JSON.stringify({ name: template.name, templateId: template.id }),
+        body: JSON.stringify({
+          name: template.name,
+          templateId: template.id,
+          ...(calEvId != null ? { calendarEventId: calEvId } : {}),
+        }),
       });
       startSession({
         name: template.name,

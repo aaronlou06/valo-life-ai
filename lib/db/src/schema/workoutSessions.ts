@@ -24,6 +24,7 @@ export const workoutSessionsTable = pgTable("workout_sessions", {
   // Seconds spent in each HR zone, e.g. { rest: 30, z1: 120, z2: 300, ... }.
   timeInZone: jsonb("time_in_zone").$type<Record<string, number>>(),
   caloriesKcal: integer("calories_kcal"),
+  calendarEventId: integer("calendar_event_id"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 }, (t) => [
