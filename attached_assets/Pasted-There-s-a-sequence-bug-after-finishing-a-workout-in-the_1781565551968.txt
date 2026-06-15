@@ -1,0 +1,22 @@
+There's a sequence bug after finishing a workout in the Workout Co-Pilot.
+
+Reproduction:
+- Open Copilot Modules → tap the Workouts row → sheet opens.
+- Tap "Start a workout" → log a workout.
+- Tap "Finish workout" → summary screen appears.
+- Dismiss the summary → user lands back on Copilot Modules.
+- At this point, the Workout Co-Pilot sheet automatically re-opens by itself, and once it's open in this state, none of the dismiss paths (backdrop tap, swipe-down, down-chevron, device back button) work. The user is stuck.
+
+This is two problems:
+
+PROBLEM 1 (root cause) — The sheet should NEVER auto-open. It should only open when the user explicitly taps the Workouts row in Copilot Modules. Find what's calling expand() (or whatever opens the sheet) in the post-workout flow — likely in the finish-workout handler, the summary screen's dismiss handler, or somewhere navigating back to Copilot Modules — and remove that call. The summary screen should dismiss to the previous screen with the sheet CLOSED.
+
+PROBLEM 2 (safety net) — Audit the sheet's dismiss logic and confirm all four dismiss paths (backdrop, swipe, chevron, back button) work unconditionally, in every session state, with no gating on session.status, activeSession being null/non-null, or any other condition. If any path is currently gated on session state, ungate it. The previous fix for this didn't fully take, so please verify each of the four paths actually executes the dismiss in code, not just check that the handler exists.
+
+Before making changes, trace the exact sequence: where is expand() called from after finish? Report what you find, then fix it.
+
+Acceptance criteria:
+- After finishing a workout and dismissing the summary, the user lands on Copilot Modules (or wherever they were) with the sheet CLOSED.
+- The sheet only opens when the Workouts row is tapped.
+- All four dismiss paths reliably close the sheet in every session state.
+- Tell me what was calling expand() in the post-finish flow before removing it.
