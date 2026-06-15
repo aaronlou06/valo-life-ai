@@ -171,6 +171,7 @@ export function WorkoutCopilotPanel() {
     pathname.includes("sign-in") ||
     pathname.includes("sign-up");
 
+  // Never render anything until hydrated or when on routes that own the full screen.
   if (!hydrated || !isSignedIn || hideOnRoute) return null;
 
   function handleExpand() {
@@ -193,54 +194,42 @@ export function WorkoutCopilotPanel() {
 
   return (
     <>
-      {/* Minimized slim bar — always present above the tab bar */}
-      <View style={[styles.barWrapper, { bottom: barBottom }]} pointerEvents="box-none">
-        <Pressable
-          onPress={handleExpand}
-          style={({ pressed }) => [
-            styles.bar,
-            {
-              backgroundColor: colors.card,
-              borderColor: colors.border,
-              opacity: pressed ? 0.92 : 1,
-            },
-          ]}
-        >
-          <View
-            style={[
-              styles.barIcon,
-              { backgroundColor: activeSession ? "#F5DDD8" : colors.secondary },
+      {/* Minimized slim bar — only shown when a workout session is active */}
+      {activeSession ? (
+        <View style={[styles.barWrapper, { bottom: barBottom }]} pointerEvents="box-none">
+          <Pressable
+            onPress={handleExpand}
+            style={({ pressed }) => [
+              styles.bar,
+              {
+                backgroundColor: colors.card,
+                borderColor: colors.border,
+                opacity: pressed ? 0.92 : 1,
+              },
             ]}
           >
-            <Feather
-              name="activity"
-              size={18}
-              color={activeSession ? "#A06050" : colors.primary}
-            />
-          </View>
-          <View style={styles.barText}>
-            <Text
-              numberOfLines={1}
-              style={[styles.barTitle, { color: colors.foreground, fontFamily: "Inter_600SemiBold" }]}
-            >
-              {barTitle}
-            </Text>
-            <Text
-              numberOfLines={1}
-              style={[
-                styles.barSubtitle,
-                { color: activeSession ? colors.primary : colors.mutedForeground, fontFamily: "Inter_500Medium" },
-              ]}
-            >
-              {barSubtitle}
-            </Text>
-          </View>
-          {activeSession ? (
+            <View style={[styles.barIcon, { backgroundColor: "#F5DDD8" }]}>
+              <Feather name="activity" size={18} color="#A06050" />
+            </View>
+            <View style={styles.barText}>
+              <Text
+                numberOfLines={1}
+                style={[styles.barTitle, { color: colors.foreground, fontFamily: "Inter_600SemiBold" }]}
+              >
+                {barTitle}
+              </Text>
+              <Text
+                numberOfLines={1}
+                style={[styles.barSubtitle, { color: colors.primary, fontFamily: "Inter_500Medium" }]}
+              >
+                {barSubtitle}
+              </Text>
+            </View>
             <View style={[styles.liveDot, { backgroundColor: "#A06050" }]} />
-          ) : null}
-          <Feather name="chevron-up" size={20} color={colors.mutedForeground} />
-        </Pressable>
-      </View>
+            <Feather name="chevron-up" size={20} color={colors.mutedForeground} />
+          </Pressable>
+        </View>
+      ) : null}
 
       {/* Expanded sheet */}
       <Modal
