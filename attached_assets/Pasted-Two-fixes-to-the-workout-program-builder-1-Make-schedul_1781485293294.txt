@@ -1,0 +1,24 @@
+Two fixes to the workout program builder.
+
+1) Make schedule edits transactional and keep attached calendar events in sync.
+
+The current PUT /workout/programs/:id/days replaces the entire schedule with no transaction. For programs that are already attached (have a startDate and generated calendar events), this can leave calendar events pointing at schedule rows that no longer exist, or vice versa, or both partially deleted on a mid-write failure.
+
+Fix it so a schedule write happens inside a single database transaction, and so the calendar events for an attached program stay consistent with the schedule after every edit. Pick whichever of these fits the codebase better:
+
+- The schedule write and a regeneration of that program's calendar events both happen inside one transaction (so either both succeed or neither does).
+- Or: editing the schedule of an attached program is rejected until the user detaches, and you surface a clear error or confirmation prompt on the client to handle that. If you pick this, deleting a program (which already cascades events) still works as today.
+
+Either is acceptable. Pick one, do it cleanly, and tell me which you chose and why.
+
+2) Make sure completing a workout marks its calendar event done.
+
+When a workout session that was launched from a calendar event is completed, the corresponding calendar event should be marked completed so the Plan page reflects it and so the consistency view in the next round counts the day as done. Check whether this already happens — the session likely needs to remember which calendar event launched it, and the completion flow needs to update that event.
+
+If it already works, tell me so and don't change anything. If it doesn't, wire it up: thread the calendar event id from the Plan tap-through into the session, and on session completion mark that event completed. Be defensive about freestyle/ad-hoc sessions that weren't launched from a calendar event — they have no event to update and that's fine.
+
+Acceptance criteria:
+- Schedule edits to an attached program either run transactionally with event regeneration, or are blocked with a clear path to detach-edit-reattach; no half-applied state is possible.
+- A workout session launched from a Plan calendar event marks that event completed when the session finishes.
+- Ad-hoc sessions (not launched from a calendar event) finish cleanly with nothing to update.
+- Tell me which approach you took for fix #1 and whether fix #2 needed changes or was already in place.
