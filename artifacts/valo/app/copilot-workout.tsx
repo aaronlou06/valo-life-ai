@@ -809,6 +809,9 @@ export default function CopilotWorkoutScreen() {
       ? supersetLabels.get(currentExercise.supersetGroupId)
       : null;
 
+  // ── Bottom clearance: nav (~72px) + optional rest timer (~52px) + slack
+  const scrollPaddingBottom = 16 + 72 + (restRemaining !== null ? 52 : 0) + (insets.bottom > 0 ? insets.bottom : 0);
+
   return (
     <View style={[styles.root, { backgroundColor: colors.background }]}>
       {/* ── Header ── */}
@@ -846,152 +849,109 @@ export default function CopilotWorkoutScreen() {
             <ActivityIndicator size="small" color={colors.primaryForeground} />
           ) : (
             <Text style={[styles.finishText, { color: colors.primaryForeground, fontFamily: "Inter_700Bold" }]}>
-              Finish
+              Finish workout
             </Text>
           )}
         </TouchableOpacity>
       </View>
 
-      {/* ── Exercise progress dots ── */}
-      {exercises.length > 0 && (
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.progressRow}
-          style={[styles.progressBar, { backgroundColor: colors.card, borderBottomColor: colors.border }]}
+      {/* ── Progress dots + compact HR chip ── */}
+      <View style={[styles.progressBar, { backgroundColor: colors.card, borderBottomColor: colors.border }]}>
+        {exercises.length > 0 ? (
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.progressRow}
+            style={{ flex: 1 }}
+          >
+            {exercises.map((ex, i) => (
+              <TouchableOpacity key={`${ex.exerciseId}-${i}`} onPress={() => setCurrentIdx(i)}>
+                <View
+                  style={[
+                    styles.progressDot,
+                    {
+                      backgroundColor:
+                        i === currentIdx ? colors.primary
+                        : i < currentIdx ? colors.accent
+                        : colors.border,
+                      width: i === currentIdx ? 24 : 10,
+                    },
+                  ]}
+                />
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+        ) : (
+          <View style={{ flex: 1 }} />
+        )}
+
+        {/* Compact HR chip */}
+        <TouchableOpacity
+          onPress={() => {
+            if (hr.connectedDevice) {
+              void hr.disconnect();
+            } else {
+              if (!hr.supported) {
+                Alert.alert(
+                  "Heart rate unavailable",
+                  "Bluetooth heart-rate monitors require a development build of Valo on a physical device.",
+                );
+                return;
+              }
+              setShowHrModal(true);
+              void hr.startScan();
+            }
+          }}
+          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          style={[
+            styles.hrChip,
+            {
+              backgroundColor: liveBpm != null
+                ? `${liveZone?.color ?? colors.primary}18`
+                : colors.secondary,
+            },
+          ]}
         >
-          {exercises.map((ex, i) => (
-            <TouchableOpacity key={`${ex.exerciseId}-${i}`} onPress={() => setCurrentIdx(i)}>
-              <View
-                style={[
-                  styles.progressDot,
-                  {
-                    backgroundColor:
-                      i === currentIdx ? colors.primary
-                      : i < currentIdx ? colors.accent
-                      : colors.border,
-                    width: i === currentIdx ? 24 : 10,
-                  },
-                ]}
-              />
-            </TouchableOpacity>
-          ))}
-        </ScrollView>
-      )}
+          {hr.status === "connecting" || hr.status === "reconnecting" ? (
+            <>
+              <ActivityIndicator size={10} color={colors.mutedForeground} style={{ marginRight: 4 }} />
+              <Text style={[styles.hrChipText, { color: colors.mutedForeground, fontFamily: "Inter_500Medium" }]}>
+                {hr.status === "reconnecting" ? "Reconnecting" : "Connecting"}
+              </Text>
+            </>
+          ) : liveBpm != null ? (
+            <>
+              <View style={[styles.hrChipDot, { backgroundColor: liveZone?.color ?? colors.primary }]} />
+              <Text style={[styles.hrChipBpm, { color: liveZone?.color ?? colors.primary, fontFamily: "Inter_700Bold" }]}>
+                {liveBpm}
+              </Text>
+              <Text style={[styles.hrChipUnit, { color: liveZone?.color ?? colors.primary, fontFamily: "Inter_400Regular" }]}>
+                bpm
+              </Text>
+              {liveZone && (
+                <Text style={[styles.hrChipZone, { color: liveZone.color, fontFamily: "Inter_600SemiBold" }]}>
+                  · {liveZone.label}
+                </Text>
+              )}
+            </>
+          ) : (
+            <>
+              <Feather name="bluetooth" size={12} color={colors.mutedForeground} />
+              <Text style={[styles.hrChipText, { color: colors.mutedForeground, fontFamily: "Inter_500Medium" }]}>
+                Connect HR
+              </Text>
+            </>
+          )}
+        </TouchableOpacity>
+      </View>
 
       {/* ── Main scrollable content ── */}
       <ScrollView
         style={{ flex: 1 }}
-        contentContainerStyle={styles.scroll}
+        contentContainerStyle={[styles.scroll, { paddingBottom: scrollPaddingBottom }]}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
       >
-        {/* ── Heart rate card ── */}
-        <View style={[styles.hrCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
-          <View style={styles.hrTopRow}>
-            <View style={styles.hrHeadingRow}>
-              <Feather name="heart" size={16} color={liveZone?.color ?? colors.primary} />
-              <Text style={[styles.hrHeading, { color: colors.foreground, fontFamily: "Inter_600SemiBold" }]}>
-                Heart rate
-              </Text>
-            </View>
-            {hr.connectedDevice ? (
-              <TouchableOpacity
-                onPress={() => void hr.disconnect()}
-                style={[styles.hrConnectBtn, { borderColor: colors.border }]}
-                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-              >
-                <View style={[styles.hrDot, { backgroundColor: hr.status === "connected" ? "#5B8C5A" : "#C9924E" }]} />
-                <Text style={[styles.hrConnectText, { color: colors.mutedForeground, fontFamily: "Inter_500Medium" }]}>
-                  {hr.status === "reconnecting" ? "Reconnecting" : "Disconnect"}
-                </Text>
-              </TouchableOpacity>
-            ) : (
-              <TouchableOpacity
-                onPress={() => {
-                  if (!hr.supported) {
-                    Alert.alert(
-                      "Heart rate unavailable",
-                      "Bluetooth heart-rate monitors require a development build of Valo on a physical device.",
-                    );
-                    return;
-                  }
-                  setShowHrModal(true);
-                  void hr.startScan();
-                }}
-                style={[styles.hrConnectBtn, { backgroundColor: colors.secondary }]}
-                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-              >
-                <Feather name="bluetooth" size={13} color={colors.primary} />
-                <Text style={[styles.hrConnectText, { color: colors.primary, fontFamily: "Inter_600SemiBold" }]}>
-                  Connect
-                </Text>
-              </TouchableOpacity>
-            )}
-          </View>
-
-          {liveBpm != null ? (
-            <>
-              <View style={styles.hrMainRow}>
-                <View style={styles.hrBpmWrap}>
-                  <Text style={[styles.hrBpm, { color: liveZone?.color ?? colors.foreground, fontFamily: "Inter_700Bold" }]}>
-                    {liveBpm}
-                  </Text>
-                  <Text style={[styles.hrBpmUnit, { color: colors.mutedForeground, fontFamily: "Inter_500Medium" }]}>
-                    bpm
-                  </Text>
-                </View>
-                {liveZone && (
-                  <View style={[styles.hrZoneBadge, { backgroundColor: `${liveZone.color}22` }]}>
-                    <Text style={[styles.hrZoneText, { color: liveZone.color, fontFamily: "Inter_700Bold" }]}>
-                      {liveZone.label}
-                    </Text>
-                  </View>
-                )}
-              </View>
-
-              <HrSparkline samples={hr.samples} color={liveZone?.color ?? colors.primary} maxHr={maxHr} />
-
-              <View style={styles.hrStatsRow}>
-                <View style={styles.hrStat}>
-                  <Text style={[styles.hrStatValue, { color: colors.foreground, fontFamily: "Inter_700Bold" }]}>
-                    {hrStats.avg ?? "--"}
-                  </Text>
-                  <Text style={[styles.hrStatLabel, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
-                    Avg
-                  </Text>
-                </View>
-                <View style={styles.hrStat}>
-                  <Text style={[styles.hrStatValue, { color: colors.foreground, fontFamily: "Inter_700Bold" }]}>
-                    {hrStats.max ?? "--"}
-                  </Text>
-                  <Text style={[styles.hrStatLabel, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
-                    Max
-                  </Text>
-                </View>
-                <View style={styles.hrStat}>
-                  <Text style={[styles.hrStatValue, { color: colors.foreground, fontFamily: "Inter_700Bold" }]}>
-                    {maxHr}
-                  </Text>
-                  <Text style={[styles.hrStatLabel, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
-                    Max HR
-                  </Text>
-                </View>
-              </View>
-            </>
-          ) : (
-            <Text style={[styles.hrEmpty, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
-              {hr.status === "connecting"
-                ? "Connecting to monitor..."
-                : hr.status === "reconnecting"
-                  ? "Reconnecting to monitor..."
-                  : hr.connectedDevice
-                    ? "Waiting for first reading..."
-                    : "Connect a Bluetooth chest strap or watch to track your heart rate live."}
-            </Text>
-          )}
-        </View>
-
         {loadingExercises ? (
           <View style={styles.centerWrap}>
             <ActivityIndicator color={colors.primary} />
@@ -1157,7 +1117,6 @@ export default function CopilotWorkoutScreen() {
           </TouchableOpacity>
         )}
 
-        <View style={{ height: 120 }} />
       </ScrollView>
 
       {/* ── Rest timer ── */}
@@ -1438,17 +1397,38 @@ const styles = StyleSheet.create({
   headerName: { fontSize: 15, maxWidth: 200 },
   headerTimer: { fontSize: 13, marginTop: 1 },
   finishBtn: {
-    paddingHorizontal: 16,
+    paddingHorizontal: 14,
     paddingVertical: 9,
     borderRadius: 10,
-    minWidth: 68,
     alignItems: "center",
   },
-  finishText: { fontSize: 14 },
+  finishText: { fontSize: 13 },
 
-  progressBar: { borderBottomWidth: StyleSheet.hairlineWidth, paddingVertical: 10 },
+  progressBar: {
+    flexDirection: "row",
+    alignItems: "center",
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    paddingVertical: 10,
+    paddingRight: 12,
+  },
   progressRow: { paddingHorizontal: 16, gap: 6, alignItems: "center" },
   progressDot: { height: 8, borderRadius: 4 },
+
+  hrChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 20,
+    marginLeft: 8,
+    flexShrink: 0,
+  },
+  hrChipDot: { width: 6, height: 6, borderRadius: 3 },
+  hrChipBpm: { fontSize: 13 },
+  hrChipUnit: { fontSize: 11 },
+  hrChipZone: { fontSize: 11 },
+  hrChipText: { fontSize: 12 },
 
   scroll: { paddingHorizontal: 16, paddingTop: 20, gap: 16 },
 
