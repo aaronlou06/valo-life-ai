@@ -9,6 +9,8 @@ export const workoutProgramsTable = pgTable("workout_programs", {
   name: text("name").notNull(),
   totalWeeks: integer("total_weeks").notNull().default(1),
   notes: text("notes"),
+  // Set when user attaches the program to their calendar (YYYY-MM-DD).
+  startDate: text("start_date"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 }, (t) => [
@@ -17,7 +19,7 @@ export const workoutProgramsTable = pgTable("workout_programs", {
 
 export const insertWorkoutProgramSchema = createInsertSchema(workoutProgramsTable)
   .omit({ id: true, createdAt: true, updatedAt: true })
-  .partial({ totalWeeks: true, notes: true });
+  .partial({ totalWeeks: true, notes: true, startDate: true });
 
 export type InsertWorkoutProgram = z.infer<typeof insertWorkoutProgramSchema>;
 export type WorkoutProgram = typeof workoutProgramsTable.$inferSelect;

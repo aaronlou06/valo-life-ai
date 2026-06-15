@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo } from "react";
+import { useRouter } from "expo-router";
 import {
   View,
   Text,
@@ -110,6 +111,7 @@ const EVENT_TYPES: { key: string; label: string; color: string }[] = [
   { key: "habit",    label: "Habit",     color: "#D97706" },
   { key: "goal",     label: "Goal",      color: "#C17B3F" },
   { key: "google",   label: "Google Cal",color: "#4285F4" },
+  { key: "workout",  label: "Workout",   color: "#8A6D3A" },
 ];
 
 const ROUTINE_COLORS = ["#C17B3F","#2563EB","#059669","#7C3AED","#D97706","#E11D48"];
@@ -1177,6 +1179,7 @@ function DayDetailSheet({
   colors: Colors; bottomInset: number; region: HolidayLocale;
   personalDates: PersonalDate[];
 }) {
+  const router = useRouter();
   const header = dateStr ? formatDayHeader(dateStr) : "";
   const holiday = dateStr ? getHolidayForDate(dateStr, region) : null;
   const dayPersonalDates = dateStr ? getPersonalDatesForDate(dateStr, personalDates) : [];
@@ -1247,14 +1250,30 @@ function DayDetailSheet({
                 const bc = eventColor(ev);
                 const noteText = routineNotesText(ev.notes);
                 const isRoutine = ev.type === "routine";
+                const isWorkout = ev.type === "workout";
                 const td = getEventTimeDisplay(ev);
                 const timeLabel = td ? (td.end ? `${td.start} – ${td.end}` : td.start) : null;
+
+                // Parse workout notes to get templateId
+                let workoutTemplateId: number | null = null;
+                if (isWorkout && ev.notes) {
+                  try {
+                    const parsed = JSON.parse(ev.notes) as { templateId?: number };
+                    workoutTemplateId = parsed.templateId ?? null;
+                  } catch { /* ignore */ }
+                }
+
                 return (
                   <TouchableOpacity
                     key={ev.id}
                     style={[planStyles.eventCard, { backgroundColor: colors.card, borderColor: colors.border, marginBottom: 8 }]}
-                    onPress={isRoutine ? () => onRoutineTap(ev) : undefined}
-                    activeOpacity={isRoutine ? 0.75 : 1}
+                    onPress={isRoutine ? () => onRoutineTap(ev) : isWorkout ? () => {
+                      onClose();
+                      router.push(workoutTemplateId
+                        ? ({ pathname: "/copilot-start" as never, params: { autoTemplateId: String(workoutTemplateId) } })
+                        : ("/copilot-start" as never));
+                    } : undefined}
+                    activeOpacity={isRoutine || isWorkout ? 0.75 : 1}
                   >
                     <View style={planStyles.eventTop}>
                       <View style={{ width: 4, borderRadius: 2, backgroundColor: bc, alignSelf: "stretch", marginRight: 4 }} />
@@ -1264,12 +1283,17 @@ function DayDetailSheet({
                           <Text style={[planStyles.typeBadgeText, { color: bc, fontFamily: "Inter_500Medium" }]}>Routine</Text>
                           <Feather name="chevron-right" size={10} color={bc} />
                         </View>
+                      ) : isWorkout ? (
+                        <View style={[planStyles.typeBadge, { backgroundColor: bc + "22", flexDirection: "row", alignItems: "center", gap: 3 }]}>
+                          <Text style={[planStyles.typeBadgeText, { color: bc, fontFamily: "Inter_500Medium" }]}>Workout</Text>
+                          <Feather name="chevron-right" size={10} color={bc} />
+                        </View>
                       ) : (
                         <View style={[planStyles.typeBadge, { backgroundColor: bc + "22" }]}>
                           <Text style={[planStyles.typeBadgeText, { color: bc, fontFamily: "Inter_500Medium" }]}>{typeBadgeLabel(ev.type)}</Text>
                         </View>
                       )}
-                      {!isRoutine && (
+                      {!isRoutine && !isWorkout && (
                         <>
                           <TouchableOpacity
                             onPress={() => onEdit(ev)}
@@ -1306,7 +1330,7 @@ function DayDetailSheet({
                         <Text style={{ fontSize: 12, color: colors.mutedForeground, fontFamily: "Inter_400Regular" }}>{timeLabel}</Text>
                       </View>
                     ) : null}
-                    {noteText && !isRoutine ? <Text style={[planStyles.eventNotes, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]} numberOfLines={3}>{noteText}</Text> : null}
+                    {noteText && !isRoutine && !isWorkout ? <Text style={[planStyles.eventNotes, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]} numberOfLines={3}>{noteText}</Text> : null}
                   </TouchableOpacity>
                 );
               };
@@ -1347,6 +1371,7 @@ function catDotColor(ev: CalendarEvent): string {
     case "habit": return "#C9972A";
     case "work": return "#6B7FA3";
     case "google": return "#4285F4";
+    case "workout": return "#8A6D3A";
     case "routine": {
       const m = (ev.notes ?? "").match(/^routineColor:(#[0-9A-Fa-f]{6})\|/);
       return m ? m[1]! : "#9080B8";

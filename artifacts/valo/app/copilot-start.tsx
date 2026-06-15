@@ -278,6 +278,32 @@ export default function CopilotStartScreen() {
           </View>
         )}
 
+        {/* Programs */}
+        <View style={styles.section}>
+          <Text style={[styles.sectionLabel, { color: colors.mutedForeground, fontFamily: "Inter_600SemiBold" }]}>
+            Training programs
+          </Text>
+          <TouchableOpacity
+            onPress={() => router.push("/copilot-programs" as never)}
+            disabled={creating}
+            activeOpacity={0.8}
+            style={[styles.freestyleCard, { backgroundColor: colors.card, borderColor: colors.border }]}
+          >
+            <View style={[styles.freestyleIcon, { backgroundColor: "#EDE5D8" }]}>
+              <Feather name="calendar" size={22} color="#8A6D3A" />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={[styles.freestyleTitle, { color: colors.foreground, fontFamily: "Inter_600SemiBold" }]}>
+                Multi-week programs
+              </Text>
+              <Text style={[styles.freestyleSub, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
+                Build a schedule and attach it to your calendar
+              </Text>
+            </View>
+            <Feather name="chevron-right" size={20} color={colors.mutedForeground} />
+          </TouchableOpacity>
+        </View>
+
         {/* Freestyle option */}
         <View style={styles.section}>
           <Text style={[styles.sectionLabel, { color: colors.mutedForeground, fontFamily: "Inter_600SemiBold" }]}>

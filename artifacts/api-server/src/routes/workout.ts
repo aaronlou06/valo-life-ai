@@ -1,11 +1,14 @@
 import { Router, type IRouter } from "express";
-import { and, asc, desc, eq, gte, inArray } from "drizzle-orm";
+import { and, asc, desc, eq, gte, inArray, like } from "drizzle-orm";
 import {
   db,
+  calendarEventsTable,
   exercisesTable,
   userProfilesTable,
   workoutHrSamplesTable,
   workoutPersonalRecordsTable,
+  workoutProgramsTable,
+  workoutProgramDaysTable,
   workoutSessionsTable,
   workoutSetLogsTable,
   workoutTemplatesTable,
@@ -866,6 +869,309 @@ router.delete(
     res.sendStatus(204);
   },
 );
+
+// ─── Programs ─────────────────────────────────────────────────────────────────
+
+/**
+ * GET /workout/programs
+ * List all programs for the user.
+ */
+router.get("/workout/programs", requireAuth, async (req, res): Promise<void> => {
+  const userId = (req as AuthenticatedRequest).userId;
+  const programs = await db
+    .select()
+    .from(workoutProgramsTable)
+    .where(eq(workoutProgramsTable.userId, userId))
+    .orderBy(desc(workoutProgramsTable.createdAt));
+  res.json(programs);
+});
+
+/**
+ * POST /workout/programs
+ */
+router.post("/workout/programs", requireAuth, async (req, res): Promise<void> => {
+  const userId = (req as AuthenticatedRequest).userId;
+  const { name, totalWeeks, notes } = req.body as Record<string, unknown>;
+  if (!name || typeof name !== "string") { res.status(400).json({ error: "name is required" }); return; }
+  const [prog] = await db
+    .insert(workoutProgramsTable)
+    .values({ userId, name, totalWeeks: typeof totalWeeks === "number" ? totalWeeks : 1, notes: typeof notes === "string" ? notes : null })
+    .returning();
+  res.status(201).json(prog);
+});
+
+/**
+ * PATCH /workout/programs/:id
+ */
+router.patch("/workout/programs/:id", requireAuth, async (req, res): Promise<void> => {
+  const userId = (req as AuthenticatedRequest).userId;
+  const id = parseIntParam(req.params.id);
+  if (id === null) { res.status(400).json({ error: "Invalid id" }); return; }
+  const { name, totalWeeks, notes } = req.body as Record<string, unknown>;
+  const [prog] = await db.select().from(workoutProgramsTable)
+    .where(and(eq(workoutProgramsTable.id, id), eq(workoutProgramsTable.userId, userId)));
+  if (!prog) { res.status(404).json({ error: "Not found" }); return; }
+  const updates: Record<string, unknown> = {};
+  if (typeof name === "string") updates.name = name;
+  if (typeof totalWeeks === "number") updates.totalWeeks = totalWeeks;
+  if (notes !== undefined) updates.notes = notes === null ? null : String(notes);
+  const [updated] = await db.update(workoutProgramsTable).set(updates).where(eq(workoutProgramsTable.id, id)).returning();
+  res.json(updated);
+});
+
+/**
+ * DELETE /workout/programs/:id
+ */
+router.delete("/workout/programs/:id", requireAuth, async (req, res): Promise<void> => {
+  const userId = (req as AuthenticatedRequest).userId;
+  const id = parseIntParam(req.params.id);
+  if (id === null) { res.status(400).json({ error: "Invalid id" }); return; }
+  const [prog] = await db.select().from(workoutProgramsTable)
+    .where(and(eq(workoutProgramsTable.id, id), eq(workoutProgramsTable.userId, userId)));
+  if (!prog) { res.status(404).json({ error: "Not found" }); return; }
+  await db.delete(calendarEventsTable).where(
+    and(
+      eq(calendarEventsTable.userId, userId),
+      eq(calendarEventsTable.type, "workout"),
+      like(calendarEventsTable.notes!, `%"programId":${id}%`),
+    ),
+  );
+  await db.delete(workoutProgramsTable).where(eq(workoutProgramsTable.id, id));
+  res.sendStatus(204);
+});
+
+/**
+ * GET /workout/programs/:id/days
+ * Returns program metadata + days with joined template name.
+ */
+router.get("/workout/programs/:id/days", requireAuth, async (req, res): Promise<void> => {
+  const userId = (req as AuthenticatedRequest).userId;
+  const id = parseIntParam(req.params.id);
+  if (id === null) { res.status(400).json({ error: "Invalid id" }); return; }
+  const [prog] = await db.select().from(workoutProgramsTable)
+    .where(and(eq(workoutProgramsTable.id, id), eq(workoutProgramsTable.userId, userId)));
+  if (!prog) { res.status(404).json({ error: "Not found" }); return; }
+  const days = await db
+    .select({
+      id: workoutProgramDaysTable.id,
+      weekNumber: workoutProgramDaysTable.weekNumber,
+      dayOfWeek: workoutProgramDaysTable.dayOfWeek,
+      templateId: workoutProgramDaysTable.templateId,
+      templateName: workoutTemplatesTable.name,
+      notes: workoutProgramDaysTable.notes,
+    })
+    .from(workoutProgramDaysTable)
+    .leftJoin(workoutTemplatesTable, eq(workoutProgramDaysTable.templateId, workoutTemplatesTable.id))
+    .where(eq(workoutProgramDaysTable.programId, id))
+    .orderBy(asc(workoutProgramDaysTable.weekNumber), asc(workoutProgramDaysTable.dayOfWeek));
+  res.json({ program: prog, days });
+});
+
+/**
+ * PUT /workout/programs/:id/days
+ * Replace the full schedule for a program.
+ */
+router.put("/workout/programs/:id/days", requireAuth, async (req, res): Promise<void> => {
+  const userId = (req as AuthenticatedRequest).userId;
+  const id = parseIntParam(req.params.id);
+  if (id === null) { res.status(400).json({ error: "Invalid id" }); return; }
+  const [prog] = await db.select().from(workoutProgramsTable)
+    .where(and(eq(workoutProgramsTable.id, id), eq(workoutProgramsTable.userId, userId)));
+  if (!prog) { res.status(404).json({ error: "Not found" }); return; }
+  const { days } = req.body as { days: Array<{ weekNumber: number; dayOfWeek: string; templateId?: number | null }> };
+  if (!Array.isArray(days)) { res.status(400).json({ error: "days must be an array" }); return; }
+  await db.delete(workoutProgramDaysTable).where(eq(workoutProgramDaysTable.programId, id));
+  if (days.length > 0) {
+    await db.insert(workoutProgramDaysTable).values(
+      days.map((d) => ({ programId: id, weekNumber: d.weekNumber, dayOfWeek: d.dayOfWeek, templateId: d.templateId ?? null })),
+    );
+  }
+  res.sendStatus(204);
+});
+
+/**
+ * POST /workout/programs/:id/attach
+ * Attach to calendar from today (or provided startDate).
+ * Generates calendar_events for every workout day in the program.
+ */
+router.post("/workout/programs/:id/attach", requireAuth, async (req, res): Promise<void> => {
+  const userId = (req as AuthenticatedRequest).userId;
+  const id = parseIntParam(req.params.id);
+  if (id === null) { res.status(400).json({ error: "Invalid id" }); return; }
+  const [prog] = await db.select().from(workoutProgramsTable)
+    .where(and(eq(workoutProgramsTable.id, id), eq(workoutProgramsTable.userId, userId)));
+  if (!prog) { res.status(404).json({ error: "Not found" }); return; }
+
+  const startDateStr = typeof (req.body as Record<string,unknown>).startDate === "string"
+    ? (req.body as Record<string,unknown>).startDate as string
+    : new Date().toISOString().split("T")[0]!;
+
+  const days = await db
+    .select({
+      weekNumber: workoutProgramDaysTable.weekNumber,
+      dayOfWeek: workoutProgramDaysTable.dayOfWeek,
+      templateId: workoutProgramDaysTable.templateId,
+      templateName: workoutTemplatesTable.name,
+    })
+    .from(workoutProgramDaysTable)
+    .leftJoin(workoutTemplatesTable, eq(workoutProgramDaysTable.templateId, workoutTemplatesTable.id))
+    .where(eq(workoutProgramDaysTable.programId, id));
+
+  // Week 1 Monday = first Monday on or after startDate
+  const sd = new Date(startDateStr + "T12:00:00");
+  const dow = sd.getDay(); // 0=Sun, 1=Mon
+  const daysToMon = dow === 0 ? 1 : (dow === 1 ? 0 : 8 - dow);
+  const week1Mon = new Date(sd);
+  week1Mon.setDate(sd.getDate() + daysToMon);
+
+  const dayOffsets: Record<string, number> = { mon: 0, tue: 1, wed: 2, thu: 3, fri: 4, sat: 5, sun: 6 };
+
+  // Remove previous events for this program
+  await db.delete(calendarEventsTable).where(
+    and(
+      eq(calendarEventsTable.userId, userId),
+      eq(calendarEventsTable.type, "workout"),
+      like(calendarEventsTable.notes!, `%"programId":${id}%`),
+    ),
+  );
+
+  const eventsToInsert = days
+    .filter((d) => d.templateId !== null)
+    .map((d) => {
+      const weekOffset = (d.weekNumber - 1) * 7;
+      const dayOffset = dayOffsets[d.dayOfWeek] ?? 0;
+      const eventDate = new Date(week1Mon);
+      eventDate.setDate(week1Mon.getDate() + weekOffset + dayOffset);
+      const dateStr = eventDate.toISOString().split("T")[0]!;
+      return {
+        userId,
+        date: dateStr,
+        title: d.templateName ?? prog.name,
+        type: "workout",
+        notes: JSON.stringify({ programId: id, programName: prog.name, templateId: d.templateId, templateName: d.templateName }),
+        recurrenceType: "none",
+      };
+    });
+
+  if (eventsToInsert.length > 0) {
+    await db.insert(calendarEventsTable).values(eventsToInsert);
+  }
+
+  const [updated] = await db.update(workoutProgramsTable).set({ startDate: startDateStr })
+    .where(eq(workoutProgramsTable.id, id)).returning();
+  res.json(updated);
+});
+
+/**
+ * DELETE /workout/programs/:id/attach
+ * Detach: remove generated calendar events and clear startDate.
+ */
+router.delete("/workout/programs/:id/attach", requireAuth, async (req, res): Promise<void> => {
+  const userId = (req as AuthenticatedRequest).userId;
+  const id = parseIntParam(req.params.id);
+  if (id === null) { res.status(400).json({ error: "Invalid id" }); return; }
+  const [prog] = await db.select().from(workoutProgramsTable)
+    .where(and(eq(workoutProgramsTable.id, id), eq(workoutProgramsTable.userId, userId)));
+  if (!prog) { res.status(404).json({ error: "Not found" }); return; }
+  await db.delete(calendarEventsTable).where(
+    and(
+      eq(calendarEventsTable.userId, userId),
+      eq(calendarEventsTable.type, "workout"),
+      like(calendarEventsTable.notes!, `%"programId":${id}%`),
+    ),
+  );
+  const [updated] = await db.update(workoutProgramsTable).set({ startDate: null })
+    .where(eq(workoutProgramsTable.id, id)).returning();
+  res.json(updated);
+});
+
+// ─── Progressive Overload Suggestions ─────────────────────────────────────────
+
+/**
+ * GET /workout/exercises/:exerciseId/suggestions
+ * Computes next-session targets from the user's logged history for an exercise.
+ */
+router.get("/workout/exercises/:exerciseId/suggestions", requireAuth, async (req, res): Promise<void> => {
+  const userId = (req as AuthenticatedRequest).userId;
+  const exerciseId = parseIntParam(req.params.exerciseId);
+  if (exerciseId === null) { res.status(400).json({ error: "Invalid exerciseId" }); return; }
+
+  const rows = await db
+    .select({
+      sessionId: workoutSessionsTable.id,
+      date: workoutSessionsTable.date,
+      weightKg: workoutSetLogsTable.weightKg,
+      reps: workoutSetLogsTable.reps,
+      isWarmup: workoutSetLogsTable.isWarmup,
+    })
+    .from(workoutSetLogsTable)
+    .innerJoin(workoutSessionsTable, eq(workoutSetLogsTable.sessionId, workoutSessionsTable.id))
+    .where(
+      and(
+        eq(workoutSetLogsTable.exerciseId, exerciseId),
+        eq(workoutSessionsTable.userId, userId),
+        eq(workoutSessionsTable.status, "completed"),
+        eq(workoutSetLogsTable.isWarmup, false),
+      ),
+    )
+    .orderBy(desc(workoutSessionsTable.date))
+    .limit(60);
+
+  if (rows.length === 0) {
+    res.json({ suggestion: null, reason: "no_history" });
+    return;
+  }
+
+  type SessionData = { date: string; weights: number[]; reps: number[] };
+  const sessionMap = new Map<number, SessionData>();
+  for (const row of rows) {
+    if (!sessionMap.has(row.sessionId)) sessionMap.set(row.sessionId, { date: row.date, weights: [], reps: [] });
+    const s = sessionMap.get(row.sessionId)!;
+    if (row.weightKg !== null) s.weights.push(row.weightKg);
+    if (row.reps !== null) s.reps.push(row.reps);
+  }
+
+  const sessions = [...sessionMap.values()].sort((a, b) => b.date.localeCompare(a.date)).slice(0, 5);
+  const last = sessions[0]!;
+
+  const avg = (arr: number[]) => arr.length > 0 ? arr.reduce((a, b) => a + b, 0) / arr.length : null;
+
+  const lastAvgWeight = avg(last.weights);
+  const lastAvgReps = last.reps.length > 0 ? Math.round(avg(last.reps)!) : null;
+
+  let trend: "improving" | "maintaining" | "declining" = "maintaining";
+  if (sessions.length >= 2) {
+    const prev = sessions[1]!;
+    const prevAvgWeight = avg(prev.weights);
+    const prevAvgReps = prev.reps.length > 0 ? Math.round(avg(prev.reps)!) : null;
+    if (lastAvgWeight !== null && prevAvgWeight !== null) {
+      trend = lastAvgWeight > prevAvgWeight ? "improving" : lastAvgWeight < prevAvgWeight - 0.5 ? "declining" : "maintaining";
+    } else if (lastAvgReps !== null && prevAvgReps !== null) {
+      trend = lastAvgReps > prevAvgReps ? "improving" : lastAvgReps < prevAvgReps ? "declining" : "maintaining";
+    }
+  }
+
+  // Suggest: weight takes priority; if declining, hold current; otherwise +2.5kg
+  const suggestedWeightKg = lastAvgWeight !== null
+    ? trend === "declining" ? Math.round(lastAvgWeight * 2) / 2 : Math.round((lastAvgWeight + 2.5) * 2) / 2
+    : null;
+  const suggestedReps = lastAvgReps !== null ? lastAvgReps : null;
+
+  res.json({
+    suggestion: {
+      suggestedWeightKg,
+      suggestedReps,
+      lastSessionDate: last.date,
+      lastAvgWeightKg: lastAvgWeight !== null ? Math.round(lastAvgWeight * 10) / 10 : null,
+      lastAvgReps,
+      trend,
+      sessionCount: sessions.length,
+    },
+    reason: "computed",
+  });
+});
+
+// ─── Template exercises (must remain AFTER /programs routes to avoid :id clash) ──
 
 /**
  * GET /workout/templates/:id/exercises

@@ -9,3 +9,4 @@
 - [Workout live HR tracking](workout-hr-tracking.md) — BLE (ble-plx 0x180D/0x2A37) in HeartRateContext; reconnect+scan timers must gate on shutdown/manualDisconnect refs; samples persist per-session, summary stored on session via POST /hr.
 - [Valo native config](valo-native-config.md) — static app.json only (no app.config.js); ios/android gitignored (CNG) so app.json is source of truth; react-native-ble-plx + BLE perms/bg-mode configured for HR.
 - [Template editor patterns](template-editor.md) — TemplateEditor component uses DraggableFlatList; copilot-edit passes metadata via URL params (id/name/category/duration/notes) to avoid extra GET; save strategy is delete-all-slots then re-insert.
+- [Program builder patterns](program-builder.md) — workoutPrograms has startDate (text nullable); attach generates calendar_events type="workout"; notes JSON format {programId,templateId,...}; lib rebuild required after schema changes.
