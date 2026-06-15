@@ -41,6 +41,15 @@ const MODULES: Module[] = [
     subtitle: "Coming soon",
     available: false,
   },
+  {
+    id: "focus",
+    icon: "zap",
+    iconBg: "#EAE4F5",
+    iconColor: "#8B6EAE",
+    title: "Focus",
+    subtitle: "Coming soon",
+    available: false,
+  },
 ];
 
 export default function CopilotModulesScreen() {
