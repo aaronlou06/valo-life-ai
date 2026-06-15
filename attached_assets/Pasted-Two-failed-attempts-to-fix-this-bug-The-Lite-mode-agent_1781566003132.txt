@@ -1,0 +1,39 @@
+Two failed attempts to fix this bug. The Lite-mode agent has been guessing at fixes that don't work. I need you to actually find the root cause with evidence before writing any fix.
+
+THE BUG
+After finishing a workout, the Workout Co-Pilot sheet auto-opens by itself on the Copilot Modules screen and becomes un-dismissable. Reproduction:
+1. Copilot Modules → tap Workouts row → sheet opens
+2. Tap "Start a workout" → log a workout
+3. Tap "Finish workout" → summary screen appears
+4. Dismiss summary → user lands on Copilot Modules
+5. The sheet auto-opens here, and now none of the dismiss paths (backdrop tap, swipe-down, header chevron, device back button) close it. User is stuck.
+
+This sheet should ONLY open when the user explicitly taps the Workouts row. Nothing else should open it. And when it is open, the dismiss paths should work unconditionally regardless of session state.
+
+REQUIRED APPROACH — diagnose before fixing.
+
+Step 1: Find every place in the codebase that opens the sheet. Search for every call to expand(), setExpanded(true), setIsOpen(true), or whatever the equivalent is in WorkoutCopilotContext. List each one with file and line number, and what triggers it. Report this list to me.
+
+Step 2: Add temporary console.log statements at each call site that opens or closes the sheet, and at the sheet's open-state setter itself, logging the call site and a stack trace. Also log every state transition of the active session (start, end, summary-shown, summary-dismissed). Do not skip this step — past attempts failed because they guessed without instrumentation.
+
+Step 3: Walk through the reproduction with the logging in place. Trace the exact sequence of calls between "tap Finish workout" and "sheet is open on Copilot Modules." Report what the logs show — what opened the sheet, from where, and what state the app was in.
+
+Step 4: Once you know the call site, fix it. The fix is to remove or guard that call so the sheet does not auto-open after finishing a workout. Do not add a new condition that special-cases the post-finish flow — find the wrong call and remove it.
+
+Step 5: Audit each of the four dismiss paths (backdrop tap, swipe-down, header chevron, device back button). For each one, read the code and confirm it calls the sheet's close function unconditionally — no checks on activeSession, no checks on session.status, no other gating. If any path is gated, ungate it. Report which paths you audited and what you found in each.
+
+Step 6: Remove the temporary console.logs.
+
+Step 7: Walk through the full reproduction one more time and confirm the bug is fixed end-to-end:
+- Start a workout, finish it, dismiss summary → lands on Copilot Modules with sheet closed
+- Tap the Workouts row → sheet opens
+- Try each of the four dismiss paths → sheet closes
+
+REPORT BACK with:
+- The full list of expand()-equivalent call sites from Step 1
+- The logged sequence from Step 3 showing what triggered the auto-open
+- The specific fix applied in Step 4 and why it's the root cause, not a workaround
+- The audit results for each of the four dismiss paths from Step 5
+- Confirmation that Step 7 passed
+
+Do not declare this fixed without doing all seven steps. If you cannot reproduce the bug because of environment constraints, stop and tell me — do not write a speculative fix.

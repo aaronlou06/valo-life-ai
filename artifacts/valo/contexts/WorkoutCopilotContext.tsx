@@ -64,14 +64,20 @@ export function WorkoutCopilotProvider({ children }: { children: React.ReactNode
           AsyncStorage.getItem(ACTIVE_SESSION_KEY),
         ]);
         if (cancelled) return;
-        if (storedPanel === "minimized" || storedPanel === "expanded") {
-          setPanelState(storedPanel);
-        }
+        let restoredSession: ActiveWorkoutSession | null = null;
         if (storedSession) {
           const parsed = JSON.parse(storedSession) as ActiveWorkoutSession;
           if (parsed && typeof parsed.startedAt === "string" && typeof parsed.name === "string") {
+            restoredSession = parsed;
             setActiveSession(parsed);
           }
+        }
+        // Only restore "expanded" when there is also an active session to show.
+        // If the app was killed while the sheet was open but no workout was in
+        // progress, starting back up in "expanded" would auto-open the sheet
+        // unexpectedly. Always start minimized in that case.
+        if (storedPanel === "expanded" && restoredSession) {
+          setPanelState("expanded");
         }
       } catch {
         // Corrupt or unavailable storage — start clean.

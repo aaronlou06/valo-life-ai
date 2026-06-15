@@ -123,6 +123,12 @@ export function WorkoutCopilotPanel() {
   }, [activeSession]);
 
   // Drive the expand/collapse sheet animation off the shared panel state.
+  // The close branch must ALWAYS call setModalVisible(false) — including when
+  // the animation is interrupted (finished=false). Interruption happens when the
+  // panel transitions to hideOnRoute=true (returning null) mid-animation, which
+  // causes the native driver to cancel the running animation. Without the
+  // unconditional close, modalVisible stays true while expanded is false, making
+  // the sheet appear stuck open and unresponsive to all dismiss actions.
   useEffect(() => {
     if (expanded) {
       setModalVisible(true);
@@ -152,8 +158,8 @@ export function WorkoutCopilotPanel() {
           duration: 180,
           useNativeDriver: true,
         }),
-      ]).start(({ finished }) => {
-        if (finished) setModalVisible(false);
+      ]).start(() => {
+        setModalVisible(false);
       });
     }
   }, [expanded, slideAnim, backdropOpacity]);
