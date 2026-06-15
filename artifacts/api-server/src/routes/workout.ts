@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { and, desc, eq, gte, inArray } from "drizzle-orm";
+import { and, asc, desc, eq, gte, inArray } from "drizzle-orm";
 import {
   db,
   exercisesTable,
@@ -15,6 +15,7 @@ import { requireAuth, type AuthenticatedRequest } from "../middlewares/requireAu
 import { generateWorkoutCoaching } from "../lib/workoutCoaching";
 import { completeWorkoutSession } from "../lib/workoutSummary";
 import { summarizeHrSamples, estimateMaxHr, type HrSampleInput } from "../lib/workoutHr";
+import { parseWorkoutImport } from "../lib/templateImport";
 
 const router: IRouter = Router();
 
@@ -546,6 +547,325 @@ router.get("/workout/templates", requireAuth, async (req, res): Promise<void> =>
     .orderBy(desc(workoutTemplatesTable.createdAt));
   res.json(templates);
 });
+
+/**
+ * POST /workout/templates
+ * Create a new workout template.
+ */
+router.post("/workout/templates", requireAuth, async (req, res): Promise<void> => {
+  const userId = (req as AuthenticatedRequest).userId;
+  const { name, category, estimatedDurationMin, notes } = req.body as Record<string, unknown>;
+  if (!name || typeof name !== "string") {
+    res.status(400).json({ error: "name is required" });
+    return;
+  }
+  const [template] = await db
+    .insert(workoutTemplatesTable)
+    .values({
+      userId,
+      name: name.trim(),
+      category: typeof category === "string" ? category : "strength",
+      estimatedDurationMin: typeof estimatedDurationMin === "number" ? estimatedDurationMin : null,
+      notes: typeof notes === "string" && notes.trim() ? notes.trim() : null,
+    })
+    .returning();
+  res.status(201).json(template);
+});
+
+/**
+ * POST /workout/templates/import
+ * Parse freeform workout text via Claude and return a structured template.
+ * NOTE: Registered before /:id routes to avoid routing conflicts.
+ */
+router.post("/workout/templates/import", requireAuth, async (req, res): Promise<void> => {
+  const { text, imageBase64, mimeType } = req.body as Record<string, unknown>;
+
+  if (imageBase64 && typeof imageBase64 === "string") {
+    // Image import via Claude vision
+    const mime = typeof mimeType === "string" ? mimeType : "image/jpeg";
+    try {
+      const result = await parseWorkoutImport({ imageBase64, mimeType: mime });
+      res.json(result);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Image import failed";
+      res.status(500).json({ error: msg });
+    }
+    return;
+  }
+
+  if (!text || typeof text !== "string" || !text.trim()) {
+    res.status(400).json({ error: "text or imageBase64 is required" });
+    return;
+  }
+  try {
+    const result = await parseWorkoutImport({ text: text.trim() });
+    res.json(result);
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : "Import failed";
+    res.status(500).json({ error: msg });
+  }
+});
+
+/**
+ * PATCH /workout/templates/:id
+ * Update template metadata (name, category, estimatedDurationMin, notes).
+ */
+router.patch("/workout/templates/:id", requireAuth, async (req, res): Promise<void> => {
+  const userId = (req as AuthenticatedRequest).userId;
+  const templateId = parseIntParam(req.params.id);
+  if (templateId === null) { res.status(400).json({ error: "Invalid id" }); return; }
+
+  const { name, category, estimatedDurationMin, notes } = req.body as Record<string, unknown>;
+  const updates: Record<string, unknown> = {};
+  if (typeof name === "string" && name.trim()) updates.name = name.trim();
+  if (typeof category === "string") updates.category = category;
+  if (estimatedDurationMin !== undefined)
+    updates.estimatedDurationMin = typeof estimatedDurationMin === "number" ? estimatedDurationMin : null;
+  if (notes !== undefined)
+    updates.notes = typeof notes === "string" && notes.trim() ? notes.trim() : null;
+
+  const [template] = await db
+    .update(workoutTemplatesTable)
+    .set(updates)
+    .where(and(eq(workoutTemplatesTable.id, templateId), eq(workoutTemplatesTable.userId, userId)))
+    .returning();
+  if (!template) { res.status(404).json({ error: "Template not found" }); return; }
+  res.json(template);
+});
+
+/**
+ * DELETE /workout/templates/:id
+ * Delete a template; exercises cascade via FK.
+ */
+router.delete("/workout/templates/:id", requireAuth, async (req, res): Promise<void> => {
+  const userId = (req as AuthenticatedRequest).userId;
+  const templateId = parseIntParam(req.params.id);
+  if (templateId === null) { res.status(400).json({ error: "Invalid id" }); return; }
+
+  const [tpl] = await db
+    .select({ id: workoutTemplatesTable.id })
+    .from(workoutTemplatesTable)
+    .where(and(eq(workoutTemplatesTable.id, templateId), eq(workoutTemplatesTable.userId, userId)));
+  if (!tpl) { res.status(404).json({ error: "Template not found" }); return; }
+
+  await db.delete(workoutTemplatesTable).where(eq(workoutTemplatesTable.id, templateId));
+  res.sendStatus(204);
+});
+
+/**
+ * POST /workout/templates/:id/duplicate
+ * Clone a template and all its exercise slots. Returns the new template.
+ */
+router.post("/workout/templates/:id/duplicate", requireAuth, async (req, res): Promise<void> => {
+  const userId = (req as AuthenticatedRequest).userId;
+  const templateId = parseIntParam(req.params.id);
+  if (templateId === null) { res.status(400).json({ error: "Invalid id" }); return; }
+
+  const [source] = await db
+    .select()
+    .from(workoutTemplatesTable)
+    .where(and(eq(workoutTemplatesTable.id, templateId), eq(workoutTemplatesTable.userId, userId)));
+  if (!source) { res.status(404).json({ error: "Template not found" }); return; }
+
+  const [newTemplate] = await db
+    .insert(workoutTemplatesTable)
+    .values({
+      userId,
+      name: `${source.name} (copy)`,
+      category: source.category,
+      estimatedDurationMin: source.estimatedDurationMin,
+      notes: source.notes,
+    })
+    .returning();
+
+  const slots = await db
+    .select()
+    .from(workoutTemplateExercisesTable)
+    .where(eq(workoutTemplateExercisesTable.templateId, templateId))
+    .orderBy(asc(workoutTemplateExercisesTable.orderIndex));
+
+  if (slots.length > 0) {
+    await db.insert(workoutTemplateExercisesTable).values(
+      slots.map(({ id: _id, templateId: _tid, ...rest }) => ({
+        ...rest,
+        templateId: newTemplate!.id,
+      })),
+    );
+  }
+
+  res.status(201).json(newTemplate);
+});
+
+/**
+ * POST /workout/templates/:id/exercises
+ * Add an exercise slot to a template.
+ */
+router.post("/workout/templates/:id/exercises", requireAuth, async (req, res): Promise<void> => {
+  const userId = (req as AuthenticatedRequest).userId;
+  const templateId = parseIntParam(req.params.id);
+  if (templateId === null) { res.status(400).json({ error: "Invalid id" }); return; }
+
+  const [tpl] = await db
+    .select({ id: workoutTemplatesTable.id })
+    .from(workoutTemplatesTable)
+    .where(and(eq(workoutTemplatesTable.id, templateId), eq(workoutTemplatesTable.userId, userId)));
+  if (!tpl) { res.status(404).json({ error: "Template not found" }); return; }
+
+  const {
+    exerciseId, orderIndex, prescribedSets, prescribedReps, prescribedWeightKg,
+    prescribedDurationSec, prescribedDistanceM, restSec, supersetGroupId, notes,
+  } = req.body as Record<string, unknown>;
+
+  if (!exerciseId || typeof exerciseId !== "number") {
+    res.status(400).json({ error: "exerciseId is required" });
+    return;
+  }
+
+  const [slot] = await db
+    .insert(workoutTemplateExercisesTable)
+    .values({
+      templateId,
+      exerciseId,
+      orderIndex: typeof orderIndex === "number" ? orderIndex : 0,
+      prescribedSets: typeof prescribedSets === "number" ? prescribedSets : null,
+      prescribedReps: typeof prescribedReps === "number" ? prescribedReps : null,
+      prescribedWeightKg: typeof prescribedWeightKg === "number" ? prescribedWeightKg : null,
+      prescribedDurationSec: typeof prescribedDurationSec === "number" ? prescribedDurationSec : null,
+      prescribedDistanceM: typeof prescribedDistanceM === "number" ? prescribedDistanceM : null,
+      restSec: typeof restSec === "number" ? restSec : 90,
+      supersetGroupId: typeof supersetGroupId === "number" ? supersetGroupId : null,
+      notes: typeof notes === "string" && notes.trim() ? notes.trim() : null,
+    })
+    .returning();
+  res.status(201).json(slot);
+});
+
+/**
+ * PUT /workout/templates/:id/exercises/order
+ * Batch-update orderIndex for exercise slots.
+ * Body: { slots: Array<{ id: number; orderIndex: number }> }
+ * NOTE: Registered before /:id/exercises/:slotId to avoid conflicts.
+ */
+router.put(
+  "/workout/templates/:id/exercises/order",
+  requireAuth,
+  async (req, res): Promise<void> => {
+    const userId = (req as AuthenticatedRequest).userId;
+    const templateId = parseIntParam(req.params.id);
+    if (templateId === null) { res.status(400).json({ error: "Invalid id" }); return; }
+
+    const [tpl] = await db
+      .select({ id: workoutTemplatesTable.id })
+      .from(workoutTemplatesTable)
+      .where(and(eq(workoutTemplatesTable.id, templateId), eq(workoutTemplatesTable.userId, userId)));
+    if (!tpl) { res.status(404).json({ error: "Template not found" }); return; }
+
+    const { slots } = req.body as { slots?: Array<{ id: number; orderIndex: number }> };
+    if (!Array.isArray(slots)) { res.status(400).json({ error: "slots array is required" }); return; }
+
+    await Promise.all(
+      slots.map(({ id, orderIndex }) =>
+        db
+          .update(workoutTemplateExercisesTable)
+          .set({ orderIndex })
+          .where(
+            and(
+              eq(workoutTemplateExercisesTable.id, id),
+              eq(workoutTemplateExercisesTable.templateId, templateId),
+            ),
+          ),
+      ),
+    );
+    res.sendStatus(204);
+  },
+);
+
+/**
+ * PATCH /workout/templates/:id/exercises/:slotId
+ * Update an exercise slot's targets, notes, or superset group.
+ */
+router.patch(
+  "/workout/templates/:id/exercises/:slotId",
+  requireAuth,
+  async (req, res): Promise<void> => {
+    const userId = (req as AuthenticatedRequest).userId;
+    const templateId = parseIntParam(req.params.id);
+    const slotId = parseIntParam(req.params.slotId);
+    if (templateId === null || slotId === null) {
+      res.status(400).json({ error: "Invalid id" });
+      return;
+    }
+
+    const [tpl] = await db
+      .select({ id: workoutTemplatesTable.id })
+      .from(workoutTemplatesTable)
+      .where(and(eq(workoutTemplatesTable.id, templateId), eq(workoutTemplatesTable.userId, userId)));
+    if (!tpl) { res.status(404).json({ error: "Template not found" }); return; }
+
+    const {
+      prescribedSets, prescribedReps, prescribedWeightKg, prescribedDurationSec,
+      prescribedDistanceM, restSec, supersetGroupId, notes, orderIndex,
+    } = req.body as Record<string, unknown>;
+
+    const updates: Record<string, unknown> = {};
+    if (prescribedSets !== undefined) updates.prescribedSets = typeof prescribedSets === "number" ? prescribedSets : null;
+    if (prescribedReps !== undefined) updates.prescribedReps = typeof prescribedReps === "number" ? prescribedReps : null;
+    if (prescribedWeightKg !== undefined) updates.prescribedWeightKg = typeof prescribedWeightKg === "number" ? prescribedWeightKg : null;
+    if (prescribedDurationSec !== undefined) updates.prescribedDurationSec = typeof prescribedDurationSec === "number" ? prescribedDurationSec : null;
+    if (prescribedDistanceM !== undefined) updates.prescribedDistanceM = typeof prescribedDistanceM === "number" ? prescribedDistanceM : null;
+    if (restSec !== undefined) updates.restSec = typeof restSec === "number" ? restSec : 90;
+    if (supersetGroupId !== undefined) updates.supersetGroupId = typeof supersetGroupId === "number" ? supersetGroupId : null;
+    if (notes !== undefined) updates.notes = typeof notes === "string" && notes.trim() ? notes.trim() : null;
+    if (orderIndex !== undefined) updates.orderIndex = typeof orderIndex === "number" ? orderIndex : 0;
+
+    const [slot] = await db
+      .update(workoutTemplateExercisesTable)
+      .set(updates)
+      .where(
+        and(
+          eq(workoutTemplateExercisesTable.id, slotId),
+          eq(workoutTemplateExercisesTable.templateId, templateId),
+        ),
+      )
+      .returning();
+    if (!slot) { res.status(404).json({ error: "Slot not found" }); return; }
+    res.json(slot);
+  },
+);
+
+/**
+ * DELETE /workout/templates/:id/exercises/:slotId
+ * Remove an exercise slot from a template.
+ */
+router.delete(
+  "/workout/templates/:id/exercises/:slotId",
+  requireAuth,
+  async (req, res): Promise<void> => {
+    const userId = (req as AuthenticatedRequest).userId;
+    const templateId = parseIntParam(req.params.id);
+    const slotId = parseIntParam(req.params.slotId);
+    if (templateId === null || slotId === null) {
+      res.status(400).json({ error: "Invalid id" });
+      return;
+    }
+
+    const [tpl] = await db
+      .select({ id: workoutTemplatesTable.id })
+      .from(workoutTemplatesTable)
+      .where(and(eq(workoutTemplatesTable.id, templateId), eq(workoutTemplatesTable.userId, userId)));
+    if (!tpl) { res.status(404).json({ error: "Template not found" }); return; }
+
+    await db
+      .delete(workoutTemplateExercisesTable)
+      .where(
+        and(
+          eq(workoutTemplateExercisesTable.id, slotId),
+          eq(workoutTemplateExercisesTable.templateId, templateId),
+        ),
+      );
+    res.sendStatus(204);
+  },
+);
 
 /**
  * GET /workout/templates/:id/exercises

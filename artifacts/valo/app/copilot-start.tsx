@@ -64,6 +64,7 @@ export default function CopilotStartScreen() {
   const [creating, setCreating] = useState(false);
   const [freestyleName, setFreestyleName] = useState("Freestyle Workout");
   const [showFreestyleModal, setShowFreestyleModal] = useState(false);
+  const [duplicating, setDuplicating] = useState<number | null>(null);
 
   useEffect(() => {
     loadTemplates();
@@ -158,6 +159,65 @@ export default function CopilotStartScreen() {
     );
   }
 
+  function handleTemplateMenu(t: WorkoutTemplate) {
+    Alert.alert(t.name, "What would you like to do?", [
+      {
+        text: "Edit",
+        onPress: () =>
+          router.push({
+            pathname: "/copilot-edit" as never,
+            params: {
+              id: String(t.id),
+              name: t.name,
+              category: t.category,
+              duration: t.estimatedDurationMin ? String(t.estimatedDurationMin) : "",
+              notes: t.notes ?? "",
+            },
+          }),
+      },
+      {
+        text: "Duplicate",
+        onPress: () => handleDuplicateTemplate(t),
+      },
+      {
+        text: "Delete",
+        style: "destructive",
+        onPress: () => handleDeleteTemplate(t),
+      },
+      { text: "Cancel", style: "cancel" },
+    ]);
+  }
+
+  async function handleDuplicateTemplate(t: WorkoutTemplate) {
+    setDuplicating(t.id);
+    try {
+      await customFetch(`/api/workout/templates/${t.id}/duplicate`, { method: "POST" });
+      await loadTemplates();
+    } catch {
+      Alert.alert("Failed", "Could not duplicate the template.");
+    } finally {
+      setDuplicating(null);
+    }
+  }
+
+  function handleDeleteTemplate(t: WorkoutTemplate) {
+    Alert.alert("Delete template", `Delete "${t.name}"? This cannot be undone.`, [
+      { text: "Cancel", style: "cancel" },
+      {
+        text: "Delete",
+        style: "destructive",
+        onPress: async () => {
+          try {
+            await customFetch(`/api/workout/templates/${t.id}`, { method: "DELETE" });
+            setTemplates((prev) => prev.filter((tpl) => tpl.id !== t.id));
+          } catch {
+            Alert.alert("Failed", "Could not delete the template.");
+          }
+        },
+      },
+    ]);
+  }
+
   const bg = colors.background;
 
   return (
@@ -250,6 +310,29 @@ export default function CopilotStartScreen() {
             Your templates
           </Text>
 
+          <View style={styles.templateActionsRow}>
+            <TouchableOpacity
+              onPress={() => router.push("/copilot-create" as never)}
+              style={[styles.actionBtn, { backgroundColor: colors.secondary, borderColor: colors.border }]}
+              activeOpacity={0.8}
+            >
+              <Feather name="plus" size={15} color={colors.primary} />
+              <Text style={[styles.actionBtnText, { color: colors.primary, fontFamily: "Inter_600SemiBold" }]}>
+                New
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={() => router.push("/copilot-import" as never)}
+              style={[styles.actionBtn, { backgroundColor: colors.muted, borderColor: colors.border }]}
+              activeOpacity={0.8}
+            >
+              <Feather name="upload" size={15} color={colors.foreground} />
+              <Text style={[styles.actionBtnText, { color: colors.foreground, fontFamily: "Inter_400Regular" }]}>
+                Import
+              </Text>
+            </TouchableOpacity>
+          </View>
+
           {loadingTemplates ? (
             <View style={styles.loadingWrap}>
               <ActivityIndicator color={colors.primary} />
@@ -257,45 +340,61 @@ export default function CopilotStartScreen() {
           ) : templates.length === 0 ? (
             <View style={[styles.emptyCard, { backgroundColor: colors.muted, borderColor: colors.border }]}>
               <Text style={[styles.emptyText, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
-                No templates yet. Create one from the Fitness tool to save your favourite workouts here.
+                No templates yet. Tap New to create one, or Import to parse a workout with AI.
               </Text>
             </View>
           ) : (
             templates.map((t) => {
               const cs = categoryStyle(t.category);
               return (
-                <TouchableOpacity
+                <View
                   key={t.id}
-                  onPress={() => startFromTemplate(t)}
-                  disabled={creating}
-                  activeOpacity={0.8}
                   style={[styles.templateCard, { backgroundColor: colors.card, borderColor: colors.border }]}
                 >
-                  <View style={[styles.categoryBadge, { backgroundColor: cs.bg }]}>
-                    <Text style={[styles.categoryText, { color: cs.text, fontFamily: "Inter_600SemiBold" }]}>
-                      {t.category.toUpperCase()}
-                    </Text>
-                  </View>
-                  <View style={{ flex: 1 }}>
-                    <Text style={[styles.templateName, { color: colors.foreground, fontFamily: "Inter_600SemiBold" }]}>
-                      {t.name}
-                    </Text>
-                    {t.estimatedDurationMin ? (
-                      <Text style={[styles.templateMeta, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
-                        {formatDuration(t.estimatedDurationMin)}
-                      </Text>
-                    ) : null}
-                  </View>
-                  {creating ? (
-                    <ActivityIndicator size="small" color={colors.primary} />
-                  ) : (
-                    <View style={[styles.startPill, { backgroundColor: colors.primary }]}>
-                      <Text style={[styles.startPillText, { color: colors.primaryForeground, fontFamily: "Inter_600SemiBold" }]}>
-                        Start
+                  <TouchableOpacity
+                    onPress={() => startFromTemplate(t)}
+                    disabled={creating}
+                    activeOpacity={0.8}
+                    style={styles.templateCardInner}
+                  >
+                    <View style={[styles.categoryBadge, { backgroundColor: cs.bg }]}>
+                      <Text style={[styles.categoryText, { color: cs.text, fontFamily: "Inter_600SemiBold" }]}>
+                        {t.category.toUpperCase()}
                       </Text>
                     </View>
-                  )}
-                </TouchableOpacity>
+                    <View style={{ flex: 1 }}>
+                      <Text style={[styles.templateName, { color: colors.foreground, fontFamily: "Inter_600SemiBold" }]}>
+                        {t.name}
+                      </Text>
+                      {t.estimatedDurationMin ? (
+                        <Text style={[styles.templateMeta, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
+                          {formatDuration(t.estimatedDurationMin)}
+                        </Text>
+                      ) : null}
+                    </View>
+                    {creating ? (
+                      <ActivityIndicator size="small" color={colors.primary} />
+                    ) : (
+                      <View style={[styles.startPill, { backgroundColor: colors.primary }]}>
+                        <Text style={[styles.startPillText, { color: colors.primaryForeground, fontFamily: "Inter_600SemiBold" }]}>
+                          Start
+                        </Text>
+                      </View>
+                    )}
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    onPress={() => handleTemplateMenu(t)}
+                    disabled={creating}
+                    style={[styles.templateMenuBtn, { borderLeftColor: colors.border }]}
+                    hitSlop={8}
+                  >
+                    {duplicating === t.id ? (
+                      <ActivityIndicator size="small" color={colors.mutedForeground} />
+                    ) : (
+                      <Feather name="more-vertical" size={18} color={colors.mutedForeground} />
+                    )}
+                  </TouchableOpacity>
+                </View>
               );
             })
           )}
@@ -398,12 +497,38 @@ const styles = StyleSheet.create({
 
   templateCard: {
     flexDirection: "row",
+    borderRadius: 16,
+    borderWidth: StyleSheet.hairlineWidth,
+    overflow: "hidden",
+  },
+  templateCardInner: {
+    flex: 1,
+    flexDirection: "row",
     alignItems: "center",
     gap: 14,
     padding: 16,
-    borderRadius: 16,
+  },
+  templateMenuBtn: {
+    width: 48,
+    alignItems: "center",
+    justifyContent: "center",
+    borderLeftWidth: StyleSheet.hairlineWidth,
+  },
+  templateActionsRow: {
+    flexDirection: "row",
+    gap: 10,
+  },
+  actionBtn: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 7,
+    paddingVertical: 11,
+    borderRadius: 12,
     borderWidth: StyleSheet.hairlineWidth,
   },
+  actionBtnText: { fontSize: 14 },
   categoryBadge: {
     paddingHorizontal: 10,
     paddingVertical: 5,
