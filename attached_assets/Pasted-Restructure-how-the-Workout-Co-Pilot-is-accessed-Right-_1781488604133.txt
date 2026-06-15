@@ -1,0 +1,20 @@
+Restructure how the Workout Co-Pilot is accessed.
+
+Right now the Copilot Modules screen shows a "Coming soon" placeholder, and there's a persistent Workout Co-Pilot bar pinned above the tab bar on every screen. Replace that with a single entry point: the Copilot Modules screen becomes the hub.
+
+Changes:
+
+1. Copilot Modules screen — replace the "Coming soon" placeholder with a real list of module rows. Each row is a tappable card showing icon + title + short subtitle:
+   - "Workouts" — subtitle "Start, log, and track your workouts" — tapping it opens the existing Workout Co-Pilot menu (the bottom sheet with Start a workout / Create / Edit / Build a plan / Import), exactly the same menu the persistent bar's expanded view shows today.
+   - "Cooking" — placeholder row, subtitle "Coming soon", visibly de-emphasized and not tappable (or shows a brief "coming soon" toast if tapped).
+   Keep the back arrow and screen title.
+
+2. Persistent Workout Co-Pilot bar — change its visibility rule so it is hidden by default. It should only appear when there is an active workout session in progress. When a session is active, it shows as it does today (slim bar above the tab bar, exercise name + live timer, tap to resume/expand). When no session is active, it does not render anywhere — including on the Copilot Modules screen.
+
+3. Make sure none of the underlying workout functionality changes. The active-session global store, persistence across backgrounding/kill, the menu sheet contents, every screen the menu routes to (Start, Create, Edit, Programs, Import) — all unchanged. Only the entry points change: from "Apps grid → Copilot Modules → Workouts row" instead of from a persistent bar.
+
+Acceptance criteria:
+- Copilot Modules screen shows a Workouts row that opens the same menu the bar's expanded view currently shows, and a disabled-looking Cooking row.
+- The persistent bar does not appear anywhere when there is no active workout.
+- When a workout is in progress, the persistent bar reappears so the user can tap back into the live session from any tab.
+- All existing workout flows (start, create, edit, programs, import, the live workout engine, summary, HR, progress) continue to work unchanged.
