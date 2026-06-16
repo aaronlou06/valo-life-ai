@@ -1,0 +1,70 @@
+Create one reusable empty-state component used everywhere below. It should render:
+
+A small icon or light illustration drawn from the existing warm palette (terracotta, sage, sand, etc.).
+A short headline.
+One line of supporting subtext.
+A single primary call-to-action button.
+An optional secondary/alternate action line where noted.
+
+Keep it visually quiet and intentional — it should feel like part of the design system, not a placeholder. The same component handles both true first-run and any later moment a section has no data.
+Loading vs empty logic (the part that currently reads as broken)
+Today, genuinely-empty sections appear to sit on a skeleton that never resolves. For every section below, ensure three distinct states:
+
+Loading — a brief skeleton only while a data request is genuinely in flight.
+Empty — the request has resolved with no data; render the shared empty-state component.
+Populated — render the real content.
+
+A resolved-but-empty result must land on the empty state, never a persistent skeleton.
+Per-tab application
+Home
+Keep the existing time-aware greeting and use the known name.
+The "From Valo" pre-call card has no patterns to synthesize on first run. Show a one-time welcome variant instead — recommended starting copy:
+Headline: "I'm just getting to know you."
+Subtext: "My page is blank right now — but the moment we talk, it starts filling in."
+Primary CTA: Start your first check-in (routes to the check-in launcher).
+At-a-Glance cards: when there's no data behind a card, hide it entirely rather than showing an empty card. Do not show empty At-a-Glance placeholders.
+Plan
+Calendar (hero): Google Calendar is seeded as connected, so it may already show real events — leave it populated when events exist. An empty calendar day should use the normal calendar UI, not an empty-state card.
+"This Week" agenda when empty:
+Headline: "Nothing on the books yet."
+Subtext: "Add it here, or just mention it next time we talk."
+Primary CTA: Add an event (routes to the New Event flow).
+Countdown strip: hide it when there are no upcoming dates.
+Library → Goals when empty:
+Headline: "No goals yet."
+Subtext: "Let's set your first one."
+Primary CTA: Add a goal.
+Health
+This tab is read-only, so the only way to populate it is through check-ins or a wearable — lean into that.
+
+Trends block (sleep, energy, activity, diet consistency) when empty:
+Headline: "Your trends are waiting."
+Subtext: "Sleep, energy, and activity show up here once we start checking in."
+Primary CTA: Start a check-in.
+Secondary/alternate line: Connect a wearable.
+Apple HealthKit is seeded, so some objective metrics may already arrive — show whatever real metrics exist and only empty-state the trends that have no data. Subjective metrics (energy, diet consistency) won't appear until check-ins exist; that's expected.
+Life Balance radar when empty: render a ghost/flat baseline radar (all dimensions at a neutral baseline) with a short overlay prompt — "This fills in as I learn about you." Do not show a blank or broken chart.
+Progress
+Habits list when empty:
+Headline: "No habits yet."
+Subtext: "Pick one to track, or set one up in a check-in."
+Primary CTA: Add a habit.
+Voice
+Copy above is the recommended starting voice — warm, first-person Valo, consistent with "Nothing you tell me disappears. It all compounds." Treat the exact wording as adjustable; keep the tone.
+Edge cases
+Seeded integrations partially populate. Because state is decided per section, a tab can be partly populated (e.g., calendar has events, Health has some HealthKit metrics) while other sections show empties. Only truly-empty sections show the empty state.
+No name / onboarding skipped. The greeting falls back to a warm neutral greeting without a name.
+Returning user clears their data. Someone who deletes all their habits (or has no goals again) sees the same empty state — these are not first-run-only.
+Acceptance criteria
+A freshly onboarded account with no check-ins shows warm, Valo-voiced empty states across all four tabs, with no skeletons that read as broken.
+Home shows the From Valo welcome variant and hides empty At-a-Glance cards entirely.
+Sections backed by seeded data (calendar events, available HealthKit metrics) render populated, not empty.
+Each empty state has exactly one primary CTA that routes correctly: check-in launcher, New Event flow, add goal, add habit.
+The Life Balance radar shows a ghost baseline plus prompt, never a blank or broken chart.
+All empty states reuse the single shared component.
+A returning user who clears data sees the same empty states, not just first-run users.
+Scope guardrails
+This task is: the new shared empty-state component plus wiring it into the Home, Plan, Health, and Progress screens, and fixing the loading-vs-empty resolution in those sections.
+Do not modify the core components Recovery, GoalProgress, or Motivation.
+No navigation changes and no backend changes — use the data already being fetched to detect empty vs loading.
+This is real-app work in the Expo project. Do not touch the mockup sandbox.
