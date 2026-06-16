@@ -1205,9 +1205,10 @@ export default function HealthScreen() {
           ) : logHistory.length === 0 ? (
             <EmptyState
               icon="activity"
-              title="No health data yet."
-              body="Your trends will appear here once you start logging metrics."
+              title="Your trends are waiting."
+              body="Sleep, energy, and activity show up here once we start checking in."
               colors={colors}
+              cta={{ label: "Start a check-in", onPress: () => router.push("/voice") }}
               secondaryCta={{ label: "Connect a wearable", onPress: () => router.push("/(tabs)/profile") }}
             />
           ) : (
@@ -1275,7 +1276,7 @@ export default function HealthScreen() {
           {workoutDays.length === 0 ? (
             <EmptyState
               icon="zap"
-              title="No workouts logged yet."
+              title="No workouts logged."
               body="Tap Log above to record your first session."
               colors={colors}
             />

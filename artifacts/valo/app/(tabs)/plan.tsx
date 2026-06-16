@@ -2810,7 +2810,7 @@ export default function PlanScreen() {
 
   // ── API hooks ──
   const queryClient = useQueryClient();
-  const { data: events = [], isFetching, refetch } = useListCalendarEvents();
+  const { data: events = [], isFetching, isLoading: eventsLoading, refetch } = useListCalendarEvents();
   const { mutateAsync: createEvent } = useCreateCalendarEvent();
   const { mutateAsync: patchEvent } = useUpdateCalendarEvent();
   const { mutateAsync: deleteEvent } = useDeleteCalendarEvent();
@@ -3392,7 +3392,7 @@ export default function PlanScreen() {
           todayStr={currentTodayStr}
           colors={colors}
           onDayPress={handleDayPress}
-          isLoading={isFetching}
+          isLoading={eventsLoading}
           onAddEvent={() => { setAddEventDate(currentTodayStr); setShowAddEvent(true); }}
         />
 
@@ -3433,7 +3433,7 @@ export default function PlanScreen() {
             <EmptyState
               icon="flag"
               title="No goals yet."
-              body="Add something meaningful — a destination worth working toward."
+              body="Let's set your first one."
               colors={colors}
               cta={{ label: "Add a goal", onPress: () => setShowGoalInput(true) }}
             />
@@ -3531,7 +3531,7 @@ export default function PlanScreen() {
             <EmptyState
               icon="check-circle"
               title="No habits yet."
-              body="Small things compound. Add one to start building consistency."
+              body="Small things compound."
               colors={colors}
               cta={{ label: "Add a habit", onPress: () => setShowHabitInput(true) }}
             />
@@ -3590,10 +3590,9 @@ export default function PlanScreen() {
           {routines.length === 0 ? (
             <EmptyState
               icon="repeat"
-              title="No routines yet."
-              body="Group habits into a morning or evening block to build lasting structure."
+              title="Add your first routine."
               colors={colors}
-              cta={{ label: "Create a routine", onPress: () => { setEditingRoutine(null); setShowRoutineModal(true); } }}
+              cta={{ label: "Create routine", onPress: () => { setEditingRoutine(null); setShowRoutineModal(true); } }}
             />
           ) : (
             routines.map((r) => {

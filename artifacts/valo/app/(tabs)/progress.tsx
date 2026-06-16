@@ -920,6 +920,7 @@ const wModal = StyleSheet.create({
 // ─── WorkoutsSection ──────────────────────────────────────────────────────────
 
 function WorkoutsSection({ colors }: { colors: Colors }) {
+  const router = useRouter();
   const [sessions, setSessions] = useState<WSession[]>([]);
   const [volume, setVolume] = useState<VolumeWeek[]>([]);
   const [prs, setPrs] = useState<WorkoutPR[]>([]);
@@ -995,8 +996,9 @@ function WorkoutsSection({ colors }: { colors: Colors }) {
         <EmptyState
           icon="activity"
           title="No workouts yet."
-          body="Complete a session to see your stats and history here."
+          body="Complete a session to see your progress here."
           colors={colors}
+          cta={{ label: "Start a workout", onPress: () => router.push("/copilot-start") }}
           style={{ marginTop: 8 }}
         />
       ) : (
