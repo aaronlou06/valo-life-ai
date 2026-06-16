@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -15,7 +15,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Feather } from "@expo/vector-icons";
-import { useRouter, useLocalSearchParams } from "expo-router";
+import { useRouter, useLocalSearchParams, useFocusEffect } from "expo-router";
 import * as Haptics from "expo-haptics";
 import { customFetch } from "@workspace/api-client-react";
 import { useColors } from "@/hooks/useColors";
@@ -68,9 +68,11 @@ export default function CopilotStartScreen() {
   const [showFreestyleModal, setShowFreestyleModal] = useState(false);
   const [duplicating, setDuplicating] = useState<number | null>(null);
 
-  useEffect(() => {
-    loadTemplates();
-  }, []);
+  useFocusEffect(
+    useCallback(() => {
+      loadTemplates();
+    }, []),
+  );
 
   async function loadTemplates() {
     setLoadingTemplates(true);
