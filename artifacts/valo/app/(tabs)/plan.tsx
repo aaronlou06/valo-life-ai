@@ -21,6 +21,7 @@ import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useColors } from "@/hooks/useColors";
+import { EmptyState } from "@/components/EmptyState";
 import { useValoAuth } from "@/contexts/AuthContext";
 import {
   getHolidaysForMonth,
@@ -2642,13 +2643,15 @@ function CountdownStrip({
 // ─── This Week List ───────────────────────────────────────────────────────────
 
 function ThisWeekList({
-  eventsByDate, personalDates, todayStr, colors, onDayPress,
+  eventsByDate, personalDates, todayStr, colors, onDayPress, onAddEvent, isLoading,
 }: {
   eventsByDate: Record<string, CalendarEvent[]>;
   personalDates: PersonalDate[];
   todayStr: string;
   colors: Colors;
   onDayPress: (dateStr: string) => void;
+  onAddEvent?: () => void;
+  isLoading?: boolean;
 }) {
   const today = new Date(todayStr + "T00:00:00");
   const days: { dateStr: string; label: string; isToday: boolean; events: { key: string; title: string; color: string; typeLabel: string }[] }[] = [];
@@ -2672,7 +2675,22 @@ function ThisWeekList({
     if (evs.length > 0) days.push({ dateStr: dStr, label: dayLabel, isToday: i === 0, events: evs });
   }
 
-  if (days.length === 0) return null;
+  if (isLoading) return null;
+
+  if (days.length === 0) {
+    return (
+      <View style={{ marginBottom: 20, paddingHorizontal: 20 }}>
+        <Text style={{ fontSize: 15, fontFamily: "Inter_600SemiBold", color: colors.foreground, marginBottom: 10 }}>This week</Text>
+        <EmptyState
+          icon="calendar"
+          title="Nothing on the books yet."
+          body="Add it here, or just mention it next time we talk."
+          colors={colors}
+          cta={onAddEvent ? { label: "Add an event", onPress: onAddEvent } : undefined}
+        />
+      </View>
+    );
+  }
 
   return (
     <View style={{ marginBottom: 20, paddingHorizontal: 20 }}>
@@ -3374,6 +3392,8 @@ export default function PlanScreen() {
           todayStr={currentTodayStr}
           colors={colors}
           onDayPress={handleDayPress}
+          isLoading={isFetching}
+          onAddEvent={() => { setAddEventDate(currentTodayStr); setShowAddEvent(true); }}
         />
 
         {/* ── Big Goals ──────────────────────────────────────────────────── */}
@@ -3410,10 +3430,13 @@ export default function PlanScreen() {
           {goalsLoading ? (
             <ActivityIndicator color={colors.primary} style={{ marginTop: 20 }} />
           ) : goals?.length === 0 ? (
-            <View style={[planStyles.emptyState, { borderColor: colors.border, backgroundColor: colors.card }]}>
-              <Feather name="flag" size={22} color={colors.mutedForeground} />
-              <Text style={[planStyles.emptyText, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>No goals yet. Add something meaningful.</Text>
-            </View>
+            <EmptyState
+              icon="flag"
+              title="No goals yet."
+              body="Add something meaningful — a destination worth working toward."
+              colors={colors}
+              cta={{ label: "Add a goal", onPress: () => setShowGoalInput(true) }}
+            />
           ) : (
             goals?.map((goal) => (
               <View key={goal.id} style={[planStyles.goalCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
@@ -3505,10 +3528,13 @@ export default function PlanScreen() {
           )}
 
           {standaloneHabits.length === 0 && !showHabitInput ? (
-            <View style={[planStyles.emptyState, { borderColor: colors.border, backgroundColor: colors.card }]}>
-              <Feather name="check-circle" size={22} color={colors.mutedForeground} />
-              <Text style={[planStyles.emptyText, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>No habits yet. Small things compound.</Text>
-            </View>
+            <EmptyState
+              icon="check-circle"
+              title="No habits yet."
+              body="Small things compound. Add one to start building consistency."
+              colors={colors}
+              cta={{ label: "Add a habit", onPress: () => setShowHabitInput(true) }}
+            />
           ) : (
             standaloneHabits.map((habit) => {
               const habitReminder = getHabitReminder(habit.id);
@@ -3562,10 +3588,13 @@ export default function PlanScreen() {
           </View>
 
           {routines.length === 0 ? (
-            <TouchableOpacity style={[planStyles.emptyState, { borderColor: colors.border, backgroundColor: colors.card }]} onPress={() => { setEditingRoutine(null); setShowRoutineModal(true); }}>
-              <Feather name="repeat" size={22} color={colors.mutedForeground} />
-              <Text style={[planStyles.emptyText, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>Add your first routine</Text>
-            </TouchableOpacity>
+            <EmptyState
+              icon="repeat"
+              title="No routines yet."
+              body="Group habits into a morning or evening block to build lasting structure."
+              colors={colors}
+              cta={{ label: "Create a routine", onPress: () => { setEditingRoutine(null); setShowRoutineModal(true); } }}
+            />
           ) : (
             routines.map((r) => {
               const routineHabits = habits.filter((h) => h.routineId === r.id);

@@ -24,7 +24,9 @@ import {
   getListHabitCompletionsQueryKey,
   customFetch,
 } from "@workspace/api-client-react";
+import { useRouter } from "expo-router";
 import { useColors } from "@/hooks/useColors";
+import { EmptyState } from "@/components/EmptyState";
 
 if (Platform.OS === "android" && UIManager.setLayoutAnimationEnabledExperimental) {
   UIManager.setLayoutAnimationEnabledExperimental(true);
@@ -990,19 +992,13 @@ function WorkoutsSection({ colors }: { colors: Colors }) {
           <ActivityIndicator color={colors.primary} />
         </View>
       ) : noWorkouts ? (
-        <View style={[wStyles.emptyCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
-          <Feather name="activity" size={28} color={colors.mutedForeground} />
-          <Text
-            style={[wStyles.emptyTitle, { color: colors.foreground, fontFamily: "Inter_600SemiBold" }]}
-          >
-            No workouts yet
-          </Text>
-          <Text
-            style={[wStyles.emptyText, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}
-          >
-            Complete a workout session to see your progress here.
-          </Text>
-        </View>
+        <EmptyState
+          icon="activity"
+          title="No workouts yet."
+          body="Complete a session to see your stats and history here."
+          colors={colors}
+          style={{ marginTop: 8 }}
+        />
       ) : (
         <>
           {/* Summary strip */}
@@ -1276,38 +1272,13 @@ const wStyles = StyleSheet.create({
   exerciseDate: { fontSize: 12 },
 });
 
-// ─── EmptyState ───────────────────────────────────────────────────────────────
-
-function EmptyState({ colors }: { colors: Colors }) {
-  return (
-    <View style={emptyStyles.wrap}>
-      <Feather name="check-circle" size={36} color={colors.mutedForeground} />
-      <Text style={[emptyStyles.title, { color: colors.foreground, fontFamily: "Inter_600SemiBold" }]}>
-        No habits yet
-      </Text>
-      <Text style={[emptyStyles.sub, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
-        Add habits on the Plan tab to start tracking your consistency here.
-      </Text>
-    </View>
-  );
-}
-
-const emptyStyles = StyleSheet.create({
-  wrap: {
-    paddingTop: 80,
-    paddingHorizontal: 40,
-    alignItems: "center",
-    gap: 12,
-  },
-  title: { fontSize: 17, marginTop: 4 },
-  sub: { fontSize: 14, lineHeight: 20, textAlign: "center" },
-});
 
 // ─── ProgressScreen ───────────────────────────────────────────────────────────
 
 export default function ProgressScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
+  const router = useRouter();
 
   const { data: fetchedHabits = [], isLoading: habitsLoading } = useListHabits();
   const [orderedHabits, setOrderedHabits] = useState<HabitItem[]>([]);
@@ -1432,8 +1403,16 @@ export default function ProgressScreen() {
           <ActivityIndicator color={colors.primary} />
         </View>
       ) : (
-        <EmptyState colors={colors} />
+        <EmptyState
+          icon="check-circle"
+          title="No habits yet."
+          body="Pick one to track, or set one up in a check-in."
+          colors={colors}
+          cta={{ label: "Add a habit", onPress: () => router.navigate("/(tabs)/plan") }}
+          style={{ marginHorizontal: 16, marginTop: 32 }}
+        />
       ),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [isLoading, colors]
   );
 

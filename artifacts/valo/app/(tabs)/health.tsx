@@ -28,6 +28,7 @@ import {
   type ListDailyLogHistoryParams,
 } from "@workspace/api-client-react";
 import { useColors } from "@/hooks/useColors";
+import { EmptyState } from "@/components/EmptyState";
 import * as Haptics from "expo-haptics";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -1202,25 +1203,13 @@ export default function HealthScreen() {
               style={{ marginTop: 24, alignSelf: "center" }}
             />
           ) : logHistory.length === 0 ? (
-            <View
-              style={[
-                styles.emptyCard,
-                {
-                  backgroundColor: colors.muted,
-                  borderColor: colors.border,
-                },
-              ]}
-            >
-              <Text
-                style={[
-                  styles.emptyText,
-                  { color: colors.mutedForeground },
-                ]}
-              >
-                No data yet. Log health metrics from the Check-In tab to
-                see trends here.
-              </Text>
-            </View>
+            <EmptyState
+              icon="activity"
+              title="No health data yet."
+              body="Your trends will appear here once you start logging metrics."
+              colors={colors}
+              secondaryCta={{ label: "Connect a wearable", onPress: () => router.push("/(tabs)/profile") }}
+            />
           ) : (
             <View style={styles.metricsGrid}>
               {METRIC_CONFIGS.map((cfg) => (
@@ -1284,24 +1273,12 @@ export default function HealthScreen() {
           </View>
 
           {workoutDays.length === 0 ? (
-            <View
-              style={[
-                styles.emptyCard,
-                {
-                  backgroundColor: colors.muted,
-                  borderColor: colors.border,
-                },
-              ]}
-            >
-              <Text
-                style={[
-                  styles.emptyText,
-                  { color: colors.mutedForeground },
-                ]}
-              >
-                No workouts logged yet. Tap Log to record one.
-              </Text>
-            </View>
+            <EmptyState
+              icon="zap"
+              title="No workouts logged yet."
+              body="Tap Log above to record your first session."
+              colors={colors}
+            />
           ) : (
             <View
               style={[

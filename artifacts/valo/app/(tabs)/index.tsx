@@ -529,11 +529,19 @@ function FromValoCard({
         <Text
           style={[
             styles.valoText,
-            { color: colors.foreground, fontFamily: "Inter_400Regular" },
+            { color: colors.foreground, fontFamily: "Inter_600SemiBold" },
           ]}
         >
-          Let's do your first check-in. Valo learns what matters to you and
-          keeps track of your momentum.
+          I'm just getting to know you.
+        </Text>
+        <Text
+          style={[
+            styles.valoText,
+            { color: colors.mutedForeground, fontFamily: "Inter_400Regular" },
+          ]}
+        >
+          My page is blank right now — but the moment we talk, it starts
+          filling in.
         </Text>
         <View
           style={[
@@ -1110,14 +1118,16 @@ export default function HomeScreen() {
         )}
 
         {/* ── At a glance ── */}
-        <Text
-          style={[
-            styles.sectionLabel,
-            { color: colors.mutedForeground, fontFamily: "Inter_600SemiBold" },
-          ]}
-        >
-          At a glance
-        </Text>
+        {(loading || (briefing && briefing.cards.length > 0)) && (
+          <Text
+            style={[
+              styles.sectionLabel,
+              { color: colors.mutedForeground, fontFamily: "Inter_600SemiBold" },
+            ]}
+          >
+            At a glance
+          </Text>
+        )}
 
         {loading ? (
           <View style={styles.loadingRow}>
@@ -1135,29 +1145,7 @@ export default function HomeScreen() {
               />
             ))}
           </View>
-        ) : (
-          <View
-            style={[
-              styles.emptyCards,
-              {
-                backgroundColor: colors.card,
-                borderColor: colors.border,
-              },
-            ]}
-          >
-            <Text
-              style={[
-                styles.emptyText,
-                {
-                  color: colors.mutedForeground,
-                  fontFamily: "Inter_400Regular",
-                },
-              ]}
-            >
-              No data yet — log your first check-in to see your briefing here.
-            </Text>
-          </View>
-        )}
+        ) : null}
 
         {/* ── Workout snapshot ── */}
         <WorkoutSnapshot colors={colors} router={router} />
