@@ -19,6 +19,8 @@ import type {
 import type {
   AnalyzeImageInput,
   AnalyzeImageResult,
+  AskRequest,
+  AskResponse,
   CalendarEvent,
   CalendarEventInput,
   CalendarEventUpdate,
@@ -5201,3 +5203,89 @@ export function useGetWorkoutVolume<
 
   return { ...query, queryKey: queryOptions.queryKey };
 }
+
+/**
+ * @summary Ask a natural-language question grounded in the user's own data
+ */
+export const getAskValoUrl = () => {
+  return `/api/ask`;
+};
+
+export const askValo = async (
+  askRequest: AskRequest,
+  options?: RequestInit,
+): Promise<AskResponse> => {
+  return customFetch<AskResponse>(getAskValoUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(askRequest),
+  });
+};
+
+export const getAskValoMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof askValo>>,
+    TError,
+    { data: BodyType<AskRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof askValo>>,
+  TError,
+  { data: BodyType<AskRequest> },
+  TContext
+> => {
+  const mutationKey = ["askValo"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof askValo>>,
+    { data: BodyType<AskRequest> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return askValo(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type AskValoMutationResult = NonNullable<
+  Awaited<ReturnType<typeof askValo>>
+>;
+export type AskValoMutationBody = BodyType<AskRequest>;
+export type AskValoMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Ask a natural-language question grounded in the user's own data
+ */
+export const useAskValo = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof askValo>>,
+    TError,
+    { data: BodyType<AskRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof askValo>>,
+  TError,
+  { data: BodyType<AskRequest> },
+  TContext
+> => {
+  return useMutation(getAskValoMutationOptions(options));
+};

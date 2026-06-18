@@ -1192,8 +1192,69 @@ paths:
                 items:
                   $ref: "#/components/schemas/WorkoutVolumeWeek"
 
+  /ask:
+    post:
+      operationId: askValo
+      tags: [ask]
+      summary: Ask a natural-language question grounded in the user's own data
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AskRequest"
+      responses:
+        "200":
+          description: A grounded answer with citations
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AskResponse"
+
 components:
   schemas:
+    AskTurn:
+      type: object
+      required: [question, answer]
+      properties:
+        question:
+          type: string
+        answer:
+          type: string
+
+    AskRequest:
+      type: object
+      required: [question]
+      properties:
+        question:
+          type: string
+        priorTurns:
+          type: array
+          items:
+            $ref: "#/components/schemas/AskTurn"
+
+    AskCitation:
+      type: object
+      required: [source, date, excerpt]
+      properties:
+        source:
+          type: string
+        date:
+          type: string
+        excerpt:
+          type: string
+
+    AskResponse:
+      type: object
+      required: [answer, citations]
+      properties:
+        answer:
+          type: string
+        citations:
+          type: array
+          items:
+            $ref: "#/components/schemas/AskCitation"
+
     UserSettings:
       type: object
       required: [callsEnabled, onboardingCompleted, firstCallCompleted, checkinReminderEnabled]

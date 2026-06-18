@@ -29,6 +29,7 @@ import personalDatesRouter from "./personal-dates";
 import homeBriefingRouter from "./home-briefing";
 import exercisesRouter from "./exercises";
 import workoutRouter from "./workout";
+import askRouter from "./ask";
 
 const router: IRouter = Router();
 
@@ -62,5 +63,6 @@ router.use(personalDatesRouter);
 router.use(homeBriefingRouter);
 router.use(exercisesRouter);
 router.use(workoutRouter);
+router.use(askRouter);
 
 export default router;

@@ -1369,3 +1369,29 @@ export const GetWorkoutVolumeResponseItem = zod.object({
   tonnageKg: zod.number(),
 });
 export const GetWorkoutVolumeResponse = zod.array(GetWorkoutVolumeResponseItem);
+
+/**
+ * @summary Ask a natural-language question grounded in the user's own data
+ */
+export const AskValoBody = zod.object({
+  question: zod.string(),
+  priorTurns: zod
+    .array(
+      zod.object({
+        question: zod.string(),
+        answer: zod.string(),
+      }),
+    )
+    .optional(),
+});
+
+export const AskValoResponse = zod.object({
+  answer: zod.string(),
+  citations: zod.array(
+    zod.object({
+      source: zod.string(),
+      date: zod.string(),
+      excerpt: zod.string(),
+    }),
+  ),
+});

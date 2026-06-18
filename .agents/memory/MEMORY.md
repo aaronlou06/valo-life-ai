@@ -11,3 +11,4 @@
 - [Template editor patterns](template-editor.md) — TemplateEditor component uses DraggableFlatList; copilot-edit passes metadata via URL params (id/name/category/duration/notes) to avoid extra GET; save strategy is delete-all-slots then re-insert.
 - [Program builder patterns](program-builder.md) — workoutPrograms has startDate (text nullable); attach generates calendar_events type="workout"; notes JSON format {programId,templateId,...}; lib rebuild required after schema changes.
 - [Workout progress UI](workout-progress-ui.md) — WorkoutsSection is ListFooterComponent on progress.tsx DraggableFlatList; WorkoutSnapshot in index.tsx shows PR + weekly consistency cards; toISODate already exists at top of progress.tsx (do not add a second one).
+- [Ask Valo](ask-valo.md) — grounded Q&A; citations as separate collapsible Sources section (not inline); stateless context fetch + priorTurns capped 5; honest-no-data system prompt; Home-only entry.

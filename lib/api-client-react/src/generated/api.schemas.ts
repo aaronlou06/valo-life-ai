@@ -5,6 +5,27 @@
  * Valo API specification
  * OpenAPI spec version: 0.1.0
  */
+export interface AskTurn {
+  question: string;
+  answer: string;
+}
+
+export interface AskRequest {
+  question: string;
+  priorTurns?: AskTurn[];
+}
+
+export interface AskCitation {
+  source: string;
+  date: string;
+  excerpt: string;
+}
+
+export interface AskResponse {
+  answer: string;
+  citations: AskCitation[];
+}
+
 export interface UserSettings {
   /** @nullable */
   phoneNumber?: string | null;

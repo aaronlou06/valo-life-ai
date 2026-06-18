@@ -1090,6 +1090,26 @@ export default function HomeScreen() {
           <AvatarDropdown name={name} colors={colors} />
         </View>
 
+        {/* ── Ask Valo ── */}
+        <TouchableOpacity
+          onPress={() => router.push("/ask-valo")}
+          activeOpacity={0.8}
+          style={[
+            styles.askBar,
+            { backgroundColor: colors.secondary, borderColor: colors.border },
+          ]}
+        >
+          <Feather name="message-circle" size={17} color={colors.primary} />
+          <Text
+            style={[
+              styles.askBarText,
+              { color: colors.mutedForeground, fontFamily: "Inter_400Regular" },
+            ]}
+          >
+            Ask Valo anything...
+          </Text>
+        </TouchableOpacity>
+
         {/* ── From Valo ── */}
         {loading ? (
           <View
@@ -1282,6 +1302,21 @@ const styles = StyleSheet.create({
   appTileLabel: {
     fontSize: 12,
     textAlign: "center",
+  },
+  // ── Ask Valo ──
+  askBar: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    borderRadius: 14,
+    borderWidth: 1,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    marginBottom: 20,
+  },
+  askBarText: {
+    fontSize: 15,
+    flex: 1,
   },
   // ── From Valo ──
   valoCard: {
