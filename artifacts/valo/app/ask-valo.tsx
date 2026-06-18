@@ -1,4 +1,4 @@
-import React, { useCallback, useRef, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   View,
   Text,
@@ -6,7 +6,7 @@ import {
   TouchableOpacity,
   StyleSheet,
   Platform,
-  KeyboardAvoidingView,
+  Keyboard,
   ActivityIndicator,
   ScrollView,
 } from "react-native";
@@ -52,6 +52,23 @@ export default function AskValoScreen() {
   const [expanded, setExpanded] = useState<Set<number>>(new Set());
 
   const isPending = ask.isPending;
+
+  const [keyboardHeight, setKeyboardHeight] = useState(0);
+
+  useEffect(() => {
+    const showEvent = Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow";
+    const hideEvent = Platform.OS === "ios" ? "keyboardWillHide" : "keyboardDidHide";
+    const showSub = Keyboard.addListener(showEvent, (e) => {
+      setKeyboardHeight(e.endCoordinates.height);
+    });
+    const hideSub = Keyboard.addListener(hideEvent, () => {
+      setKeyboardHeight(0);
+    });
+    return () => {
+      showSub.remove();
+      hideSub.remove();
+    };
+  }, []);
 
   const scrollToEnd = useCallback(() => {
     requestAnimationFrame(() => scrollRef.current?.scrollToEnd({ animated: true }));
@@ -145,11 +162,7 @@ export default function AskValoScreen() {
         <View style={styles.headerBtn} />
       </View>
 
-      <KeyboardAvoidingView
-        style={{ flex: 1 }}
-        behavior={Platform.OS === "ios" ? "padding" : "height"}
-        keyboardVerticalOffset={0}
-      >
+      <View style={{ flex: 1, paddingBottom: keyboardHeight }}>
         <ScrollView
           ref={scrollRef}
           style={{ flex: 1 }}
@@ -371,7 +384,7 @@ export default function AskValoScreen() {
             {
               borderTopColor: colors.border,
               backgroundColor: colors.background,
-              paddingBottom: Math.max(insets.bottom, 12),
+              paddingBottom: keyboardHeight > 0 ? 12 : Math.max(insets.bottom, 12),
             },
           ]}
         >
@@ -413,7 +426,7 @@ export default function AskValoScreen() {
             )}
           </TouchableOpacity>
         </View>
-      </KeyboardAvoidingView>
+      </View>
     </View>
   );
 }
