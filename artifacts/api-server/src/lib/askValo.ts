@@ -71,6 +71,50 @@ function safeJsonArray(value: string | null): unknown[] {
   }
 }
 
+// Remove a markdown code fence wherever it appears in the text, returning the
+// fenced contents if present, otherwise the original text.
+function stripFences(text: string): string {
+  const fence = text.match(/```(?:json)?\s*\n?([\s\S]*?)\n?```/);
+  return fence?.[1] ? fence[1].trim() : text.trim();
+}
+
+// The model frequently wraps the JSON object in conversational prose — a
+// preamble before it and/or a trailing sentence after it — especially on
+// no-data and follow-up turns. Slicing from the first `{` to the end leaves
+// trailing characters that break JSON.parse, so instead we scan for the first
+// balanced top-level object and return only that substring.
+function extractJsonObject(text: string): string | null {
+  const raw = stripFences(text);
+  const start = raw.indexOf("{");
+  if (start < 0) return null;
+
+  let depth = 0;
+  let inString = false;
+  let escaped = false;
+  for (let i = start; i < raw.length; i++) {
+    const ch = raw[i];
+    if (escaped) {
+      escaped = false;
+      continue;
+    }
+    if (ch === "\\") {
+      escaped = true;
+      continue;
+    }
+    if (ch === '"') {
+      inString = !inString;
+      continue;
+    }
+    if (inString) continue;
+    if (ch === "{") depth++;
+    else if (ch === "}") {
+      depth--;
+      if (depth === 0) return raw.slice(start, i + 1);
+    }
+  }
+  return null;
+}
+
 async function buildContextBlock(userId: string): Promise<string> {
   const today = new Date().toISOString().split("T")[0]!;
   const since14 = isoDaysAgo(14);
@@ -296,8 +340,10 @@ export async function answerUserQuestion(
 
   const userContent = `THE USER'S DATA:\n${context}${conversation}\n\nCURRENT QUESTION:\n${question}`;
 
-  let result: AskValoResult = { answer: "", citations: [] };
-
+  // Only a genuine upstream/network failure should bubble up as an error. The
+  // model's formatting quirks (prose around the JSON, trailing commentary) are
+  // recovered below rather than surfaced as a 500.
+  let rawText = "";
   try {
     const message = await anthropic.messages.create({
       model: "claude-haiku-4-5",
@@ -305,22 +351,25 @@ export async function answerUserQuestion(
       system: SYSTEM_PROMPT,
       messages: [{ role: "user", content: userContent }],
     });
-
     const block = message.content[0];
-    if (block && block.type === "text") {
-      let raw = block.text.trim();
-      const fenceMatch = raw.match(/^```(?:json)?\s*\n?([\s\S]*?)\n?```\s*$/);
-      if (fenceMatch?.[1]) raw = fenceMatch[1].trim();
-      if (!raw.startsWith("{")) {
-        const objStart = raw.indexOf("{");
-        if (objStart >= 0) raw = raw.slice(objStart);
-      }
-      const parsed = JSON.parse(raw) as {
+    rawText = block && block.type === "text" ? block.text : "";
+  } catch (err) {
+    logger.error({ err, userId }, "answerUserQuestion: Claude call failed");
+    throw err;
+  }
+
+  let answer = "";
+  let citations: AskCitation[] = [];
+
+  const jsonStr = extractJsonObject(rawText);
+  if (jsonStr) {
+    try {
+      const parsed = JSON.parse(jsonStr) as {
         answer?: unknown;
         citations?: unknown;
       };
-      const answer = typeof parsed.answer === "string" ? parsed.answer : "";
-      const citations: AskCitation[] = Array.isArray(parsed.citations)
+      if (typeof parsed.answer === "string") answer = parsed.answer;
+      citations = Array.isArray(parsed.citations)
         ? parsed.citations
             .filter((c): c is Record<string, unknown> => !!c && typeof c === "object")
             .map((c) => ({
@@ -330,17 +379,24 @@ export async function answerUserQuestion(
             }))
             .filter((c) => c.source !== "" || c.excerpt !== "")
         : [];
-      result = { answer, citations };
+    } catch (err) {
+      logger.warn(
+        { err, userId },
+        "answerUserQuestion: JSON parse failed, falling back to prose",
+      );
     }
-  } catch (err) {
-    logger.error({ err, userId }, "answerUserQuestion: Claude call failed");
-    throw err;
   }
 
-  if (!result.answer) {
-    result.answer =
+  // Fallback: the model answered in plain prose (no parseable JSON object).
+  // Use that prose as the answer with no citations — this is the honest
+  // no-data path rendering cleanly rather than erroring.
+  if (!answer) {
+    const prose = stripFences(rawText).trim();
+    answer =
+      prose ||
       "I'm having trouble pulling that together right now. Try asking again in a moment.";
+    citations = [];
   }
 
-  return result;
+  return { answer, citations };
 }

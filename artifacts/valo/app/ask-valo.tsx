@@ -147,7 +147,7 @@ export default function AskValoScreen() {
 
       <KeyboardAvoidingView
         style={{ flex: 1 }}
-        behavior={Platform.OS === "ios" ? "padding" : undefined}
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
         keyboardVerticalOffset={0}
       >
         <ScrollView
@@ -260,10 +260,10 @@ export default function AskValoScreen() {
                       <View
                         style={[
                           styles.answerCard,
+                          styles.answerCardAnswered,
                           {
                             backgroundColor: colors.card,
                             borderColor: colors.border,
-                            alignItems: "stretch",
                           },
                         ]}
                       >
@@ -519,6 +519,11 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 10,
+  },
+  answerCardAnswered: {
+    flexDirection: "column",
+    alignItems: "stretch",
+    gap: 0,
   },
   thinkingText: {
     fontSize: 14,
