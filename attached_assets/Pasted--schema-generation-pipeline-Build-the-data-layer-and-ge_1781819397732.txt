@@ -1,0 +1,56 @@
+(schema + generation pipeline)
+
+
+Build the data layer and generation for the Weekly Recap. Reuse the existing patterns rather than creating parallel ones.
+
+Schema. Build the weekly_recaps table you proposed in the plan (per user, one row per week keyed on the local-Monday week start, with the aggregated averages, the five pillar scores, the activity counts, the generated narrative, a snapshot of active patterns, top win / top struggle, next-week intention, status, and model used). Add these to that proposal:
+
+
+A grounded "what Valo learned about you this week" field — a short set of specific, personal observations that make Valo's compounding memory visible. Keep it distinct from the per-pillar narrative so the UI can highlight it on its own.
+A quiet-week flag indicating the week had little activity, so the surface can scale down gracefully.
+Keep the week-over-week deltas for each pillar (computed against the previous week's recap row).
+Enforce one recap per user per week at the database level.
+
+
+Aggregation — buildWeeklyAggregate(userId, weekStart, weekEnd). Derive the week window from the user's local time using the existing getDateInTimezone(callTimezone) utility (last Monday through Sunday). Run the five range queries in parallel, going directly to the tables (the single-day API routes won't serve a range):
+
+
+daily_logs between the dates → averages of sleep, HRV, resting HR, steps, active calories, mood, energy, meaningful connection; apply the same pillar-score formula already used by GET /api/dashboard.
+daily_debrief_extractions joined to that week's voice_debriefs → collect the week's wins, struggles, work/relationship quality, sense of purpose; select a top win and most-recurring struggle.
+habit_completions between the dates → completions over expected → completion percentage.
+workout_sessions (completed) between the dates → count plus a few top lifts for narrative colour.
+nutrition_logs between the dates → distinct days logged.
+Fetch the currently active insights_patterns rows and snapshot them onto the recap. Do not re-run pattern detection — those rows are kept fresh by the nightly job.
+
+
+Generation — generateWeeklyRecap(). Mirror the processDebrief.ts shape exactly: same Claude client, Haiku 4.5, JSON mode, with a WEEKLY_RECAP_SYSTEM_PROMPT written in the same style as EXTRACTION_SYSTEM_PROMPT. Feed it the 7-day aggregate, the pillar deltas vs. the prior week's row, the patterns snapshot, and a sample of the week's actual win/struggle strings. It returns structured JSON: a headline, the per-pillar narrative sections each with their delta, the "what Valo learned" observations, a top win, a top struggle, and a one-sentence forward look. Upsert into weekly_recaps. One Claude call per user per week.
+
+Grounding rules — state these explicitly in the system prompt:
+
+
+Use only what is in the supplied aggregate. Never invent wins, patterns, numbers, or observations.
+The "what Valo learned" observations must each trace to real entries from the week.
+If the week was sparse, set the quiet-week flag, produce a short honest recap, and skip sections with no material rather than padding them.
+All counts and averages come from the computed aggregate, not from the model.
+
+
+Endpoints.
+
+
+GET /api/weekly-recap/latest → the user's most recent ready recap.
+A history endpoint → the user's past recaps, most recent first, for the Progress list.
+A manual-trigger endpoint → generate or regenerate a recap for a given user and week, for testing.
+
+
+Scheduled generation is idempotent (no duplicate for an existing user+week); the manual trigger may overwrite.
+
+
+
+Acceptance:
+
+
+The manual trigger produces a stored recap for a test user, exactly one per user+week.
+Content reflects the real aggregate; a low-activity test user gets the quiet-week variant with no fabricated content and the flag set.
+The "what Valo learned" observations are specific and traceable to that week's entries.
+Counts and averages match the underlying tables.
+Latest and history endpoints return correctly shaped data.
