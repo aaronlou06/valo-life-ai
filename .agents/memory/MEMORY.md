@@ -12,3 +12,5 @@
 - [Program builder patterns](program-builder.md) — workoutPrograms has startDate (text nullable); attach generates calendar_events type="workout"; notes JSON format {programId,templateId,...}; lib rebuild required after schema changes.
 - [Workout progress UI](workout-progress-ui.md) — WorkoutsSection is ListFooterComponent on progress.tsx DraggableFlatList; WorkoutSnapshot in index.tsx shows PR + weekly consistency cards; toISODate already exists at top of progress.tsx (do not add a second one).
 - [Ask Valo](ask-valo.md) — grounded Q&A; citations as separate collapsible Sources section (not inline); stateless context fetch + priorTurns capped 5; honest-no-data system prompt; Home-only entry.
+- [Orval query options queryKey](orval-query-options-querykey.md) — passing enabled/retry to a generated useGet* hook requires also passing queryKey via the getGet*QueryKey getter, else TS2741.
+- [Weekly recap](weekly-recap.md) — "Your Week with Valo": weekly_recaps table, 4 /weekly-recap routes, AI gen grounded (null where no data); mobile /recap/[id], Home Sun/Mon card, Progress history. Cron+push deferred.

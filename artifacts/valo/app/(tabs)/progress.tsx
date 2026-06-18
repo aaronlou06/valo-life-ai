@@ -23,6 +23,8 @@ import {
   listHabitCompletions,
   getListHabitCompletionsQueryKey,
   customFetch,
+  useGetWeeklyRecapHistory,
+  type WeeklyRecapStub,
 } from "@workspace/api-client-react";
 import { useRouter } from "expo-router";
 import { useColors } from "@/hooks/useColors";
@@ -1275,6 +1277,102 @@ const wStyles = StyleSheet.create({
 });
 
 
+// ─── RecapsSection ────────────────────────────────────────────────────────────
+
+function fmtRecapRange(start: string, end: string): string {
+  const part = (iso: string) => {
+    const [y, m, d] = iso.split("T")[0]!.split("-").map(Number);
+    if (!y || !m || !d) return iso;
+    return `${MONTH_SHORT[m - 1]} ${d}`;
+  };
+  return `${part(start)} – ${part(end)}`;
+}
+
+function RecapsSection({ colors }: { colors: Colors }) {
+  const router = useRouter();
+  const { data: recaps = [], isLoading } = useGetWeeklyRecapHistory();
+
+  const ready = useMemo(
+    () => (recaps as WeeklyRecapStub[]).filter((r) => r.status === "ready"),
+    [recaps],
+  );
+
+  if (!isLoading && ready.length === 0) return null;
+
+  return (
+    <View style={rcStyles.section}>
+      <View style={rcStyles.sectionHeader}>
+        <View style={[rcStyles.sectionDivider, { backgroundColor: colors.border }]} />
+        <Feather name="book-open" size={12} color={colors.mutedForeground} />
+        <Text
+          style={[rcStyles.sectionTitle, { color: colors.mutedForeground, fontFamily: "Inter_600SemiBold" }]}
+        >
+          PAST RECAPS
+        </Text>
+        <View style={[rcStyles.sectionDivider, { backgroundColor: colors.border }]} />
+      </View>
+
+      {isLoading ? (
+        <View style={rcStyles.loadingWrap}>
+          <ActivityIndicator color={colors.primary} />
+        </View>
+      ) : (
+        <View style={{ gap: 10 }}>
+          {ready.map((r) => (
+            <TouchableOpacity
+              key={r.id}
+              activeOpacity={0.8}
+              onPress={() => router.push(`/recap/${r.id}`)}
+              style={[rcStyles.card, { backgroundColor: colors.card, borderColor: colors.border }]}
+            >
+              <View style={{ flex: 1 }}>
+                <Text
+                  style={[rcStyles.cardRange, { color: colors.mutedForeground, fontFamily: "Inter_500Medium" }]}
+                >
+                  {fmtRecapRange(r.weekStart, r.weekEnd)}
+                </Text>
+                <Text
+                  style={[rcStyles.cardHeadline, { color: colors.foreground, fontFamily: "Inter_600SemiBold" }]}
+                  numberOfLines={2}
+                >
+                  {r.headline ?? "Weekly recap"}
+                </Text>
+                {r.isQuietWeek && (
+                  <Text
+                    style={[rcStyles.cardQuiet, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}
+                  >
+                    Lighter week
+                  </Text>
+                )}
+              </View>
+              <Feather name="chevron-right" size={18} color={colors.mutedForeground} />
+            </TouchableOpacity>
+          ))}
+        </View>
+      )}
+    </View>
+  );
+}
+
+const rcStyles = StyleSheet.create({
+  section: { paddingHorizontal: 16, marginTop: 8 },
+  sectionHeader: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 16 },
+  sectionDivider: { flex: 1, height: StyleSheet.hairlineWidth },
+  sectionTitle: { fontSize: 11, letterSpacing: 1 },
+  loadingWrap: { paddingVertical: 24, alignItems: "center" },
+  card: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    borderRadius: 14,
+    borderWidth: 1,
+    padding: 14,
+  },
+  cardRange: { fontSize: 12, marginBottom: 4 },
+  cardHeadline: { fontSize: 15, lineHeight: 20 },
+  cardQuiet: { fontSize: 12, marginTop: 4 },
+});
+
 // ─── ProgressScreen ───────────────────────────────────────────────────────────
 
 export default function ProgressScreen() {
@@ -1427,7 +1525,12 @@ export default function ProgressScreen() {
         renderItem={renderItem}
         ListHeaderComponent={ListHeader}
         ListEmptyComponent={ListEmpty}
-        ListFooterComponent={<WorkoutsSection colors={colors} />}
+        ListFooterComponent={
+          <>
+            <WorkoutsSection colors={colors} />
+            <RecapsSection colors={colors} />
+          </>
+        }
         contentContainerStyle={{ paddingBottom: 120 }}
         showsVerticalScrollIndicator={false}
         activationDistance={5}

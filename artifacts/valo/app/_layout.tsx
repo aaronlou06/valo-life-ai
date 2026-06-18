@@ -157,6 +157,7 @@ function RootLayoutNav() {
         <Stack.Screen name="onboarding" options={{ gestureEnabled: false }} />
         <Stack.Screen name="settings" />
         <Stack.Screen name="goal/[id]" />
+        <Stack.Screen name="recap/[id]" />
         <Stack.Screen name="meal-planner" options={{ presentation: "modal" }} />
         <Stack.Screen name="write" options={{ presentation: "modal" }} />
         <Stack.Screen name="ask-valo" options={{ presentation: "modal" }} />

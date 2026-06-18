@@ -1371,6 +1371,178 @@ export const GetWorkoutVolumeResponseItem = zod.object({
 export const GetWorkoutVolumeResponse = zod.array(GetWorkoutVolumeResponseItem);
 
 /**
+ * @summary Generate a weekly recap on demand for the authenticated user
+ */
+export const TriggerWeeklyRecapResponse = zod.object({
+  id: zod.number(),
+  userId: zod.string(),
+  weekStart: zod.string(),
+  weekEnd: zod.string(),
+  generatedAt: zod.string(),
+  avgMood: zod.number().nullish(),
+  avgSleep: zod.number().nullish(),
+  avgHrv: zod.number().nullish(),
+  avgSteps: zod.number().nullish(),
+  avgEnergy: zod.number().nullish(),
+  pillarSleep: zod.number().nullish(),
+  pillarMovement: zod.number().nullish(),
+  pillarWork: zod.number().nullish(),
+  pillarMindset: zod.number().nullish(),
+  pillarRelationships: zod.number().nullish(),
+  workoutsCompleted: zod.number(),
+  habitsCompletionPct: zod.number().nullish(),
+  debriefCount: zod.number(),
+  nutritionDaysLogged: zod.number(),
+  headline: zod.string().nullish(),
+  valoInsight: zod.string().nullish(),
+  narrativeJson: zod
+    .union([
+      zod.object({
+        sections: zod.array(
+          zod.object({
+            title: zod.string(),
+            body: zod.string(),
+            delta: zod.number().nullish(),
+          }),
+        ),
+        closing: zod.string().nullish(),
+      }),
+      zod.null(),
+    ])
+    .optional(),
+  patternsSnapshot: zod.array(zod.string()).nullish(),
+  topWin: zod.string().nullish(),
+  topStruggle: zod.string().nullish(),
+  intentionNextWeek: zod.string().nullish(),
+  isQuietWeek: zod.boolean(),
+  status: zod.string(),
+  modelUsed: zod.string().nullish(),
+  createdAt: zod.string(),
+  updatedAt: zod.string(),
+});
+
+/**
+ * @summary Get the most recent ready weekly recap for the authenticated user
+ */
+export const GetWeeklyRecapLatestResponse = zod.object({
+  id: zod.number(),
+  userId: zod.string(),
+  weekStart: zod.string(),
+  weekEnd: zod.string(),
+  generatedAt: zod.string(),
+  avgMood: zod.number().nullish(),
+  avgSleep: zod.number().nullish(),
+  avgHrv: zod.number().nullish(),
+  avgSteps: zod.number().nullish(),
+  avgEnergy: zod.number().nullish(),
+  pillarSleep: zod.number().nullish(),
+  pillarMovement: zod.number().nullish(),
+  pillarWork: zod.number().nullish(),
+  pillarMindset: zod.number().nullish(),
+  pillarRelationships: zod.number().nullish(),
+  workoutsCompleted: zod.number(),
+  habitsCompletionPct: zod.number().nullish(),
+  debriefCount: zod.number(),
+  nutritionDaysLogged: zod.number(),
+  headline: zod.string().nullish(),
+  valoInsight: zod.string().nullish(),
+  narrativeJson: zod
+    .union([
+      zod.object({
+        sections: zod.array(
+          zod.object({
+            title: zod.string(),
+            body: zod.string(),
+            delta: zod.number().nullish(),
+          }),
+        ),
+        closing: zod.string().nullish(),
+      }),
+      zod.null(),
+    ])
+    .optional(),
+  patternsSnapshot: zod.array(zod.string()).nullish(),
+  topWin: zod.string().nullish(),
+  topStruggle: zod.string().nullish(),
+  intentionNextWeek: zod.string().nullish(),
+  isQuietWeek: zod.boolean(),
+  status: zod.string(),
+  modelUsed: zod.string().nullish(),
+  createdAt: zod.string(),
+  updatedAt: zod.string(),
+});
+
+/**
+ * @summary List recap stubs ordered by weekStart descending
+ */
+export const GetWeeklyRecapHistoryResponseItem = zod.object({
+  id: zod.number(),
+  weekStart: zod.string(),
+  weekEnd: zod.string(),
+  headline: zod.string().nullish(),
+  isQuietWeek: zod.boolean(),
+  status: zod.string(),
+});
+export const GetWeeklyRecapHistoryResponse = zod.array(
+  GetWeeklyRecapHistoryResponseItem,
+);
+
+/**
+ * @summary Get a full weekly recap by id (owned by the calling user)
+ */
+export const GetWeeklyRecapByIdParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const GetWeeklyRecapByIdResponse = zod.object({
+  id: zod.number(),
+  userId: zod.string(),
+  weekStart: zod.string(),
+  weekEnd: zod.string(),
+  generatedAt: zod.string(),
+  avgMood: zod.number().nullish(),
+  avgSleep: zod.number().nullish(),
+  avgHrv: zod.number().nullish(),
+  avgSteps: zod.number().nullish(),
+  avgEnergy: zod.number().nullish(),
+  pillarSleep: zod.number().nullish(),
+  pillarMovement: zod.number().nullish(),
+  pillarWork: zod.number().nullish(),
+  pillarMindset: zod.number().nullish(),
+  pillarRelationships: zod.number().nullish(),
+  workoutsCompleted: zod.number(),
+  habitsCompletionPct: zod.number().nullish(),
+  debriefCount: zod.number(),
+  nutritionDaysLogged: zod.number(),
+  headline: zod.string().nullish(),
+  valoInsight: zod.string().nullish(),
+  narrativeJson: zod
+    .union([
+      zod.object({
+        sections: zod.array(
+          zod.object({
+            title: zod.string(),
+            body: zod.string(),
+            delta: zod.number().nullish(),
+          }),
+        ),
+        closing: zod.string().nullish(),
+      }),
+      zod.null(),
+    ])
+    .optional(),
+  patternsSnapshot: zod.array(zod.string()).nullish(),
+  topWin: zod.string().nullish(),
+  topStruggle: zod.string().nullish(),
+  intentionNextWeek: zod.string().nullish(),
+  isQuietWeek: zod.boolean(),
+  status: zod.string(),
+  modelUsed: zod.string().nullish(),
+  createdAt: zod.string(),
+  updatedAt: zod.string(),
+});
+
+/**
  * @summary Ask a natural-language question grounded in the user's own data
  */
 export const AskValoBody = zod.object({

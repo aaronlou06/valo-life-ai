@@ -5,6 +5,81 @@
  * Valo API specification
  * OpenAPI spec version: 0.1.0
  */
+export interface WeeklyRecapSection {
+  title: string;
+  body: string;
+  /** @nullable */
+  delta?: number | null;
+}
+
+export interface WeeklyRecapNarrative {
+  sections: WeeklyRecapSection[];
+  /** @nullable */
+  closing?: string | null;
+}
+
+export interface WeeklyRecap {
+  id: number;
+  userId: string;
+  weekStart: string;
+  weekEnd: string;
+  generatedAt: string;
+  /** @nullable */
+  avgMood?: number | null;
+  /** @nullable */
+  avgSleep?: number | null;
+  /** @nullable */
+  avgHrv?: number | null;
+  /** @nullable */
+  avgSteps?: number | null;
+  /** @nullable */
+  avgEnergy?: number | null;
+  /** @nullable */
+  pillarSleep?: number | null;
+  /** @nullable */
+  pillarMovement?: number | null;
+  /** @nullable */
+  pillarWork?: number | null;
+  /** @nullable */
+  pillarMindset?: number | null;
+  /** @nullable */
+  pillarRelationships?: number | null;
+  workoutsCompleted: number;
+  /** @nullable */
+  habitsCompletionPct?: number | null;
+  debriefCount: number;
+  nutritionDaysLogged: number;
+  /** @nullable */
+  headline?: string | null;
+  /** @nullable */
+  valoInsight?: string | null;
+  narrativeJson?: WeeklyRecapNarrative | null;
+  /** @nullable */
+  patternsSnapshot?: string[] | null;
+  /** @nullable */
+  topWin?: string | null;
+  /** @nullable */
+  topStruggle?: string | null;
+  /** @nullable */
+  intentionNextWeek?: string | null;
+  isQuietWeek: boolean;
+  status: string;
+  /** @nullable */
+  modelUsed?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface WeeklyRecapStub {
+  id: number;
+  weekStart: string;
+  weekEnd: string;
+  /** @nullable */
+  headline?: string | null;
+  isQuietWeek: boolean;
+  status: string;
+}
+
 export interface AskTurn {
   question: string;
   answer: string;

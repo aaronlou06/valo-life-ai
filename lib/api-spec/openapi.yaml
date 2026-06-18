@@ -1192,6 +1192,70 @@ paths:
                 items:
                   $ref: "#/components/schemas/WorkoutVolumeWeek"
 
+  /weekly-recap/trigger:
+    post:
+      operationId: triggerWeeklyRecap
+      tags: [weekly-recap]
+      summary: Generate a weekly recap on demand for the authenticated user
+      responses:
+        "200":
+          description: The generated weekly recap
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WeeklyRecap"
+
+  /weekly-recap/latest:
+    get:
+      operationId: getWeeklyRecapLatest
+      tags: [weekly-recap]
+      summary: Get the most recent ready weekly recap for the authenticated user
+      responses:
+        "200":
+          description: The latest ready recap
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WeeklyRecap"
+        "404":
+          description: No ready recap found
+
+  /weekly-recap/history:
+    get:
+      operationId: getWeeklyRecapHistory
+      tags: [weekly-recap]
+      summary: List recap stubs ordered by weekStart descending
+      responses:
+        "200":
+          description: List of recap stubs
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/WeeklyRecapStub"
+
+  /weekly-recap/{id}:
+    get:
+      operationId: getWeeklyRecapById
+      tags: [weekly-recap]
+      summary: Get a full weekly recap by id (owned by the calling user)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: The full recap object
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WeeklyRecap"
+        "404":
+          description: Not found
+
   /ask:
     post:
       operationId: askValo
@@ -1213,6 +1277,116 @@ paths:
 
 components:
   schemas:
+    WeeklyRecapSection:
+      type: object
+      required: [title, body]
+      properties:
+        title:
+          type: string
+        body:
+          type: string
+        delta:
+          type: ["number", "null"]
+
+    WeeklyRecapNarrative:
+      type: object
+      required: [sections]
+      properties:
+        sections:
+          type: array
+          items:
+            $ref: "#/components/schemas/WeeklyRecapSection"
+        closing:
+          type: ["string", "null"]
+
+    WeeklyRecap:
+      type: object
+      required: [id, userId, weekStart, weekEnd, generatedAt, workoutsCompleted, debriefCount, nutritionDaysLogged, isQuietWeek, status, createdAt, updatedAt]
+      properties:
+        id:
+          type: integer
+        userId:
+          type: string
+        weekStart:
+          type: string
+        weekEnd:
+          type: string
+        generatedAt:
+          type: string
+        avgMood:
+          type: ["number", "null"]
+        avgSleep:
+          type: ["number", "null"]
+        avgHrv:
+          type: ["number", "null"]
+        avgSteps:
+          type: ["number", "null"]
+        avgEnergy:
+          type: ["number", "null"]
+        pillarSleep:
+          type: ["number", "null"]
+        pillarMovement:
+          type: ["number", "null"]
+        pillarWork:
+          type: ["number", "null"]
+        pillarMindset:
+          type: ["number", "null"]
+        pillarRelationships:
+          type: ["number", "null"]
+        workoutsCompleted:
+          type: integer
+        habitsCompletionPct:
+          type: ["number", "null"]
+        debriefCount:
+          type: integer
+        nutritionDaysLogged:
+          type: integer
+        headline:
+          type: ["string", "null"]
+        valoInsight:
+          type: ["string", "null"]
+        narrativeJson:
+          oneOf:
+            - $ref: "#/components/schemas/WeeklyRecapNarrative"
+            - type: "null"
+        patternsSnapshot:
+          type: ["array", "null"]
+          items:
+            type: string
+        topWin:
+          type: ["string", "null"]
+        topStruggle:
+          type: ["string", "null"]
+        intentionNextWeek:
+          type: ["string", "null"]
+        isQuietWeek:
+          type: boolean
+        status:
+          type: string
+        modelUsed:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+        updatedAt:
+          type: string
+
+    WeeklyRecapStub:
+      type: object
+      required: [id, weekStart, weekEnd, isQuietWeek, status]
+      properties:
+        id:
+          type: integer
+        weekStart:
+          type: string
+        weekEnd:
+          type: string
+        headline:
+          type: ["string", "null"]
+        isQuietWeek:
+          type: boolean
+        status:
+          type: string
+
     AskTurn:
       type: object
       required: [question, answer]

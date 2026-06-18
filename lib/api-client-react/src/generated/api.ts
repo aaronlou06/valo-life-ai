@@ -65,6 +65,8 @@ import type {
   UpdateSettings,
   UpdateSettings200,
   UserSettings,
+  WeeklyRecap,
+  WeeklyRecapStub,
   WorkoutCoachingResponse,
   WorkoutCompleteResponse,
   WorkoutHrSummary,
@@ -5196,6 +5198,324 @@ export function useGetWorkoutVolume<
   },
 ): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
   const queryOptions = getGetWorkoutVolumeQueryOptions(params, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Generate a weekly recap on demand for the authenticated user
+ */
+export const getTriggerWeeklyRecapUrl = () => {
+  return `/api/weekly-recap/trigger`;
+};
+
+export const triggerWeeklyRecap = async (
+  options?: RequestInit,
+): Promise<WeeklyRecap> => {
+  return customFetch<WeeklyRecap>(getTriggerWeeklyRecapUrl(), {
+    ...options,
+    method: "POST",
+  });
+};
+
+export const getTriggerWeeklyRecapMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof triggerWeeklyRecap>>,
+    TError,
+    void,
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof triggerWeeklyRecap>>,
+  TError,
+  void,
+  TContext
+> => {
+  const mutationKey = ["triggerWeeklyRecap"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof triggerWeeklyRecap>>,
+    void
+  > = () => {
+    return triggerWeeklyRecap(requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type TriggerWeeklyRecapMutationResult = NonNullable<
+  Awaited<ReturnType<typeof triggerWeeklyRecap>>
+>;
+
+export type TriggerWeeklyRecapMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Generate a weekly recap on demand for the authenticated user
+ */
+export const useTriggerWeeklyRecap = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof triggerWeeklyRecap>>,
+    TError,
+    void,
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof triggerWeeklyRecap>>,
+  TError,
+  void,
+  TContext
+> => {
+  return useMutation(getTriggerWeeklyRecapMutationOptions(options));
+};
+
+/**
+ * @summary Get the most recent ready weekly recap for the authenticated user
+ */
+export const getGetWeeklyRecapLatestUrl = () => {
+  return `/api/weekly-recap/latest`;
+};
+
+export const getWeeklyRecapLatest = async (
+  options?: RequestInit,
+): Promise<WeeklyRecap> => {
+  return customFetch<WeeklyRecap>(getGetWeeklyRecapLatestUrl(), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetWeeklyRecapLatestQueryKey = () => {
+  return [`/api/weekly-recap/latest`] as const;
+};
+
+export const getGetWeeklyRecapLatestQueryOptions = <
+  TData = Awaited<ReturnType<typeof getWeeklyRecapLatest>>,
+  TError = ErrorType<void>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getWeeklyRecapLatest>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetWeeklyRecapLatestQueryKey();
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getWeeklyRecapLatest>>
+  > = ({ signal }) => getWeeklyRecapLatest({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getWeeklyRecapLatest>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetWeeklyRecapLatestQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getWeeklyRecapLatest>>
+>;
+export type GetWeeklyRecapLatestQueryError = ErrorType<void>;
+
+/**
+ * @summary Get the most recent ready weekly recap for the authenticated user
+ */
+
+export function useGetWeeklyRecapLatest<
+  TData = Awaited<ReturnType<typeof getWeeklyRecapLatest>>,
+  TError = ErrorType<void>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getWeeklyRecapLatest>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetWeeklyRecapLatestQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary List recap stubs ordered by weekStart descending
+ */
+export const getGetWeeklyRecapHistoryUrl = () => {
+  return `/api/weekly-recap/history`;
+};
+
+export const getWeeklyRecapHistory = async (
+  options?: RequestInit,
+): Promise<WeeklyRecapStub[]> => {
+  return customFetch<WeeklyRecapStub[]>(getGetWeeklyRecapHistoryUrl(), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetWeeklyRecapHistoryQueryKey = () => {
+  return [`/api/weekly-recap/history`] as const;
+};
+
+export const getGetWeeklyRecapHistoryQueryOptions = <
+  TData = Awaited<ReturnType<typeof getWeeklyRecapHistory>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getWeeklyRecapHistory>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetWeeklyRecapHistoryQueryKey();
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getWeeklyRecapHistory>>
+  > = ({ signal }) => getWeeklyRecapHistory({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getWeeklyRecapHistory>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetWeeklyRecapHistoryQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getWeeklyRecapHistory>>
+>;
+export type GetWeeklyRecapHistoryQueryError = ErrorType<unknown>;
+
+/**
+ * @summary List recap stubs ordered by weekStart descending
+ */
+
+export function useGetWeeklyRecapHistory<
+  TData = Awaited<ReturnType<typeof getWeeklyRecapHistory>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getWeeklyRecapHistory>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetWeeklyRecapHistoryQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Get a full weekly recap by id (owned by the calling user)
+ */
+export const getGetWeeklyRecapByIdUrl = (id: number) => {
+  return `/api/weekly-recap/${id}`;
+};
+
+export const getWeeklyRecapById = async (
+  id: number,
+  options?: RequestInit,
+): Promise<WeeklyRecap> => {
+  return customFetch<WeeklyRecap>(getGetWeeklyRecapByIdUrl(id), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetWeeklyRecapByIdQueryKey = (id: number) => {
+  return [`/api/weekly-recap/${id}`] as const;
+};
+
+export const getGetWeeklyRecapByIdQueryOptions = <
+  TData = Awaited<ReturnType<typeof getWeeklyRecapById>>,
+  TError = ErrorType<void>,
+>(
+  id: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getWeeklyRecapById>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetWeeklyRecapByIdQueryKey(id);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getWeeklyRecapById>>
+  > = ({ signal }) => getWeeklyRecapById(id, { signal, ...requestOptions });
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: !!id,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof getWeeklyRecapById>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetWeeklyRecapByIdQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getWeeklyRecapById>>
+>;
+export type GetWeeklyRecapByIdQueryError = ErrorType<void>;
+
+/**
+ * @summary Get a full weekly recap by id (owned by the calling user)
+ */
+
+export function useGetWeeklyRecapById<
+  TData = Awaited<ReturnType<typeof getWeeklyRecapById>>,
+  TError = ErrorType<void>,
+>(
+  id: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getWeeklyRecapById>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetWeeklyRecapByIdQueryOptions(id, options);
 
   const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
     queryKey: QueryKey;

@@ -28,7 +28,12 @@ import { useColors } from "@/hooks/useColors";
 import { useValoAuth } from "@/contexts/AuthContext";
 import { CheckInSheet } from "@/components/CheckInSheet";
 import { triggerVoiceStart } from "@/lib/voiceTrigger";
-import { customFetch } from "@workspace/api-client-react";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import {
+  customFetch,
+  useGetWeeklyRecapLatest,
+  getGetWeeklyRecapLatestQueryKey,
+} from "@workspace/api-client-react";
 
 const isIOS = Platform.OS === "ios";
 const BUG_EMAIL = "support@govalo.app";
@@ -995,6 +1000,122 @@ const snapStyles = StyleSheet.create({
   dot: { flex: 1, height: 14, borderRadius: 3 },
 });
 
+// ── Weekly recap glance ──────────────────────────────────────────────────────
+
+const RECAP_DISMISS_KEY = "valo:weeklyRecapDismissed";
+
+function fmtRecapRange(start: string, end: string): string {
+  const months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+  const part = (iso: string) => {
+    const [y, m, d] = iso.split("T")[0]!.split("-").map(Number);
+    if (!y || !m || !d) return iso;
+    return `${months[m - 1]} ${d}`;
+  };
+  return `${part(start)} – ${part(end)}`;
+}
+
+function WeeklyRecapGlance({
+  colors,
+  router,
+}: {
+  colors: ReturnType<typeof useColors>;
+  router: ReturnType<typeof useRouter>;
+}) {
+  const [dismissedId, setDismissedId] = useState<number | null>(null);
+  const [loadedDismiss, setLoadedDismiss] = useState(false);
+
+  // Show only at the start of a new week (Sunday or Monday).
+  const showByDay = useMemo(() => {
+    const day = new Date().getDay(); // 0 = Sun, 1 = Mon
+    return day === 0 || day === 1;
+  }, []);
+
+  const { data: recap } = useGetWeeklyRecapLatest({
+    query: { enabled: showByDay, retry: false, queryKey: getGetWeeklyRecapLatestQueryKey() },
+  });
+
+  useEffect(() => {
+    let active = true;
+    AsyncStorage.getItem(RECAP_DISMISS_KEY)
+      .then((v) => {
+        if (!active) return;
+        setDismissedId(v != null ? Number(v) : null);
+        setLoadedDismiss(true);
+      })
+      .catch(() => {
+        if (active) setLoadedDismiss(true);
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  if (!showByDay || !loadedDismiss) return null;
+  if (!recap || recap.status !== "ready") return null;
+  if (dismissedId === recap.id) return null;
+
+  const dismiss = () => {
+    setDismissedId(recap.id);
+    AsyncStorage.setItem(RECAP_DISMISS_KEY, String(recap.id)).catch(() => {});
+  };
+
+  return (
+    <TouchableOpacity
+      onPress={() => router.push(`/recap/${recap.id}`)}
+      activeOpacity={0.85}
+      style={[
+        recapStyles.card,
+        { backgroundColor: colors.card, borderColor: colors.primary },
+      ]}
+    >
+      <View style={recapStyles.iconWrap}>
+        <Feather name="sunrise" size={18} color={colors.primary} />
+      </View>
+      <View style={{ flex: 1 }}>
+        <Text style={[recapStyles.label, { color: colors.primary, fontFamily: "Inter_600SemiBold" }]}>
+          YOUR WEEK WITH VALO
+        </Text>
+        <Text
+          style={[recapStyles.title, { color: colors.foreground, fontFamily: "Inter_600SemiBold" }]}
+          numberOfLines={2}
+        >
+          {recap.headline ?? "Your weekly recap is ready"}
+        </Text>
+        <Text style={[recapStyles.range, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
+          {fmtRecapRange(recap.weekStart, recap.weekEnd)}
+        </Text>
+      </View>
+      <TouchableOpacity onPress={dismiss} hitSlop={10} style={recapStyles.closeBtn}>
+        <Feather name="x" size={16} color={colors.mutedForeground} />
+      </TouchableOpacity>
+    </TouchableOpacity>
+  );
+}
+
+const recapStyles = StyleSheet.create({
+  card: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    borderRadius: 16,
+    borderWidth: 1.5,
+    padding: 14,
+    marginBottom: 24,
+  },
+  iconWrap: {
+    width: 38,
+    height: 38,
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(193,123,63,0.12)",
+  },
+  label: { fontSize: 10, letterSpacing: 1 },
+  title: { fontSize: 15, lineHeight: 20, marginTop: 3 },
+  range: { fontSize: 12, marginTop: 3 },
+  closeBtn: { padding: 2, alignSelf: "flex-start" },
+});
+
 // ── HomeScreen ─────────────────────────────────────────────────────────────────
 
 export default function HomeScreen() {
@@ -1136,6 +1257,9 @@ export default function HomeScreen() {
             onPlan={() => router.navigate("/(tabs)/plan")}
           />
         )}
+
+        {/* ── Weekly recap ── */}
+        <WeeklyRecapGlance colors={colors} router={router} />
 
         {/* ── At a glance ── */}
         {(loading || (briefing && briefing.cards.length > 0)) && (
