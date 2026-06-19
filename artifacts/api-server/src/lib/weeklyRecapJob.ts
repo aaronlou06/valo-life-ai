@@ -42,9 +42,11 @@ async function runWeeklyRecapJob(): Promise<void> {
   for (const profile of profiles) {
     const tz = profile.callTimezone ?? "America/New_York";
 
-    // Only fire on Sunday at 19:00 in the user's timezone.
+    // Only fire on Sunday from 19:00 onwards in the user's timezone.
+    // Using >= rather than === so a delayed 60s tick that lands at 19:01 still fires.
+    // The DB existence check below is the sole dup guard — idempotency, not minute precision.
     if (getDayOfWeekInTz(tz) !== 0) continue;
-    if (getCurrentTimeInTz(tz) !== "19:00") continue;
+    if (getCurrentTimeInTz(tz) < "19:00") continue;
 
     const userId = profile.userId;
     const today = getDateInTimezone(tz); // confirmed Sunday
