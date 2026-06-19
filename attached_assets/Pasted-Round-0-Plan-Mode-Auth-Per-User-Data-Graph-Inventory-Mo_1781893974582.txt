@@ -1,0 +1,34 @@
+Round 0 — Plan Mode: Auth + Per-User Data Graph Inventory
+Mode: Plan. Do not modify any code or schema this round. Investigate and report only.
+Objective
+Before building account deletion (a hard App Store requirement), I need a complete, verified picture of (a) how authentication works today and (b) every place a single user's data lives. The deletion must be provably exhaustive, so this round produces the inventory the deletion build will be measured against.
+Investigate and report
+1. Authentication
+Trace the current email/password JWT flow and report:
+
+How tokens are issued and verified, and where the signing secret is configured
+Access-token lifetime, and whether any refresh-token mechanism exists
+How passwords are hashed and verified (so a destructive-action re-authentication step can reuse the same verify path)
+Whether a password-reset flow exists today
+Whether there is any way to invalidate an active session server-side
+2. Per-user data graph — the full footprint
+For a single user, enumerate every store that holds their data and how it's keyed to them:
+
+All Postgres / Drizzle tables with a user foreign key — list them, note the FK relationships and any existing cascade rules
+All Replit DB keys holding user memory / Living Journal profiles — the key patterns and what they contain
+Vapi-side data tied to the user (call records, recordings, transcripts) and how it's associated
+Any Claude-side or AI-pipeline data stored per user (post-call summaries, merged memory, pre-call intelligence)
+Stored integration credentials and tokens (Garmin, Google Calendar, Twilio, and any others) and, for each, the mechanism to revoke or disconnect it
+3. Deletion + export readiness, per store
+For each store above, report:
+
+The mechanism available to delete that user's data (FK cascade, manual query, or an external API call)
+Whether that store can be read for an export
+Any data shared or denormalized across users in a way that complicates a clean per-user delete
+4. On-device data
+Confirm that HealthKit data lives only on-device and is not mirrored server-side, so it's correctly out of scope for server-side deletion.
+Produce
+A written plan and inventory covering the four sections above. Flag anything ambiguous or any store you could not conclusively trace. Recommend a deletion order that respects FK and external-revocation dependencies.
+Done when
+I have a complete data-graph inventory and your recommended deletion sequence, with no code or schema changed.
+
