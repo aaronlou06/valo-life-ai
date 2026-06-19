@@ -1,0 +1,67 @@
+Round 1 — Power Mode: Account Deletion (App Store gate)
+
+Mode: Power.
+
+Context from Round 0: auth is opaque session tokens with bcrypt passwords; the per-user footprint is ~33 direct user_id tables plus the workout subtree, plus Google-hosted grants and Vapi-hosted call data. The current DELETE /auth/account covers only ~12 tables and uses Promise.allSettled, so failures are swallowed and the user row is dropped anyway — leaving orphans. This round replaces it with a complete, fail-loud deletion and adds the in-app confirmation flow.
+
+Behavior
+
+Backend — rewrite DELETE /auth/account
+
+Delete the authenticated user's entire footprint, completely and atomically.
+
+
+Re-authentication: require the user's current password in the request and verify it with the existing bcrypt compare path before doing anything. Reject with 401 on mismatch — and delete nothing.
+Completeness: delete the user's rows from every per-user table. Derive the full set from the live Drizzle schema rather than any existing hardcoded list — every table carrying a user_id, plus the workout subtree reached through parent rows. Leave no orphans.
+Preserve shared data: never delete system exercises rows (user_id IS NULL); only the user's own custom exercises (user_id = <user>). Also confirm feature_flags is global and leave it untouched.
+Ordering: respect the exercise_id RESTRICT edges — remove workout_set_logs, workout_template_exercises, workout_prs, and any other rows referencing the user's custom exercises before those exercises rows. Children before parents throughout the workout subtree.
+Atomic + fail-loud: run all DB deletes in a single transaction. If anything fails, roll back and return an error — never partially delete and then drop the user row. Replace the allSettled pattern entirely.
+External revocations, performed before the user row is committed as deleted (so a DB failure can't orphan a live external grant):
+
+Google: if the user has Google tokens, decrypt and revoke them at Google's OAuth revoke endpoint before deleting google_tokens / google_calendar_selections.
+Vapi: for each stored vapi_call_id, delete the Vapi-hosted call/recording via Vapi's call-deletion API. Verify the current Vapi deletion endpoint and retention behavior; if Vapi does not support deletion on request, surface that clearly rather than silently skipping it.
+
+
+
+Session: deleting the user row invalidates the session token automatically — confirm no stale token can be reused afterward.
+Order of operations: external revocations → DB transaction (workout children → workout parents → custom exercises → all other user tables → user_profiles → users) → commit.
+
+
+Frontend — deletion flow (Profile / Settings)
+
+
+Entry point in the account/settings area: "Delete account."
+Step 1 — confirmation dialog: "Yes, I'm sure."
+Step 2 — type-to-confirm: the user must type DELETE to enable the final button.
+Step 3 — password entry: the re-auth field sent to the endpoint.
+On success: clear local auth and cached user state (including the HealthKit AsyncStorage flags) so a new sign-up on the same device starts clean, sign the user out, route to the logged-out/landing state, and show a brief confirmation that the account and data were deleted.
+On failure: show the error, keep the account intact, do not sign out.
+
+
+Acceptance criteria
+
+
+Deleting an account removes every per-user row across the full schema — verify by querying for leftover rows keyed to that user across all tables; expect zero.
+System exercises (user_id IS NULL) and feature_flags remain after deletion.
+A wrong password is rejected and deletes nothing.
+A simulated mid-deletion failure rolls back cleanly: the user and all data remain and an error is returned, with no partial state.
+The Google grant is revoked (token no longer valid on Google's side) and Vapi call deletion is attempted per call (or its limitation is surfaced).
+After success, the old session token is rejected on any subsequent request.
+The front end requires both type-DELETE and the password before the final action fires.
+
+
+Out of scope this round
+
+
+The cascading-FK schema migration — deferred. user_id columns are text while users.id is serial, so real FKs require a type reconciliation; the explicit transaction above achieves exhaustive deletion without it.
+Data export (Round 2).
+
+
+Checkpoints
+
+
+Backend delete rewritten with re-auth + external revocations, tested against a seeded user that has data in every table, a live Google grant, and Vapi calls.
+Front-end flow wired and verified on an EAS dev build.
+
+
+Done when a seeded user with data across all tables, a live Google grant, and Vapi calls can delete their account from inside the app behind the type-DELETE + password gate, a full-schema query confirms zero residual rows (system exercises and feature_flags preserved), and there is no path that partially deletes.

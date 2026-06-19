@@ -17,3 +17,4 @@
 - [Action proposal loop](action-proposal-loop.md) — Home Accept/Modify/Dismiss cards → execute/undo/dismiss endpoints; Modify deep-links Plan editor; home-briefing must surface `parameters`; clear modifyProposalIdRef on modal close.
 - [Agentic action registry](action-registry.md) — Suggest & Act: proposed_actions + action_log tables; ActionHandler registry (new action = 1 entry); handlers self-authorize via ActionContext{userId}+domain guard.
 - [Suggestion engine](suggestion-engine.md) — generateActionProposals(userId) runs in nightly job (not home-briefing); business gates (behind<0.6, 1/run, declined, idempotent) in CODE not prompt; time/id fields re-derived from real event.
+- [Account deletion](account-deletion.md) — deleteUserAccount(): external revokes then 1 atomic tx; per-user tables via schema reflection, but non-cascade FKs between user tables MUST be deleted child-before-parent in EXPLICIT_OR_PRESERVED.

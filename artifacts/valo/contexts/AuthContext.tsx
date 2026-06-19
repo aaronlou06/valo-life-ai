@@ -30,6 +30,7 @@ export interface AuthContextType {
   signIn: (email: string, password: string) => Promise<void>;
   signUp: (email: string, password: string) => Promise<void>;
   signOut: () => Promise<void>;
+  deleteAccount: (password: string) => Promise<void>;
   handleUnauthorized: () => Promise<void>;
   updateName: (name: string) => void;
 }
@@ -185,6 +186,38 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     ]);
   }, []);
 
+  // Permanently delete the account after re-authentication. The server requires
+  // and verifies the current password, then atomically removes all user data.
+  // On success we wipe every piece of local state so a fresh sign-up on this
+  // device starts clean (including all HealthKit sync flags).
+  const deleteAccount = useCallback(async (password: string) => {
+    const token = sessionRef.current?.token;
+    const res = await fetch(`${getApiBase()}/api/auth/account`, {
+      method: "DELETE",
+      headers: {
+        "Content-Type": "application/json",
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      body: JSON.stringify({ password }),
+    });
+    const data = await res.json().catch(() => ({} as { error?: string }));
+    if (!res.ok) {
+      throw new Error((data as { error?: string }).error ?? "Account deletion failed");
+    }
+
+    sessionRef.current = null;
+    setSession(null);
+
+    const allKeys = await AsyncStorage.getAllKeys();
+    const healthKitKeys = allKeys.filter((k) => k.startsWith("@valo/healthkit"));
+    await AsyncStorage.multiRemove([
+      STORAGE_KEY,
+      "@valo/tomorrow-intention",
+      "@valo/notification-prefs",
+      ...healthKitKeys,
+    ]);
+  }, []);
+
   // Called by any hook or screen that receives a 401 for a non-auth endpoint.
   // Clears the local session so the app routes to sign-in. Does NOT hit the
   // logout endpoint (the token is already invalid server-side).
@@ -219,6 +252,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         signIn,
         signUp,
         signOut,
+        deleteAccount,
         handleUnauthorized,
         updateName,
       }}

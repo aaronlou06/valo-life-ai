@@ -13,12 +13,10 @@ import {
   habitCompletionsTable,
   insightsTable,
   logEntriesTable,
-  calendarEventsTable,
   routinesTable,
-  googleTokensTable,
-  googleCalendarSelectionsTable,
 } from "@workspace/db";
 import { requireAuth, type AuthenticatedRequest } from "../middlewares/requireAuth";
+import { deleteUserAccount } from "../lib/deleteAccount";
 
 const router: IRouter = Router();
 
@@ -201,23 +199,39 @@ router.post("/auth/change-password", requireAuth, async (req, res): Promise<void
 
 router.delete("/auth/account", requireAuth, async (req, res): Promise<void> => {
   const userId = (req as AuthenticatedRequest).userId;
+  const { password } = req.body ?? {};
 
-  await Promise.allSettled([
-    db.delete(dailyLogsTable).where(eq(dailyLogsTable.userId, userId)),
-    db.delete(moodEntriesTable).where(eq(moodEntriesTable.userId, userId)),
-    db.delete(goalsTable).where(eq(goalsTable.userId, userId)),
-    db.delete(habitsTable).where(eq(habitsTable.userId, userId)),
-    db.delete(habitCompletionsTable).where(eq(habitCompletionsTable.userId, userId)),
-    db.delete(insightsTable).where(eq(insightsTable.userId, userId)),
-    db.delete(logEntriesTable).where(eq(logEntriesTable.userId, userId)),
-    db.delete(calendarEventsTable).where(eq(calendarEventsTable.userId, userId)),
-    db.delete(routinesTable).where(eq(routinesTable.userId, userId)),
-    db.delete(googleTokensTable).where(eq(googleTokensTable.userId, userId)),
-    db.delete(googleCalendarSelectionsTable).where(eq(googleCalendarSelectionsTable.userId, userId)),
-    db.delete(userProfilesTable).where(eq(userProfilesTable.userId, userId)),
-  ]);
+  // Re-authentication: require and verify the current password before touching
+  // anything. On mismatch, reject and delete nothing.
+  if (!password || typeof password !== "string") {
+    res.status(400).json({ error: "Password is required to delete your account" });
+    return;
+  }
 
-  await db.delete(usersTable).where(eq(usersTable.id, Number(userId)));
+  const [user] = await db
+    .select({ passwordHash: usersTable.passwordHash })
+    .from(usersTable)
+    .where(eq(usersTable.id, Number(userId)))
+    .limit(1);
+
+  if (!user) {
+    res.status(404).json({ error: "User not found" });
+    return;
+  }
+
+  const valid = await bcrypt.compare(password, user.passwordHash);
+  if (!valid) {
+    res.status(401).json({ error: "Password is incorrect" });
+    return;
+  }
+
+  try {
+    await deleteUserAccount(userId);
+  } catch (err) {
+    req.log?.error({ err, userId }, "Account deletion failed — rolled back");
+    res.status(500).json({ error: "Account deletion failed. No account data was removed; please try again." });
+    return;
+  }
 
   res.json({ ok: true });
 });

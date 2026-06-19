@@ -805,6 +805,159 @@ function ChangePasswordModal({
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Delete account modal
+// ─────────────────────────────────────────────────────────────────────────────
+
+function DeleteAccountModal({
+  visible,
+  onClose,
+  onDelete,
+  onSuccess,
+}: {
+  visible: boolean;
+  onClose: () => void;
+  onDelete: (password: string) => Promise<void>;
+  onSuccess: () => void;
+}) {
+  const colors = useColors();
+  const [confirmed, setConfirmed] = useState(false);
+  const [typed, setTyped] = useState("");
+  const [password, setPassword] = useState("");
+  const [showPwd, setShowPwd] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+
+  const typedOk = typed.trim().toUpperCase() === "DELETE";
+  const canDelete = confirmed && typedOk && password.length > 0 && !loading;
+
+  function reset() {
+    setConfirmed(false);
+    setTyped("");
+    setPassword("");
+    setShowPwd(false);
+    setLoading(false);
+    setError("");
+  }
+
+  function handleClose() {
+    if (loading) return;
+    reset();
+    onClose();
+  }
+
+  async function handleConfirmDelete() {
+    if (!canDelete) return;
+    setError("");
+    setLoading(true);
+    try {
+      await onDelete(password);
+      reset();
+      onSuccess();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Account deletion failed. Please try again.");
+      setLoading(false);
+    }
+  }
+
+  return (
+    <Modal visible={visible} transparent animationType="fade" onRequestClose={handleClose}>
+      <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={handleClose}>
+        <TouchableOpacity
+          activeOpacity={1}
+          style={[styles.modalBox, { backgroundColor: colors.card, borderColor: colors.border }]}
+        >
+          <View style={styles.notifHeader}>
+            <Text style={[styles.modalTitle, { color: colors.foreground, fontFamily: "Inter_600SemiBold" }]}>
+              Delete account
+            </Text>
+            <TouchableOpacity onPress={handleClose} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+              <Feather name="x" size={20} color={colors.mutedForeground} />
+            </TouchableOpacity>
+          </View>
+
+          {!confirmed ? (
+            <View style={{ gap: 16 }}>
+              <Text style={[styles.deleteModalBody, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
+                This permanently deletes your Valo account and everything in it — check-ins, goals, habits, workouts, voice history, and insights. This cannot be undone.
+              </Text>
+              <TouchableOpacity
+                style={[styles.deleteConfirmBtn, { backgroundColor: colors.destructive }]}
+                onPress={() => setConfirmed(true)}
+                activeOpacity={0.85}
+              >
+                <Text style={[styles.deleteConfirmText, { color: "#FFFFFF", fontFamily: "Inter_600SemiBold" }]}>
+                  Yes, I'm sure
+                </Text>
+              </TouchableOpacity>
+            </View>
+          ) : (
+            <View style={{ gap: 12 }}>
+              <Text style={[styles.deleteModalBody, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
+                Type DELETE to confirm, then enter your password.
+              </Text>
+
+              <View style={[styles.pwdFieldWrap, { borderColor: colors.border, backgroundColor: colors.background }]}>
+                <TextInput
+                  value={typed}
+                  onChangeText={setTyped}
+                  placeholder="Type DELETE"
+                  placeholderTextColor={colors.mutedForeground}
+                  autoCapitalize="characters"
+                  autoCorrect={false}
+                  editable={!loading}
+                  style={[styles.pwdInput, { color: colors.foreground, fontFamily: "Inter_400Regular" }]}
+                />
+              </View>
+
+              <View style={[styles.pwdFieldWrap, { borderColor: colors.border, backgroundColor: colors.background }]}>
+                <TextInput
+                  value={password}
+                  onChangeText={setPassword}
+                  placeholder="Password"
+                  placeholderTextColor={colors.mutedForeground}
+                  secureTextEntry={!showPwd}
+                  autoCapitalize="none"
+                  editable={!loading}
+                  style={[styles.pwdInput, { color: colors.foreground, fontFamily: "Inter_400Regular" }]}
+                  onSubmitEditing={() => { void handleConfirmDelete(); }}
+                  returnKeyType="done"
+                />
+                <TouchableOpacity onPress={() => setShowPwd((v) => !v)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                  <Feather name={showPwd ? "eye-off" : "eye"} size={16} color={colors.mutedForeground} />
+                </TouchableOpacity>
+              </View>
+
+              {error ? (
+                <Text style={[styles.pwdError, { color: colors.destructive, fontFamily: "Inter_400Regular" }]}>
+                  {error}
+                </Text>
+              ) : null}
+
+              <View style={styles.modalActions}>
+                <TouchableOpacity style={styles.modalCancelBtn} onPress={handleClose} disabled={loading}>
+                  <Text style={[styles.modalCancelText, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
+                    Cancel
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.modalSaveBtn, { backgroundColor: canDelete ? colors.destructive : colors.muted }]}
+                  onPress={() => { void handleConfirmDelete(); }}
+                  disabled={!canDelete}
+                >
+                  <Text style={[styles.modalSaveText, { color: canDelete ? "#FFFFFF" : colors.mutedForeground, fontFamily: "Inter_600SemiBold" }]}>
+                    {loading ? "Deleting…" : "Delete account"}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          )}
+        </TouchableOpacity>
+      </TouchableOpacity>
+    </Modal>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Grocery retailer constants
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -824,7 +977,7 @@ export default function ProfileScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const { name, email, signOut, updateName, getToken, userId } = useValoAuth();
+  const { name, email, signOut, deleteAccount, updateName, getToken, userId } = useValoAuth();
   const { region, saveRegion } = useHolidayRegion();
 
   const { data: goals } = useListGoals();
@@ -871,6 +1024,7 @@ export default function ProfileScreen() {
   const [showTimePicker, setShowTimePicker] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
   const [showChangePassword, setShowChangePassword] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [savedField, setSavedField] = useState<string | null>(null);
 
   // ── Retailer connections ──────────────────────────────────────────────────
@@ -1394,45 +1548,6 @@ export default function ProfileScreen() {
     );
   }
 
-  // ── Delete account ─────────────────────────────────────────────────────────
-  function handleDeleteAccount() {
-    Alert.alert(
-      "Delete account?",
-      "This permanently removes your account and all your data. This cannot be undone.",
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Delete",
-          style: "destructive",
-          onPress: () => {
-            Alert.alert(
-              "Are you sure?",
-              "Tap Confirm to permanently delete your Valo account.",
-              [
-                { text: "Cancel", style: "cancel" },
-                {
-                  text: "Confirm delete",
-                  style: "destructive",
-                  onPress: async () => {
-                    try {
-                      const token = await getToken();
-                      await fetch(`${getApiBase()}/api/auth/account`, {
-                        method: "DELETE",
-                        headers: token ? { Authorization: `Bearer ${token}` } : {},
-                      });
-                    } catch {}
-                    await signOut();
-                    router.replace("/(auth)/sign-in");
-                  },
-                },
-              ],
-            );
-          },
-        },
-      ],
-    );
-  }
-
   const displayName = name ?? "";
   const avatarLetters = getInitials(displayName || null, email);
   const goalCount = goals?.length ?? 0;
@@ -1783,7 +1898,7 @@ export default function ProfileScreen() {
         <View style={[styles.section, { marginBottom: 0 }]}>
           <TouchableOpacity
             style={styles.deleteAccountBtn}
-            onPress={handleDeleteAccount}
+            onPress={() => setShowDeleteModal(true)}
             activeOpacity={0.7}
           >
             <Text style={[styles.deleteAccountText, { color: colors.destructive, fontFamily: "Inter_400Regular" }]}>
@@ -1828,6 +1943,16 @@ export default function ProfileScreen() {
         onSuccess={() => {
           setShowChangePassword(false);
           Alert.alert("Password updated", "Your password has been changed successfully.");
+        }}
+      />
+
+      <DeleteAccountModal
+        visible={showDeleteModal}
+        onClose={() => setShowDeleteModal(false)}
+        onDelete={deleteAccount}
+        onSuccess={() => {
+          setShowDeleteModal(false);
+          router.replace("/(auth)/sign-in");
         }}
       />
     </>
@@ -2095,6 +2220,14 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
   },
   deleteAccountText: { fontSize: 14 },
+  deleteModalBody: { fontSize: 14, lineHeight: 20 },
+  deleteConfirmBtn: {
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 13,
+    borderRadius: 12,
+  },
+  deleteConfirmText: { fontSize: 15 },
   // Modals (shared)
   modalOverlay: {
     flex: 1,
