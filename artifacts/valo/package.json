@@ -76,7 +76,6 @@
     "expo-image-manipulator": "^14.0.8",
     "expo-mail-composer": "^15.0.8",
     "expo-notifications": "^0.32.17",
-    "expo-sharing": "~14.0.8",
     "react-native-ble-plx": "3.5.1",
     "react-native-draggable-flatlist": "^4.0.3",
     "react-native-health": "^1.19.0"

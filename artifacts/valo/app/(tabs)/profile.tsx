@@ -11,6 +11,7 @@ import {
   Linking,
   Modal,
   Platform,
+  Share,
   Switch,
   Image,
   AppState,
@@ -27,7 +28,6 @@ import {
   writeAsStringAsync,
   EncodingType,
 } from "expo-file-system/legacy";
-import * as Sharing from "expo-sharing";
 import { useColors } from "@/hooks/useColors";
 import { useTheme } from "@/contexts/ThemeContext";
 import { useValoAuth } from "@/contexts/AuthContext";
@@ -1569,12 +1569,11 @@ export default function ProfileScreen() {
       await writeAsStringAsync(fileUri, JSON.stringify(json, null, 2), {
         encoding: EncodingType.UTF8,
       });
-      const canShare = await Sharing.isAvailableAsync();
-      if (canShare) {
-        await Sharing.shareAsync(fileUri, { mimeType: "application/json", dialogTitle: "Save your Valo data" });
-      } else {
-        Alert.alert("Export saved", `Your data has been saved as ${filename}.`);
-      }
+      // React Native's built-in Share is already in the binary — no native
+      // module rebuild needed. Pass the file:// URI so the sheet offers the
+      // file itself (Save to Files, AirDrop, Mail, etc.).
+      await Share.share({ url: fileUri });
+      // Dismissing/cancelling the sheet is a normal action, not an error.
     } catch {
       Alert.alert("Export failed", "Could not export your data. Please try again.");
     } finally {
