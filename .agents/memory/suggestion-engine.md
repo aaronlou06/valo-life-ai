@@ -34,4 +34,14 @@ Round-3 freshness guard accurate.
 ## Testing note
 Claude output is non-deterministic, so the test (`test:proposals`) covers the
 pure guards only: `computeOpenWeekdayDates` (weekend/workout/declined exclusion,
-fully-booked → empty) and `parseProposalsJson` (malformed/fenced/preamble).
+fully-booked → empty), `computeDeclinedRescheduleDates` (two-sided 7-day cooldown,
+inclusive boundary), and `parseProposalsJson` (malformed/fenced/preamble).
+
+## Decline cooldown anchor
+The 7-day decline cooldown must anchor on `respondedAt` (when the user dismissed),
+NOT `createdAt`. The dismiss route and the engine read are coupled: the dismiss
+endpoint sets `status='declined'` + `respondedAt=now`, and the engine both
+SQL-filters `respondedAt >= now-7d` and re-applies the same window in the pure
+`computeDeclinedRescheduleDates` helper (the testable cooldown contract).
+**Why:** the cooldown should count from the moment of the user's decision; if a
+future change stops setting `respondedAt` on dismiss, cooldown silently breaks.

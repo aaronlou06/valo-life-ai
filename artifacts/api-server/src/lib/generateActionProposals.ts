@@ -68,6 +68,30 @@ export function computeOpenWeekdayDates(
   return open;
 }
 
+/**
+ * Declined `reschedule_workout` target dates still inside the cooldown window.
+ * A dismissal suppresses the same target date for `lookbackDays`, anchored on
+ * `respondedAt` (when the user acted on the proposal), NOT on `createdAt`. After
+ * the window passes the date becomes proposable again. Pure + exported so the
+ * two-sided cooldown is unit-testable without a database.
+ */
+export function computeDeclinedRescheduleDates(
+  declinedRows: { actionType: string; parameters: unknown; respondedAt: Date | null }[],
+  now: Date,
+  lookbackDays: number = DECLINE_LOOKBACK_DAYS,
+): Set<string> {
+  const cutoffMs = now.getTime() - lookbackDays * 24 * 60 * 60 * 1000;
+  const dates = new Set<string>();
+  for (const row of declinedRows) {
+    if (row.actionType !== "reschedule_workout") continue;
+    if (!row.respondedAt || row.respondedAt.getTime() < cutoffMs) continue;
+    const p = row.parameters as { targetDate?: unknown } | null;
+    const td = typeof p?.targetDate === "string" ? p.targetDate : null;
+    if (td) dates.add(td);
+  }
+  return dates;
+}
+
 interface RawProposal {
   action_type?: unknown;
   parameters?: unknown;
@@ -176,16 +200,12 @@ export async function generateActionProposals(userId: string): Promise<number> {
 
   const workoutDates = new Set(workoutEvents.map((e) => e.date));
 
-  // Declined (actionType, targetDate) pairs in the lookback window.
-  const declinedPairs = new Set<string>();
-  const declinedDatesForReschedule = new Set<string>();
-  for (const row of declinedRows) {
-    const p = row.parameters as { targetDate?: unknown } | null;
-    const td = typeof p?.targetDate === "string" ? p.targetDate : null;
-    if (!td) continue;
-    declinedPairs.add(`${row.actionType}::${td}`);
-    if (row.actionType === "reschedule_workout") declinedDatesForReschedule.add(td);
-  }
+  // Declined reschedule target dates within the cooldown window. Derived via a
+  // pure helper (anchored on respondedAt) so the two-sided cooldown is testable.
+  const declinedDatesForReschedule = computeDeclinedRescheduleDates(declinedRows, now);
+  const declinedPairs = new Set(
+    Array.from(declinedDatesForReschedule, (d) => `reschedule_workout::${d}`),
+  );
 
   const openDates = computeOpenWeekdayDates(workoutDates, declinedDatesForReschedule, now);
   if (openDates.length === 0) return 0;
@@ -252,6 +272,7 @@ Rules:
 - Only use action_type values from this list: ${supportedTypes.join(", ")}.
 - calendarEventId MUST be one of the scheduled workout ids above.
 - targetDate MUST be exactly one of the open weekday slots above.
+- If you picked this open slot specifically because the user recently declined a different date (see RECENTLY DECLINED above), you MAY acknowledge that adaptation in ONE warm sentence within the rationale (e.g. "Since you passed on Thursday, I found Friday open instead"). Include this only when it is genuinely true — never invent a declined date or mention this when no relevant date was declined.
 - If nothing is worth proposing, return {"proposals":[]}.`;
 
   let rawText: string;

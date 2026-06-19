@@ -7,7 +7,11 @@
  *
  * Run with: pnpm --filter @workspace/api-server run test:proposals
  */
-import { computeOpenWeekdayDates, parseProposalsJson } from "./generateActionProposals";
+import {
+  computeOpenWeekdayDates,
+  computeDeclinedRescheduleDates,
+  parseProposalsJson,
+} from "./generateActionProposals";
 
 function assert(cond: unknown, msg: string): void {
   if (!cond) throw new Error(`ASSERT FAILED: ${msg}`);
@@ -47,6 +51,54 @@ const monday = new Date("2026-06-22T12:00:00");
   const open = computeOpenWeekdayDates(new Set(allWeekdays), new Set(), monday, 14);
   assert(open.length === 0, "when every weekday has a workout, there are no open slots");
   console.log("PASS: fully-booked calendar yields zero open slots");
+}
+
+// ── Decline cooldown is two-sided (respondedAt anchored, 7-day window) ──────
+{
+  const thursday = "2026-06-25";
+  function declinedRow(daysAgo: number) {
+    return {
+      actionType: "reschedule_workout",
+      parameters: { targetDate: thursday },
+      respondedAt: new Date(monday.getTime() - daysAgo * 24 * 60 * 60 * 1000),
+    };
+  }
+
+  // (a) Declined 3 days ago → still in cooldown → Thursday excluded, not proposable.
+  const recent = computeDeclinedRescheduleDates([declinedRow(3)], monday);
+  assert(recent.has(thursday), "Thursday declined 3 days ago must be in the cooldown set");
+  const openAfterRecent = computeOpenWeekdayDates(new Set(), recent, monday, 14);
+  assert(
+    !openAfterRecent.includes(thursday),
+    "Thursday must NOT be an open slot while still in cooldown",
+  );
+
+  // (b) Declined 8 days ago → cooldown expired → Thursday not excluded, proposable.
+  const stale = computeDeclinedRescheduleDates([declinedRow(8)], monday);
+  assert(!stale.has(thursday), "Thursday declined 8 days ago must NOT be in the cooldown set");
+  const openAfterStale = computeOpenWeekdayDates(new Set(), stale, monday, 14);
+  assert(
+    openAfterStale.includes(thursday),
+    "Thursday must be proposable again once the 7-day cooldown has expired",
+  );
+
+  // A different open slot (Friday 6/26) stays available after a Thursday decline.
+  assert(openAfterRecent.includes("2026-06-26"), "Friday should remain open after a Thursday decline");
+
+  // Boundary: exactly 7 days ago is still inside the window (cutoff is inclusive).
+  const boundary = computeDeclinedRescheduleDates([declinedRow(7)], monday);
+  assert(boundary.has(thursday), "decline exactly 7 days ago must still be in cooldown (inclusive)");
+
+  // Non-reschedule declines and rows without respondedAt are ignored.
+  const ignored = computeDeclinedRescheduleDates(
+    [
+      { actionType: "other_action", parameters: { targetDate: thursday }, respondedAt: monday },
+      { actionType: "reschedule_workout", parameters: { targetDate: thursday }, respondedAt: null },
+    ],
+    monday,
+  );
+  assert(ignored.size === 0, "non-reschedule and null-respondedAt declines must be ignored");
+  console.log("PASS: decline cooldown is two-sided and respondedAt-anchored");
 }
 
 // ── Malformed / unparseable Claude output is discarded ────────────────────
