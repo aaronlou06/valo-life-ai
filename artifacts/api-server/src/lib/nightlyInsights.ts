@@ -1,6 +1,7 @@
 import { eq, and } from "drizzle-orm";
 import { db, usersTable, insightsTable } from "@workspace/db";
 import { generateDailyInsights } from "./insightsEngine";
+import { generateActionProposals } from "./generateActionProposals";
 import { logger } from "./logger";
 
 async function runNightlyInsights(): Promise<void> {
@@ -32,6 +33,13 @@ async function runNightlyInsights(): Promise<void> {
       } catch (err) {
         logger.error({ err, userId }, "Nightly insights generation failed for user");
       }
+    }
+
+    // Agentic Suggest & Act: generate proposed actions (idempotent per run).
+    try {
+      await generateActionProposals(userId);
+    } catch (err) {
+      logger.error({ err, userId }, "Action proposal generation failed for user");
     }
   }
 }

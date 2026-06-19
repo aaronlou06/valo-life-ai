@@ -15,3 +15,4 @@
 - [Orval query options queryKey](orval-query-options-querykey.md) — passing enabled/retry to a generated useGet* hook requires also passing queryKey via the getGet*QueryKey getter, else TS2741.
 - [Weekly recap](weekly-recap.md) — "Your Week with Valo": weekly_recaps table, 4 /weekly-recap routes, AI gen grounded (null where no data); mobile /recap/[id], Home Sun/Mon card, Progress history. Cron Sunday 19:00 local. Push deferred.
 - [Agentic action registry](action-registry.md) — Suggest & Act: proposed_actions + action_log tables; ActionHandler registry (new action = 1 entry); handlers self-authorize via ActionContext{userId}+domain guard.
+- [Suggestion engine](suggestion-engine.md) — generateActionProposals(userId) runs in nightly job (not home-briefing); business gates (behind<0.6, 1/run, declined, idempotent) in CODE not prompt; time/id fields re-derived from real event.

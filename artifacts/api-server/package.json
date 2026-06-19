@@ -8,6 +8,7 @@
     "build": "node ./build.mjs",
     "start": "node --enable-source-maps ./dist/index.mjs",
     "test:actions": "tsx ./src/lib/actions/rescheduleWorkout.test.ts",
+    "test:proposals": "tsx ./src/lib/generateActionProposals.test.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
