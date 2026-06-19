@@ -31,6 +31,8 @@ export interface AuthContextType {
   signUp: (email: string, password: string) => Promise<void>;
   signOut: () => Promise<void>;
   deleteAccount: (password: string) => Promise<void>;
+  requestPasswordReset: (email: string) => Promise<void>;
+  resetPassword: (email: string, code: string, newPassword: string) => Promise<void>;
   handleUnauthorized: () => Promise<void>;
   updateName: (name: string) => void;
 }
@@ -218,6 +220,36 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     ]);
   }, []);
 
+  // Request a password-reset code by email. The server always responds 200 with
+  // a neutral body (anti-enumeration), so success here only means the request
+  // was accepted — never that an account exists. Throws on rate-limit / errors.
+  const requestPasswordReset = useCallback(async (email: string) => {
+    const res = await fetch(`${getApiBase()}/api/auth/forgot-password`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email }),
+    });
+    const data = await res.json().catch(() => ({} as { error?: string }));
+    if (!res.ok) {
+      throw new Error((data as { error?: string }).error ?? "Could not send reset code. Please try again.");
+    }
+  }, []);
+
+  // Complete a password reset with the emailed code and a new password. On
+  // success the server invalidates all existing sessions; the caller routes to
+  // sign-in so the user logs in fresh.
+  const resetPassword = useCallback(async (email: string, code: string, newPassword: string) => {
+    const res = await fetch(`${getApiBase()}/api/auth/reset-password`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email, code, newPassword }),
+    });
+    const data = await res.json().catch(() => ({} as { error?: string }));
+    if (!res.ok) {
+      throw new Error((data as { error?: string }).error ?? "Could not reset password. Please try again.");
+    }
+  }, []);
+
   // Called by any hook or screen that receives a 401 for a non-auth endpoint.
   // Clears the local session so the app routes to sign-in. Does NOT hit the
   // logout endpoint (the token is already invalid server-side).
@@ -253,6 +285,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         signUp,
         signOut,
         deleteAccount,
+        requestPasswordReset,
+        resetPassword,
         handleUnauthorized,
         updateName,
       }}

@@ -11,7 +11,7 @@ import {
   Image,
   KeyboardAvoidingView,
 } from "react-native";
-import { Link, useRouter } from "expo-router";
+import { Link, useRouter, useLocalSearchParams } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Feather } from "@expo/vector-icons";
 import { useColors } from "@/hooks/useColors";
@@ -21,6 +21,7 @@ export default function SignInScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const router = useRouter();
+  const params = useLocalSearchParams<{ reset?: string }>();
   const { signIn, isSignedIn } = useValoAuth();
 
   const [email, setEmail] = useState("");
@@ -28,6 +29,7 @@ export default function SignInScreen() {
   const [showPass, setShowPass] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const justReset = params.reset === "1";
 
   if (isSignedIn) return null;
 
@@ -93,6 +95,18 @@ export default function SignInScreen() {
           </TouchableOpacity>
         </View>
 
+        <View style={styles.forgotRow}>
+          <Link href="/(auth)/forgot-password">
+            <Text style={[styles.linkText, { color: colors.primary, fontFamily: "Inter_500Medium" }]}>Forgot password?</Text>
+          </Link>
+        </View>
+
+        {justReset && !error && (
+          <Text style={[styles.success, { color: colors.primary, fontFamily: "Inter_500Medium" }]}>
+            Password reset. Sign in with your new password.
+          </Text>
+        )}
+
         {!!error && <Text style={[styles.error, { fontFamily: "Inter_400Regular" }]}>{error}</Text>}
 
         <TouchableOpacity
@@ -125,6 +139,8 @@ const styles = StyleSheet.create({
   input: { height: 50, borderWidth: 1, borderRadius: 12, paddingHorizontal: 16, fontSize: 15, marginBottom: 12 },
   passRow: { flexDirection: "row", alignItems: "center", marginBottom: 12 },
   eyeBtn: { position: "absolute", right: 14, top: 14 },
+  forgotRow: { alignItems: "flex-end", marginBottom: 16, marginTop: 2 },
+  success: { fontSize: 13, marginBottom: 10, textAlign: "center" },
   error: { color: "#D4473E", fontSize: 13, marginBottom: 10 },
   btn: { height: 50, borderRadius: 12, justifyContent: "center", alignItems: "center", marginTop: 4, marginBottom: 20 },
   btnText: { fontSize: 16 },

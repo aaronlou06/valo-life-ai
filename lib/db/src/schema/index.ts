@@ -10,6 +10,7 @@ export * from "./debriefExtractions";
 export * from "./transcripts";
 export * from "./calls";
 export * from "./users";
+export * from "./passwordResetTokens";
 export * from "./routines";
 export * from "./habitCompletions";
 export * from "./insightsPatterns";

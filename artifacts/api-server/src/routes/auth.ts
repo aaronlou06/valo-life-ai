@@ -1,11 +1,13 @@
 import { Router, type IRouter } from "express";
 import bcrypt from "bcryptjs";
-import { randomBytes } from "crypto";
-import { eq } from "drizzle-orm";
-import { db, usersTable, userProfilesTable } from "@workspace/db";
+import { randomBytes, randomInt } from "crypto";
+import { and, eq, isNull, gt } from "drizzle-orm";
+import { db, usersTable, userProfilesTable, passwordResetTokensTable } from "@workspace/db";
 import { requireAuth, type AuthenticatedRequest } from "../middlewares/requireAuth";
 import { deleteUserAccount } from "../lib/deleteAccount";
 import { exportUserData } from "../lib/exportUserData";
+import { sendPasswordResetEmail } from "../lib/resendEmail";
+import { rateLimit } from "../lib/rateLimit";
 
 const router: IRouter = Router();
 
@@ -239,6 +241,151 @@ router.get("/auth/export", requireAuth, async (req, res): Promise<void> => {
     req.log?.error({ err, userId }, "Export failed");
     res.status(500).json({ error: "Export failed. Please try again." });
   }
+});
+
+const RESET_CODE_TTL_MS = 15 * 60 * 1000; // 15 minutes
+const MIN_PASSWORD_LENGTH = 8;
+
+function generateResetCode(): string {
+  // 6-digit numeric code, zero-padded (000000–999999).
+  return String(randomInt(0, 1_000_000)).padStart(6, "0");
+}
+
+function clientIp(req: { ip?: string; headers: Record<string, unknown> }): string {
+  const fwd = req.headers["x-forwarded-for"];
+  if (typeof fwd === "string" && fwd.length > 0) return fwd.split(",")[0].trim();
+  return req.ip ?? "unknown";
+}
+
+// POST /api/auth/forgot-password — anti-enumeration: always 200 with a neutral
+// body whether or not the email maps to an account.
+router.post("/auth/forgot-password", async (req, res): Promise<void> => {
+  const { email } = req.body ?? {};
+  const neutral = { ok: true } as const;
+
+  if (!email || typeof email !== "string") {
+    res.status(400).json({ error: "email is required" });
+    return;
+  }
+  const normalizedEmail = email.toLowerCase().trim();
+
+  // Rate-limit by email and by IP independently (5 requests / 15 min each) so
+  // the endpoint can't be used to spam inboxes or probe for accounts.
+  const ip = clientIp(req);
+  const byEmail = rateLimit(`forgot:email:${normalizedEmail}`, 5, RESET_CODE_TTL_MS);
+  const byIp = rateLimit(`forgot:ip:${ip}`, 5, RESET_CODE_TTL_MS);
+  if (!byEmail.allowed || !byIp.allowed) {
+    const retryAfter = Math.max(byEmail.retryAfterSeconds, byIp.retryAfterSeconds);
+    res.setHeader("Retry-After", String(retryAfter));
+    res.status(429).json({ error: "Too many requests. Please try again later." });
+    return;
+  }
+
+  // Always generate and hash a code so request timing is similar regardless of
+  // whether the account exists (reduces enumeration via timing).
+  const code = generateResetCode();
+  const codeHash = await bcrypt.hash(code, 12);
+
+  const [user] = await db
+    .select({ id: usersTable.id })
+    .from(usersTable)
+    .where(eq(usersTable.email, normalizedEmail))
+    .limit(1);
+
+  if (user) {
+    const userId = String(user.id);
+    // Invalidate any prior unused codes for this user (single outstanding code).
+    await db
+      .update(passwordResetTokensTable)
+      .set({ usedAt: new Date() })
+      .where(and(eq(passwordResetTokensTable.userId, userId), isNull(passwordResetTokensTable.usedAt)));
+
+    await db.insert(passwordResetTokensTable).values({
+      userId,
+      codeHash,
+      expiresAt: new Date(Date.now() + RESET_CODE_TTL_MS),
+    });
+
+    try {
+      await sendPasswordResetEmail(normalizedEmail, code);
+    } catch (err) {
+      // Never leak existence/delivery failures to the caller; just log.
+      req.log?.error({ err }, "Failed to send password-reset email");
+    }
+  }
+
+  res.json(neutral);
+});
+
+// POST /api/auth/reset-password — verify code, set new password, invalidate
+// the code and all existing sessions.
+router.post("/auth/reset-password", async (req, res): Promise<void> => {
+  const { email, code, newPassword } = req.body ?? {};
+
+  if (!email || !code || !newPassword) {
+    res.status(400).json({ error: "email, code, and newPassword are required" });
+    return;
+  }
+  if (typeof newPassword !== "string" || newPassword.length < MIN_PASSWORD_LENGTH) {
+    res.status(400).json({ error: `Password must be at least ${MIN_PASSWORD_LENGTH} characters` });
+    return;
+  }
+
+  const normalizedEmail = String(email).toLowerCase().trim();
+  const codeStr = String(code).trim();
+  const invalidCode = { error: "Invalid or expired code" } as const;
+
+  const [user] = await db
+    .select({ id: usersTable.id })
+    .from(usersTable)
+    .where(eq(usersTable.email, normalizedEmail))
+    .limit(1);
+
+  if (!user) {
+    res.status(400).json(invalidCode);
+    return;
+  }
+  const userId = String(user.id);
+
+  // Candidate = most recent unused, unexpired code for this user.
+  const [token] = await db
+    .select()
+    .from(passwordResetTokensTable)
+    .where(
+      and(
+        eq(passwordResetTokensTable.userId, userId),
+        isNull(passwordResetTokensTable.usedAt),
+        gt(passwordResetTokensTable.expiresAt, new Date()),
+      ),
+    )
+    .orderBy(passwordResetTokensTable.createdAt)
+    .limit(1);
+
+  if (!token) {
+    res.status(400).json(invalidCode);
+    return;
+  }
+
+  const valid = await bcrypt.compare(codeStr, token.codeHash);
+  if (!valid) {
+    res.status(400).json(invalidCode);
+    return;
+  }
+
+  const passwordHash = await bcrypt.hash(newPassword, 12);
+
+  // Update password + invalidate every active session, and consume the code.
+  await db
+    .update(usersTable)
+    .set({ passwordHash, sessionToken: null, sessionExpiresAt: null })
+    .where(eq(usersTable.id, user.id));
+
+  await db
+    .update(passwordResetTokensTable)
+    .set({ usedAt: new Date() })
+    .where(eq(passwordResetTokensTable.id, token.id));
+
+  res.json({ ok: true });
 });
 
 export default router;
