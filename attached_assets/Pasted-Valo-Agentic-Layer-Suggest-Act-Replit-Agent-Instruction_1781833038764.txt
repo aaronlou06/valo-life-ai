@@ -1,0 +1,224 @@
+Valo — Agentic Layer (Suggest & Act) — Replit Agent Instructions
+
+How to run this build
+
+
+Start in Plan mode. This is foundational and touches schema, a new Claude pipeline layer, and Home UI. Produce a plan and let me review it before building.
+Use Power mode for Round 0 (schema + registry scaffold).
+Use Economy mode for the UI and wiring rounds.
+Build incrementally. Each round below is a Checkpoint — stop, let me verify on device, then continue.
+Reference the existing surfaces named in each round and integrate with them. Do not rebuild detection, the Home briefing card, the Plan calendar, or the workout schema from scratch.
+Never modify Recovery.tsx, GoalProgress.tsx, or Motivation.tsx.
+
+
+
+What we're building
+
+The jump from companion to assistant: Valo proposes a concrete, confirmable action in response to something it already notices, the user accepts / modifies / dismisses, Valo executes the change, and the change is one-tap undoable.
+
+The loop is:
+
+
+notice → propose a concrete action → user confirms / modifies / dismisses → execute → one-tap undo
+
+
+
+Critical scoping: Build the framework generically (an action registry that scales to many action types), but wire exactly one action end-to-end first: rescheduling a workout — the canonical "want me to move leg day to Thursday?" case. Prove the full loop on this one action before adding any others. The framework is the moat, not the number of actions.
+
+
+Guardrails (apply to every round)
+
+
+Nothing mutates user data without an explicit user tap. No auto-execution in this version.
+Every executed action is undoable and logged, with a snapshot of the prior state captured before the mutation.
+Pending proposals expire so the Home surface never accumulates stale cards.
+All proposal copy is warm and specific. A proposal must name a concrete target (a specific day/time), never a vague "want me to move this?"
+
+
+
+Round 0 — Schema + action registry scaffold (Power mode)
+
+Data model
+
+Add two tables via Drizzle.
+
+proposed_actions — the suggestions Valo surfaces:
+
+
+id
+user_id
+action_type (string key into the registry, e.g. reschedule_workout)
+parameters (JSON — the concrete proposed change, e.g. the workout id, current slot, target slot)
+rationale (short warm one-liner explaining why Valo is suggesting this)
+life_area (reuse the existing life-area tag set)
+confidence (numeric)
+status (pending | accepted | modified | declined | executed | expired)
+surfaced_at, responded_at, expires_at
+timestamps
+
+
+action_log — the audit + undo trail:
+
+
+id
+user_id
+proposed_action_id (nullable FK)
+action_type
+parameters (what was actually executed)
+before_snapshot (JSON — enough prior state to reverse the change)
+status (executed | undone)
+executed_at, undone_at
+timestamps
+
+
+Action registry (TypeScript, code not DB)
+
+A typed catalog mapping each action_type to a handler with this shape:
+
+
+type (the key)
+parameterSchema (typed/validated parameter shape)
+propose(context) → returns a structured action summary the card can render
+execute(parameters) → performs the mutation, returns the before_snapshot
+undo(before_snapshot) → reverses the mutation
+
+
+Ship one registry entry fully implemented: reschedule_workout. It moves a scheduled workout from its current slot to a target slot on the Plan calendar / workout schedule, captures the prior slot as the snapshot, and can restore it on undo.
+
+Architect the registry so adding a new action_type is a single new entry with no changes to the engine, card, or execution plumbing.
+
+Acceptance criteria
+
+
+Both tables exist and migrate cleanly.
+The registry exposes a lookup from action_type → handler.
+reschedule_workout's execute and undo round-trip correctly against the workout schema (move, then undo, returns the workout to its original slot).
+Adding a hypothetical second action type would require touching only the registry.
+
+
+
+Round 1 — Suggestion engine (Economy mode)
+
+A new Claude pipeline layer, sibling to the existing pre-call intelligence generator. It consumes existing detection rather than rebuilding it.
+
+Inputs
+
+
+Recent user state + memory (same context the pre-call intelligence generator already assembles)
+Output of the existing recurring-pattern detector (the "you're in the red on fitness" signal)
+The upcoming calendar / workout schedule (so it can pick a concrete open slot)
+The list of available action_types from the registry
+Recently declined (action_type, target) combinations (to avoid re-proposing)
+
+
+Output
+
+Structured JSON: zero or more proposals, each with:
+
+
+action_type (must be one the registry supports)
+parameters (concrete — e.g. move workout #X from Tuesday to Thursday 6pm, an actual open slot from the schedule)
+rationale (one warm sentence)
+life_area
+confidence
+
+
+Persist each proposal to proposed_actions with status: pending and an expires_at.
+
+Behavior + edge cases
+
+
+The engine must select a concrete target slot by reading the upcoming schedule, not emit a vague suggestion.
+If there is no good slot available, it does not propose a reschedule (a "skip this week" variant can come later — out of scope now).
+It must not propose an (action_type, target) that was recently declined.
+Prompt the model to return JSON only, no preamble or markdown fences; parse safely and discard malformed proposals rather than surfacing them.
+Trigger this on morning briefing generation (the same trigger that builds the "From Valo" card). Wiring it to also run post-check-in is fine if low-effort, but morning briefing is the required path.
+
+
+Acceptance criteria
+
+
+Given a user who is behind on fitness with an open Thursday slot, the engine produces a single reschedule_workout proposal naming Thursday concretely, persisted as pending.
+Given no open slot, it produces no reschedule proposal.
+A recently declined move is not re-proposed.
+Malformed model output never reaches the table.
+
+
+
+Round 2 — Home action card (Economy mode)
+
+Surface pending proposals on Home using the existing "From Valo" card pattern — same visual language, not a new component family.
+
+Behavior
+
+
+Render the proposal's rationale plus a precise action summary from the registry's propose() (warm voice from the engine, exact change from the registry).
+Three actions: Accept, Modify, Dismiss.
+Show only pending, non-expired proposals.
+If multiple are pending, rank by confidence and cap how many show at once (the rest wait). The At-a-Glance ranking logic already on Home is the reference for ordering.
+
+
+Edge cases
+
+
+Expired proposals never render and are marked expired on read.
+A proposal whose underlying data has changed (e.g. the workout was already moved/deleted) is treated as stale: don't render, mark expired.
+
+
+Acceptance criteria
+
+
+A pending reschedule proposal appears on Home as a "From Valo" action card with Accept / Modify / Dismiss.
+Expired and stale proposals do not appear.
+With several pending, ranking and the visible cap behave as specified.
+
+
+
+Round 3 — Execute + undo (Economy mode)
+
+Behavior
+
+
+Accept → run the registry execute, write an action_log row with the before_snapshot, mark the proposal executed, and show a confirmation toast with a one-tap Undo.
+Undo (from the toast) → run the registry undo against the snapshot, mark the log row undone.
+Modify → open the relevant Plan editor pre-filled with the proposed change so the user can adjust day/time, then save through the normal edit path. Mark the proposal modified.
+Dismiss → mark the proposal declined, no mutation.
+Nothing mutates without one of these explicit taps.
+
+
+Acceptance criteria
+
+
+Accepting the leg-day proposal moves the workout on the Plan calendar and logs a reversible snapshot.
+Undo from the toast restores the original slot exactly.
+Modify opens the Plan editor pre-filled with the proposed target and saves correctly through the existing edit flow.
+Dismiss changes nothing in the schedule.
+
+
+
+Round 4 — Decline-as-signal (Economy mode)
+
+Make the learning visible: declines change future behavior.
+
+Behavior
+
+
+On dismiss, record the (action_type, target) as recently declined.
+The suggestion engine (Round 1) reads this and suppresses re-proposing the same combination within a cooldown window.
+Surface this faintly to the user where natural (e.g. the engine's rationale can acknowledge it adapted), so the compounding-memory value is felt — but keep it light.
+
+
+Acceptance criteria
+
+
+Dismissing a reschedule proposal prevents the same move from being re-proposed within the cooldown.
+A different, sensible proposal can still surface.
+
+
+
+Out of scope for this build (note, don't build)
+
+
+In-call agentic actions (saying "move leg day" mid-call) — requires Vapi function calls; later.
+Action types beyond reschedule_workout (meal swap, habit target, check-in time shift) — the registry is built to accept them; wire them only after the loop is proven.
+"Skip this week" / alternative-action variants.
