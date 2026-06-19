@@ -1,0 +1,52 @@
+Round 2 — Economy Mode: Data Export (in-app share sheet)
+
+Mode: Economy.
+
+Context: Round 1 built schema-reflection deletion — every per-user table (any column named user_id) is auto-covered. Round 2 reuses that same reflection in read-only form to assemble a complete export, delivered through the iOS share sheet. The current GET /auth/export covers only ~10 collections — replace it with full coverage.
+
+Behavior
+
+Backend — rewrite GET /auth/export
+
+
+Completeness: assemble the authenticated user's data from every per-user table, derived from the live schema via the same reflection the deletion uses — so export coverage stays in sync automatically as tables are added. Include the workout subtree.
+Structure: return a single JSON document grouped by collection (one key per table), each holding the user's rows. Include every per-user collection, using an empty array where the user has no rows, so the shape is predictable.
+Exclude secrets: never include credentials or auth material — omit the password hash and session token from the user record, and exclude google_tokens entirely (encrypted OAuth tokens are not user data). Preserve everything else: profile, email, check-ins, mood, goals, habits, insights, journals/log entries, calendar events, nutrition, reminders, transcripts, the full workout history, etc.
+Metadata: include a small header at the top — export timestamp and the account email.
+Auth: the existing session auth is sufficient (read-only, the user's own data). No password gate.
+Note: transcript text lives in our DB and is included; Vapi-hosted audio recordings are external and out of scope for the file.
+
+
+Frontend — export flow (Profile / Settings)
+
+
+Entry point in the account/settings area: "Export my data."
+On tap: call the endpoint, write the returned JSON to a file named valo-export-<YYYY-MM-DD>.json, then open the iOS share sheet so the user can save to Files, AirDrop, or email it.
+Show a loading state while the export assembles, and a clear error state if it fails.
+Use expo-file-system + expo-sharing (or an existing sharing util if one is already present in the app).
+
+
+Acceptance criteria
+
+
+The export of a seeded user contains data from every table where that user has rows — compare against the deletion's table set: nothing the delete would remove should be missing from the export, except the deliberately excluded secrets.
+No password hash, session token, or Google tokens appear anywhere in the output.
+The output is valid JSON and opens cleanly after being saved from the share sheet.
+The share sheet is presented on device — verify on an EAS dev build, since expo-sharing is native and invisible on web/simulator.
+
+
+Out of scope
+
+
+Emailed download links / hosted exports (share sheet only).
+Vapi audio recordings (external to our DB).
+
+
+Checkpoints
+
+
+Backend export rewritten to full reflection-based coverage with secrets excluded; spot-check the JSON for a seeded user.
+Front-end share-sheet flow verified on an EAS dev build.
+
+
+Done when a seeded user can export from inside the app, receive a complete valo-export-<date>.json through the share sheet, and the file contains all their data across the full schema with no credentials included.

@@ -22,6 +22,12 @@ import * as Haptics from "expo-haptics";
 import * as ImagePicker from "expo-image-picker";
 import Constants from "expo-constants";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import {
+  documentDirectory as fsDocumentDirectory,
+  writeAsStringAsync,
+  EncodingType,
+} from "expo-file-system/legacy";
+import * as Sharing from "expo-sharing";
 import { useColors } from "@/hooks/useColors";
 import { useTheme } from "@/contexts/ThemeContext";
 import { useValoAuth } from "@/contexts/AuthContext";
@@ -1025,6 +1031,7 @@ export default function ProfileScreen() {
   const [showNotifications, setShowNotifications] = useState(false);
   const [showChangePassword, setShowChangePassword] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [exportLoading, setExportLoading] = useState(false);
   const [savedField, setSavedField] = useState<string | null>(null);
 
   // ── Retailer connections ──────────────────────────────────────────────────
@@ -1537,6 +1544,44 @@ export default function ProfileScreen() {
     ]);
   }
 
+  // ── Export data ────────────────────────────────────────────────────────────
+  async function handleExportData() {
+    if (exportLoading) return;
+    setExportLoading(true);
+    try {
+      const token = await getToken();
+      const res = await fetch(`${getApiBase()}/api/auth/export`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        Alert.alert("Export failed", (data as { error?: string }).error ?? "Something went wrong. Please try again.");
+        return;
+      }
+      if (!fsDocumentDirectory) {
+        Alert.alert("Export unavailable", "File storage is not available on this platform.");
+        return;
+      }
+      const json: unknown = await res.json();
+      const today = new Date().toISOString().split("T")[0];
+      const filename = `valo-export-${today}.json`;
+      const fileUri = `${fsDocumentDirectory}${filename}`;
+      await writeAsStringAsync(fileUri, JSON.stringify(json, null, 2), {
+        encoding: EncodingType.UTF8,
+      });
+      const canShare = await Sharing.isAvailableAsync();
+      if (canShare) {
+        await Sharing.shareAsync(fileUri, { mimeType: "application/json", dialogTitle: "Save your Valo data" });
+      } else {
+        Alert.alert("Export saved", `Your data has been saved as ${filename}.`);
+      }
+    } catch {
+      Alert.alert("Export failed", "Could not export your data. Please try again.");
+    } finally {
+      setExportLoading(false);
+    }
+  }
+
   function promptResetData() {
     Alert.alert(
       "Reset your data?",
@@ -1861,7 +1906,11 @@ export default function ProfileScreen() {
         <View style={styles.section}>
           <SectionLabel label="MORE" />
           <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border, padding: 0, overflow: "hidden" }]}>
-            <ChevronRow icon="download" label="Export my data" onPress={() => Alert.alert("Coming soon")} />
+            <ChevronRow
+              icon="download"
+              label={exportLoading ? "Preparing export…" : "Export my data"}
+              onPress={() => { void handleExportData(); }}
+            />
             <ChevronRow icon="refresh-cw" label="Reset my data" onPress={promptResetData} accentColor="#C17B3F" />
             <ChevronRow icon="shield" label="Privacy settings" onPress={() => Alert.alert("Coming soon")} />
             <ChevronRow icon="eye" label="What Valo knows about me" onPress={() => Alert.alert("Coming soon")} />
