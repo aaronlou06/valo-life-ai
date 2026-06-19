@@ -5,6 +5,7 @@ import { startKeepAlive } from "./lib/keepAlive";
 import { startNightlyInsightsJob } from "./lib/nightlyInsights";
 import { startNightlyAggregationJob } from "./lib/nightlyAggregation";
 import { startCalendarSyncJob } from "./lib/calendarSyncJob";
+import { startWeeklyRecapJob } from "./lib/weeklyRecapJob";
 
 const rawPort = process.env["PORT"];
 
@@ -32,4 +33,5 @@ app.listen(port, (err) => {
   startNightlyInsightsJob();
   startNightlyAggregationJob();
   startCalendarSyncJob();
+  startWeeklyRecapJob();
 });

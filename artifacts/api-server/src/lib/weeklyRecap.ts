@@ -254,7 +254,9 @@ export async function buildWeeklyAggregate(
   // Data density: count days that have any daily log or debrief.
   const dataDays = new Set<string>([...logs.map((l) => l.date), ...debriefs.map((d) => d.date)]);
   const daysWithData = dataDays.size;
-  const isQuietWeek = daysWithData < 3;
+  // isQuietWeek is keyed on real engagement (voice check-in debriefs), not HealthKit-synced log presence.
+  // A week with fewer than 2 actual check-ins is quiet even if wearable data filled daily_logs every day.
+  const isQuietWeek = debriefs.length < 2;
 
   // Prior week pillars: the most recent recap row strictly before this week.
   const priorRow = priorRecaps.find((r) => r.weekStart < weekStart) ?? null;
@@ -302,7 +304,7 @@ GROUNDING RULES (these are absolute):
 - Do not give generic self-help advice. Speak only to what this specific week's data shows.
 - For a quiet week (few days logged), return a SHORTER, honest recap. Acknowledge it was a lighter week of logging. Do not fabricate momentum or patterns. Only include sections that have real data.
 
-valoInsight: a SINGLE 2–3 sentence cross-cutting observation grounded in this week's actual patterns (e.g. the interplay between sleep and mood, a streak that held or broke, a habit that carried the week). It must be distinct from the per-pillar sections and must NOT simply restate them. If there is genuinely too little data for a real cross-cutting observation, write one honest sentence acknowledging that.
+valoInsight: a SINGLE 2–3 sentence cross-cutting observation that reveals something the per-pillar sections CANNOT say on their own. It must connect two or more pillars, trace a cause-and-effect between them, or name a theme that only emerges when the pillars are read together. Do NOT repeat individual pillar scores, averages, or labels already stated in the sections — the insight should be the thread tying the week together, not a re-summary of each pillar. If there is genuinely too little data for a real cross-cutting observation, write one honest sentence acknowledging that.
 
 The per-pillar "sections" array should contain one entry per pillar that HAS data. Each section: { "title": <pillar name>, "body": <2-3 sentences grounded in that pillar's data>, "delta": <the week-over-week change number you were given for that pillar, or null> }.
 
