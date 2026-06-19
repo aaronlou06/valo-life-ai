@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { eq, and, desc, gte } from "drizzle-orm";
+import { eq, and, desc, gte, inArray } from "drizzle-orm";
 import {
   db,
   userProfilesTable,
@@ -11,7 +11,9 @@ import {
   personalDatesTable,
   goalsTable,
   googleTokensTable,
+  proposedActionsTable,
 } from "@workspace/db";
+import { getActionHandler } from "../lib/actions";
 import { requireAuth, type AuthenticatedRequest } from "../middlewares/requireAuth";
 
 const router: IRouter = Router();
@@ -103,6 +105,16 @@ interface FromValo {
   cta_action?: string;
 }
 
+interface ActionProposalPayload {
+  id: number;
+  action_type: string;
+  rationale: string;
+  action_summary: string;
+  life_area: string | null;
+  confidence: number | null;
+  expires_at: string | null;
+}
+
 // ── Route ─────────────────────────────────────────────────────────────────────
 
 router.get("/home-briefing", requireAuth, async (req, res): Promise<void> => {
@@ -122,6 +134,7 @@ router.get("/home-briefing", requireAuth, async (req, res): Promise<void> => {
       personalDates,
       goals,
       googleTokenRows,
+      pendingProposals,
     ] = await Promise.all([
       db.select({ name: userProfilesTable.name })
         .from(userProfilesTable)
@@ -172,6 +185,15 @@ router.get("/home-briefing", requireAuth, async (req, res): Promise<void> => {
         .from(googleTokensTable)
         .where(eq(googleTokensTable.userId, userId))
         .limit(1),
+
+      db.select()
+        .from(proposedActionsTable)
+        .where(
+          and(
+            eq(proposedActionsTable.userId, userId),
+            eq(proposedActionsTable.status, "pending"),
+          ),
+        ),
     ]);
 
     // ── Derived state ─────────────────────────────────────────────────────────
@@ -453,11 +475,80 @@ router.get("/home-briefing", requireAuth, async (req, res): Promise<void> => {
       .slice(0, 4)
       .map(({ score: _score, ...rest }) => rest);
 
+    // ── Action proposals (agentic "suggest" surface) ──────────────────────────
+    // Filter pending proposals to those still actionable, expire the rest on
+    // read (past TTL, or the referenced workout no longer matches / was moved),
+    // then sort by confidence and cap at 2. The card summary comes from the
+    // action registry, keeping this route agnostic to specific action types.
+    const nowMs = Date.now();
+    const eventById = new Map(calendarEvents.map((e) => [e.id, e]));
+    const toExpire: number[] = [];
+    const valid: { row: (typeof pendingProposals)[number]; summary: string }[] = [];
+
+    for (const p of pendingProposals) {
+      if (p.expiresAt && p.expiresAt.getTime() <= nowMs) {
+        toExpire.push(p.id);
+        continue;
+      }
+      const handler = getActionHandler(p.actionType);
+      if (!handler) continue; // unknown type: leave untouched, do not render
+      const parsed = handler.parameterSchema.safeParse(p.parameters);
+      if (!parsed.success) {
+        toExpire.push(p.id); // corrupt parameters: retire it
+        continue;
+      }
+      const params = parsed.data as Record<string, unknown>;
+
+      if (p.actionType === "reschedule_workout") {
+        const ev = eventById.get(params.calendarEventId as number);
+        // Stale if the workout is gone, no longer a workout, or already moved
+        // from the slot the proposal was based on.
+        if (!ev || ev.type !== "workout") {
+          toExpire.push(p.id);
+          continue;
+        }
+        const liveStart = ev.startTime ? ev.startTime.toISOString() : null;
+        const propStart = (params.currentStartTime as string | null | undefined) ?? null;
+        if (ev.date !== params.currentDate || liveStart !== propStart) {
+          toExpire.push(p.id);
+          continue;
+        }
+        const summary = handler.propose({ ...params, title: ev.title }).actionSummary;
+        valid.push({ row: p, summary });
+      } else {
+        valid.push({ row: p, summary: handler.propose(params).actionSummary });
+      }
+    }
+
+    if (toExpire.length > 0) {
+      await db
+        .update(proposedActionsTable)
+        .set({ status: "expired", updatedAt: new Date() })
+        .where(
+          and(
+            eq(proposedActionsTable.userId, userId),
+            inArray(proposedActionsTable.id, toExpire),
+          ),
+        );
+    }
+
+    valid.sort((a, b) => (b.row.confidence ?? 0) - (a.row.confidence ?? 0));
+    const actionProposals: ActionProposalPayload[] = valid.slice(0, 2).map(({ row, summary }) => ({
+      id: row.id,
+      action_type: row.actionType,
+      rationale: row.rationale,
+      action_summary: summary,
+      life_area: row.lifeArea,
+      confidence: row.confidence,
+      expires_at: row.expiresAt ? row.expiresAt.toISOString() : null,
+    }));
+
     res.json({
       time_of_day: tod,
       greeting_name: firstName,
       from_valo: fromValo,
       cards,
+      action_proposals: actionProposals,
       states: {
         calendar_connected: calendarConnected,
         wearable_connected: wearableConnected,

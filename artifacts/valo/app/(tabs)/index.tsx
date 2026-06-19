@@ -87,11 +87,22 @@ interface FromValo {
   cta_action?: string;
 }
 
+interface ActionProposal {
+  id: number;
+  action_type: string;
+  rationale: string;
+  action_summary: string;
+  life_area: string | null;
+  confidence: number | null;
+  expires_at: string | null;
+}
+
 interface Briefing {
   time_of_day: "morning" | "afternoon" | "evening";
   greeting_name: string;
   from_valo: FromValo | null;
   cards: BriefingCard[];
+  action_proposals?: ActionProposal[];
   states: {
     calendar_connected: boolean;
     wearable_connected: boolean;
@@ -641,6 +652,113 @@ function FromValoCard({
   );
 }
 
+// ── ActionProposalCard ───────────────────────────────────────────────────────
+
+function ActionProposalCard({
+  proposal,
+  colors,
+}: {
+  proposal: ActionProposal;
+  colors: ReturnType<typeof useColors>;
+}) {
+  // Round 3 wires these to the execute/undo endpoints; placeholders for now.
+  function handleAccept() {
+    console.log("[action-proposal] accept", proposal.id, proposal.action_type);
+  }
+  function handleModify() {
+    console.log("[action-proposal] modify", proposal.id, proposal.action_type);
+  }
+  function handleDismiss() {
+    console.log("[action-proposal] dismiss", proposal.id, proposal.action_type);
+  }
+
+  return (
+    <View
+      style={[
+        styles.valoCard,
+        {
+          backgroundColor: "#FDF6F0",
+          borderColor: "#E8D9CC",
+          borderLeftColor: colors.primary,
+        },
+      ]}
+    >
+      <Text
+        style={[
+          styles.valoLabel,
+          { color: colors.primary, fontFamily: "Inter_600SemiBold" },
+        ]}
+      >
+        Suggestion
+      </Text>
+      <Text
+        style={[
+          styles.valoText,
+          { color: "#1A1814", fontFamily: "Inter_400Regular" },
+        ]}
+      >
+        {proposal.rationale}
+      </Text>
+      <Text
+        style={[
+          styles.proposalSummary,
+          { color: colors.foreground, fontFamily: "Inter_600SemiBold" },
+        ]}
+      >
+        {proposal.action_summary}
+      </Text>
+      <View style={styles.proposalActions}>
+        <TouchableOpacity
+          onPress={handleAccept}
+          activeOpacity={0.8}
+          style={[styles.proposalBtn, { backgroundColor: colors.primary }]}
+        >
+          <Feather name="check" size={14} color={colors.primaryForeground} />
+          <Text
+            style={[
+              styles.proposalBtnText,
+              { color: colors.primaryForeground, fontFamily: "Inter_600SemiBold" },
+            ]}
+          >
+            Accept
+          </Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          onPress={handleModify}
+          activeOpacity={0.8}
+          style={[
+            styles.proposalBtn,
+            { backgroundColor: "transparent", borderWidth: 1, borderColor: colors.border },
+          ]}
+        >
+          <Text
+            style={[
+              styles.proposalBtnText,
+              { color: colors.foreground, fontFamily: "Inter_500Medium" },
+            ]}
+          >
+            Modify
+          </Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          onPress={handleDismiss}
+          activeOpacity={0.7}
+          style={styles.proposalDismiss}
+        >
+          <Text
+            style={[
+              styles.proposalBtnText,
+              { color: colors.mutedForeground, fontFamily: "Inter_500Medium" },
+            ]}
+          >
+            Dismiss
+          </Text>
+        </TouchableOpacity>
+      </View>
+    </View>
+  );
+}
+
 // ── GlanceCard ─────────────────────────────────────────────────────────────────
 
 function GlanceCard({
@@ -1155,6 +1273,12 @@ export default function HomeScreen() {
   const firstName = briefing?.greeting_name ?? (name ? name.split(" ")[0] : "there") ?? "there";
   const greeting = getGreeting(tod);
 
+  const activeProposals = useMemo(() => {
+    const list = briefing?.action_proposals ?? [];
+    const now = Date.now();
+    return list.filter((p) => !p.expires_at || new Date(p.expires_at).getTime() > now);
+  }, [briefing?.action_proposals]);
+
   return (
     <View style={[styles.safe, { backgroundColor: colors.background }]}>
       <ScrollView
@@ -1257,6 +1381,16 @@ export default function HomeScreen() {
             onPlan={() => router.navigate("/(tabs)/plan")}
           />
         )}
+
+        {/* ── Action proposals ── */}
+        {!loading &&
+          activeProposals.map((proposal) => (
+            <ActionProposalCard
+              key={proposal.id}
+              proposal={proposal}
+              colors={colors}
+            />
+          ))}
 
         {/* ── Weekly recap ── */}
         <WeeklyRecapGlance colors={colors} router={router} />
@@ -1460,6 +1594,32 @@ const styles = StyleSheet.create({
     fontSize: 15,
     lineHeight: 23,
     marginBottom: 6,
+  },
+  proposalSummary: {
+    fontSize: 14,
+    lineHeight: 20,
+    marginBottom: 14,
+  },
+  proposalActions: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  proposalBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    paddingVertical: 9,
+    paddingHorizontal: 16,
+    borderRadius: 999,
+    marginRight: 8,
+  },
+  proposalDismiss: {
+    paddingVertical: 9,
+    paddingHorizontal: 8,
+  },
+  proposalBtnText: {
+    fontSize: 13,
   },
   valoToggle: {
     fontSize: 13,

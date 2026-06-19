@@ -21,6 +21,12 @@ import type { ActionContext, ActionHandler, ProposalSummary } from "./registry";
 
 export const rescheduleWorkoutParamsSchema = z.object({
   calendarEventId: z.number().int(),
+  /**
+   * The workout's title, captured for a precise card summary (e.g. "Leg Day").
+   * Optional + display-only: never used to authorize or mutate; the briefing
+   * route may pass the live title through `propose()` to keep it fresh.
+   */
+  title: z.string().optional(),
   /** The workout's date (YYYY-MM-DD) at the time the proposal was made. */
   currentDate: z.string(),
   /** ISO timestamp of the workout's startTime at proposal time, or null. */
@@ -66,9 +72,10 @@ export const rescheduleWorkoutHandler: ActionHandler<
   parameterSchema: rescheduleWorkoutParamsSchema,
 
   propose(parameters): ProposalSummary {
+    const what = parameters.title?.trim() || "workout";
     const from = fmtDay(parameters.currentDate) + fmtTime(parameters.currentStartTime);
     const to = fmtDay(parameters.targetDate) + fmtTime(parameters.targetStartTime);
-    return { actionSummary: `Move workout from ${from} to ${to}` };
+    return { actionSummary: `Move ${what} from ${from} to ${to}` };
   },
 
   async execute(

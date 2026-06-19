@@ -303,6 +303,7 @@ Rules:
 
     const candidateParams = {
       calendarEventId: eventId,
+      title: event.title,
       currentDate: event.date,
       currentStartTime,
       targetDate,
