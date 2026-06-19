@@ -35,3 +35,5 @@ export * from "./workoutHrSamples";
 export * from "./workoutPersonalRecords";
 export * from "./workoutSummaries";
 export * from "./weeklyRecaps";
+export * from "./proposedActions";
+export * from "./actionLog";
