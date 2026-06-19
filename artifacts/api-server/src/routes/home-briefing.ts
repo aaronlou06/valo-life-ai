@@ -113,6 +113,9 @@ interface ActionProposalPayload {
   life_area: string | null;
   confidence: number | null;
   expires_at: string | null;
+  // Validated handler parameters, surfaced so the client's "Modify" flow can
+  // pre-fill the edit screen with the proposed target slot.
+  parameters: unknown;
 }
 
 // ── Route ─────────────────────────────────────────────────────────────────────
@@ -541,6 +544,7 @@ router.get("/home-briefing", requireAuth, async (req, res): Promise<void> => {
       life_area: row.lifeArea,
       confidence: row.confidence,
       expires_at: row.expiresAt ? row.expiresAt.toISOString() : null,
+      parameters: row.parameters,
     }));
 
     res.json({

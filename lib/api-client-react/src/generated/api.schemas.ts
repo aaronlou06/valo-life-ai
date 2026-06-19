@@ -909,6 +909,31 @@ export interface WorkoutSetLogInput {
   notes?: string;
 }
 
+export interface ExecuteActionResponse {
+  /** The action_log row id, used to undo the action. */
+  actionLogId: number;
+}
+
+export interface StaleActionResponse {
+  /** Always true; the proposal could not be executed because it is stale. */
+  stale: boolean;
+}
+
+export interface DismissActionRequest {
+  /** When true, record the proposal as "modified" rather than "declined". */
+  modified?: boolean;
+}
+
+export interface DismissActionResponse {
+  /** The resulting proposal status ("declined" or "modified"). */
+  status: string;
+}
+
+export interface UndoActionResult {
+  /** Always true on success. */
+  undone: boolean;
+}
+
 export type ListDailyLogHistoryParams = {
   /**
    * ISO date (YYYY-MM-DD). When provided, return all logs on or after this date. When omitted, defaults to the last 30 days.

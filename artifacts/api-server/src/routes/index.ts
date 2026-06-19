@@ -31,6 +31,7 @@ import exercisesRouter from "./exercises";
 import workoutRouter from "./workout";
 import askRouter from "./ask";
 import weeklyRecapRouter from "./weekly-recap";
+import actionProposalsRouter from "./action-proposals";
 
 const router: IRouter = Router();
 
@@ -66,5 +67,6 @@ router.use(exercisesRouter);
 router.use(workoutRouter);
 router.use(askRouter);
 router.use(weeklyRecapRouter);
+router.use(actionProposalsRouter);
 
 export default router;

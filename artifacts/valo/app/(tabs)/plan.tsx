@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo } from "react";
-import { useRouter } from "expo-router";
+import { useRouter, useLocalSearchParams } from "expo-router";
 import {
   View,
   Text,
@@ -63,6 +63,7 @@ import {
   useDeletePersonalDate,
   useUpdatePersonalDate,
   getListPersonalDatesQueryKey,
+  useDismissActionProposal,
   type Habit,
   type Reminder,
   type CalendarEventInput,
@@ -2753,6 +2754,17 @@ export default function PlanScreen() {
   const [editingEvent, setEditingEvent] = useState<CalendarEvent | null>(null);
   const [editEventOccurrenceDate, setEditEventOccurrenceDate] = useState<string | undefined>(undefined);
 
+  // ── Deep-link from a Home "Modify" action proposal ──
+  const router = useRouter();
+  const deepLinkParams = useLocalSearchParams<{
+    editWorkoutId?: string;
+    prefillDate?: string;
+    modifyProposalId?: string;
+  }>();
+  const { mutateAsync: dismissActionProposal } = useDismissActionProposal();
+  const modifyProposalIdRef = useRef<number | null>(null);
+  const deepLinkHandledRef = useRef<string | null>(null);
+
   // ── Schedule / routines state ──
   const [schedule, setSchedule] = useState<WorkSchedule | null>(null);
   const [showScheduleSetup, setShowScheduleSetup] = useState(false);
@@ -2811,6 +2823,27 @@ export default function PlanScreen() {
   // ── API hooks ──
   const queryClient = useQueryClient();
   const { data: events = [], isFetching, isLoading: eventsLoading, refetch } = useListCalendarEvents();
+
+  // ── Open the edit modal pre-filled when arriving from a "Modify" proposal ──
+  useEffect(() => {
+    const editId = deepLinkParams.editWorkoutId;
+    if (!editId) return;
+    // Guard so a single navigation only triggers once (params persist on the route).
+    const signature = `${editId}|${deepLinkParams.prefillDate ?? ""}|${deepLinkParams.modifyProposalId ?? ""}`;
+    if (deepLinkHandledRef.current === signature) return;
+    const ev = events.find((e) => e.id === Number(editId));
+    if (!ev) return; // wait until calendar events load
+    deepLinkHandledRef.current = signature;
+    modifyProposalIdRef.current = deepLinkParams.modifyProposalId
+      ? Number(deepLinkParams.modifyProposalId)
+      : null;
+    setEditingEvent(ev);
+    setEditEventOccurrenceDate(deepLinkParams.prefillDate || undefined);
+    setShowDayDetail(false);
+    setShowAddEvent(true);
+    router.setParams({ editWorkoutId: "", prefillDate: "", modifyProposalId: "" });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [deepLinkParams.editWorkoutId, deepLinkParams.prefillDate, deepLinkParams.modifyProposalId, events]);
   const { mutateAsync: createEvent } = useCreateCalendarEvent();
   const { mutateAsync: patchEvent } = useUpdateCalendarEvent();
   const { mutateAsync: deleteEvent } = useDeleteCalendarEvent();
@@ -3671,8 +3704,17 @@ export default function PlanScreen() {
       {/* ── Modals ─────────────────────────────────────────────────────── */}
       <AddEventModal
         visible={showAddEvent}
-        onClose={() => { setShowAddEvent(false); setEditingEvent(null); setEditEventOccurrenceDate(undefined); }}
-        onCreated={() => { refetch(); queryClient.invalidateQueries({ queryKey: getListCalendarEventsQueryKey() }); }}
+        onClose={() => { setShowAddEvent(false); setEditingEvent(null); setEditEventOccurrenceDate(undefined); modifyProposalIdRef.current = null; }}
+        onCreated={() => {
+          refetch();
+          queryClient.invalidateQueries({ queryKey: getListCalendarEventsQueryKey() });
+          // If this edit came from a "Modify" proposal, record it as modified.
+          const pid = modifyProposalIdRef.current;
+          if (pid !== null) {
+            modifyProposalIdRef.current = null;
+            dismissActionProposal({ id: pid, data: { modified: true } }).catch(() => {});
+          }
+        }}
         colors={colors}
         prefilledDate={addEventDate}
         event={editingEvent}

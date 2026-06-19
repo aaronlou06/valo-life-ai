@@ -39,6 +39,8 @@ tags:
     description: Exercise library — list, archive, and unarchive exercises
   - name: workout
     description: Workout sessions, set logging, coaching, PR tracking, and volume trends
+  - name: action-proposals
+    description: Agentic action proposals — execute, dismiss, and undo
 paths:
   /healthz:
     get:
@@ -1274,6 +1276,83 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/AskResponse"
+
+  /action-proposals/{id}/execute:
+    post:
+      operationId: executeActionProposal
+      tags: [action-proposals]
+      summary: Execute a pending action proposal, log it, and mark it executed
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Action executed; returns the action log id for undo
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ExecuteActionResponse"
+        "404":
+          description: Proposal not found
+        "409":
+          description: Proposal is stale (already responded, expired, or the underlying data moved)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StaleActionResponse"
+
+  /action-proposals/{id}/dismiss:
+    post:
+      operationId: dismissActionProposal
+      tags: [action-proposals]
+      summary: Dismiss a pending action proposal (decline, or mark modified)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DismissActionRequest"
+      responses:
+        "200":
+          description: Proposal dismissed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DismissActionResponse"
+        "404":
+          description: Proposal not found
+
+  /action-log/{id}/undo:
+    post:
+      operationId: undoAction
+      tags: [action-proposals]
+      summary: Undo a previously executed action using its before-snapshot
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Action undone
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UndoActionResult"
+        "404":
+          description: Action log entry not found
+        "409":
+          description: Action already undone
 
 components:
   schemas:
@@ -2560,3 +2639,42 @@ components:
           type: boolean
         notes:
           type: string
+
+    ExecuteActionResponse:
+      type: object
+      required: [actionLogId]
+      properties:
+        actionLogId:
+          type: integer
+          description: The action_log row id, used to undo the action.
+
+    StaleActionResponse:
+      type: object
+      required: [stale]
+      properties:
+        stale:
+          type: boolean
+          description: Always true; the proposal could not be executed because it is stale.
+
+    DismissActionRequest:
+      type: object
+      properties:
+        modified:
+          type: boolean
+          description: When true, record the proposal as "modified" rather than "declined".
+
+    DismissActionResponse:
+      type: object
+      required: [status]
+      properties:
+        status:
+          type: string
+          description: The resulting proposal status ("declined" or "modified").
+
+    UndoActionResult:
+      type: object
+      required: [undone]
+      properties:
+        undone:
+          type: boolean
+          description: Always true on success.

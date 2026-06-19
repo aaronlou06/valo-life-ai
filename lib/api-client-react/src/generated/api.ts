@@ -28,6 +28,9 @@ import type {
   DailyLogInput,
   DailyLogOrNull,
   Dashboard,
+  DismissActionRequest,
+  DismissActionResponse,
+  ExecuteActionResponse,
   Exercise,
   GetWorkoutVolumeParams,
   Goal,
@@ -60,8 +63,10 @@ import type {
   RoutineInput,
   RoutineUpdate,
   SaveOnboarding200,
+  StaleActionResponse,
   StreakData,
   ToggleHabitCompletionInput,
+  UndoActionResult,
   UpdateSettings,
   UpdateSettings200,
   UserSettings,
@@ -5608,4 +5613,260 @@ export const useAskValo = <
   TContext
 > => {
   return useMutation(getAskValoMutationOptions(options));
+};
+
+/**
+ * @summary Execute a pending action proposal, log it, and mark it executed
+ */
+export const getExecuteActionProposalUrl = (id: number) => {
+  return `/api/action-proposals/${id}/execute`;
+};
+
+export const executeActionProposal = async (
+  id: number,
+  options?: RequestInit,
+): Promise<ExecuteActionResponse> => {
+  return customFetch<ExecuteActionResponse>(getExecuteActionProposalUrl(id), {
+    ...options,
+    method: "POST",
+  });
+};
+
+export const getExecuteActionProposalMutationOptions = <
+  TError = ErrorType<void | StaleActionResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof executeActionProposal>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof executeActionProposal>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  const mutationKey = ["executeActionProposal"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof executeActionProposal>>,
+    { id: number }
+  > = (props) => {
+    const { id } = props ?? {};
+
+    return executeActionProposal(id, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type ExecuteActionProposalMutationResult = NonNullable<
+  Awaited<ReturnType<typeof executeActionProposal>>
+>;
+
+export type ExecuteActionProposalMutationError =
+  ErrorType<void | StaleActionResponse>;
+
+/**
+ * @summary Execute a pending action proposal, log it, and mark it executed
+ */
+export const useExecuteActionProposal = <
+  TError = ErrorType<void | StaleActionResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof executeActionProposal>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof executeActionProposal>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  return useMutation(getExecuteActionProposalMutationOptions(options));
+};
+
+/**
+ * @summary Dismiss a pending action proposal (decline, or mark modified)
+ */
+export const getDismissActionProposalUrl = (id: number) => {
+  return `/api/action-proposals/${id}/dismiss`;
+};
+
+export const dismissActionProposal = async (
+  id: number,
+  dismissActionRequest?: DismissActionRequest,
+  options?: RequestInit,
+): Promise<DismissActionResponse> => {
+  return customFetch<DismissActionResponse>(getDismissActionProposalUrl(id), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(dismissActionRequest),
+  });
+};
+
+export const getDismissActionProposalMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof dismissActionProposal>>,
+    TError,
+    { id: number; data: BodyType<DismissActionRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof dismissActionProposal>>,
+  TError,
+  { id: number; data: BodyType<DismissActionRequest> },
+  TContext
+> => {
+  const mutationKey = ["dismissActionProposal"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof dismissActionProposal>>,
+    { id: number; data: BodyType<DismissActionRequest> }
+  > = (props) => {
+    const { id, data } = props ?? {};
+
+    return dismissActionProposal(id, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type DismissActionProposalMutationResult = NonNullable<
+  Awaited<ReturnType<typeof dismissActionProposal>>
+>;
+export type DismissActionProposalMutationBody = BodyType<DismissActionRequest>;
+export type DismissActionProposalMutationError = ErrorType<void>;
+
+/**
+ * @summary Dismiss a pending action proposal (decline, or mark modified)
+ */
+export const useDismissActionProposal = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof dismissActionProposal>>,
+    TError,
+    { id: number; data: BodyType<DismissActionRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof dismissActionProposal>>,
+  TError,
+  { id: number; data: BodyType<DismissActionRequest> },
+  TContext
+> => {
+  return useMutation(getDismissActionProposalMutationOptions(options));
+};
+
+/**
+ * @summary Undo a previously executed action using its before-snapshot
+ */
+export const getUndoActionUrl = (id: number) => {
+  return `/api/action-log/${id}/undo`;
+};
+
+export const undoAction = async (
+  id: number,
+  options?: RequestInit,
+): Promise<UndoActionResult> => {
+  return customFetch<UndoActionResult>(getUndoActionUrl(id), {
+    ...options,
+    method: "POST",
+  });
+};
+
+export const getUndoActionMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof undoAction>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof undoAction>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  const mutationKey = ["undoAction"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof undoAction>>,
+    { id: number }
+  > = (props) => {
+    const { id } = props ?? {};
+
+    return undoAction(id, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type UndoActionMutationResult = NonNullable<
+  Awaited<ReturnType<typeof undoAction>>
+>;
+
+export type UndoActionMutationError = ErrorType<void>;
+
+/**
+ * @summary Undo a previously executed action using its before-snapshot
+ */
+export const useUndoAction = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof undoAction>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof undoAction>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  return useMutation(getUndoActionMutationOptions(options));
 };

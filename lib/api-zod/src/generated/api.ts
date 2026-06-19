@@ -1567,3 +1567,49 @@ export const AskValoResponse = zod.object({
     }),
   ),
 });
+
+/**
+ * @summary Execute a pending action proposal, log it, and mark it executed
+ */
+export const ExecuteActionProposalParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const ExecuteActionProposalResponse = zod.object({
+  actionLogId: zod
+    .number()
+    .describe("The action_log row id, used to undo the action."),
+});
+
+/**
+ * @summary Dismiss a pending action proposal (decline, or mark modified)
+ */
+export const DismissActionProposalParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const DismissActionProposalBody = zod.object({
+  modified: zod
+    .boolean()
+    .optional()
+    .describe(
+      'When true, record the proposal as \"modified\" rather than \"declined\".',
+    ),
+});
+
+export const DismissActionProposalResponse = zod.object({
+  status: zod
+    .string()
+    .describe('The resulting proposal status (\"declined\" or \"modified\").'),
+});
+
+/**
+ * @summary Undo a previously executed action using its before-snapshot
+ */
+export const UndoActionParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const UndoActionResponse = zod.object({
+  undone: zod.boolean().describe("Always true on success."),
+});

@@ -33,6 +33,10 @@ import {
   customFetch,
   useGetWeeklyRecapLatest,
   getGetWeeklyRecapLatestQueryKey,
+  useExecuteActionProposal,
+  useDismissActionProposal,
+  useUndoAction,
+  ApiError,
 } from "@workspace/api-client-react";
 
 const isIOS = Platform.OS === "ios";
@@ -50,6 +54,19 @@ function getGreeting(tod: "morning" | "afternoon" | "evening"): string {
 function getApiBase(): string {
   const domain = process.env.EXPO_PUBLIC_DOMAIN;
   return domain ? `https://${domain}` : "";
+}
+
+// Convert a proposal's ISO target start time into the `YYYY-MM-DDTHH:MM` (local)
+// shape the Plan edit modal expects for pre-filling date + time.
+function buildLocalDateTimeParam(dateStr: string, iso: string): string {
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return dateStr;
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  const hh = String(d.getHours()).padStart(2, "0");
+  const mm = String(d.getMinutes()).padStart(2, "0");
+  return `${y}-${m}-${day}T${hh}:${mm}`;
 }
 
 // ── Types ──────────────────────────────────────────────────────────────────────
@@ -95,6 +112,14 @@ interface ActionProposal {
   life_area: string | null;
   confidence: number | null;
   expires_at: string | null;
+  parameters: unknown;
+}
+
+interface RescheduleWorkoutParams {
+  calendarEventId: number;
+  targetDate: string;
+  targetStartTime?: string | null;
+  targetEndTime?: string | null;
 }
 
 interface Briefing {
@@ -657,19 +682,67 @@ function FromValoCard({
 function ActionProposalCard({
   proposal,
   colors,
+  router,
+  onRemove,
+  onToast,
 }: {
   proposal: ActionProposal;
   colors: ReturnType<typeof useColors>;
+  router: ReturnType<typeof useRouter>;
+  onRemove: (id: number) => void;
+  onToast: (message: string, actionLogId: number | null) => void;
 }) {
-  // Round 3 wires these to the execute/undo endpoints; placeholders for now.
-  function handleAccept() {
-    console.log("[action-proposal] accept", proposal.id, proposal.action_type);
+  const { mutateAsync: executeProposal, isPending: executing } = useExecuteActionProposal();
+  const { mutateAsync: dismissProposal } = useDismissActionProposal();
+
+  async function handleAccept() {
+    try {
+      const res = await executeProposal({ id: proposal.id });
+      onRemove(proposal.id);
+      onToast("Done. You can undo this.", res.actionLogId);
+    } catch (err) {
+      if (err instanceof ApiError && err.status === 409) {
+        onRemove(proposal.id);
+        onToast("That suggestion is no longer current.", null);
+      } else {
+        onToast("Could not apply that. Please try again.", null);
+      }
+    }
   }
+
   function handleModify() {
-    console.log("[action-proposal] modify", proposal.id, proposal.action_type);
+    if (proposal.action_type === "reschedule_workout") {
+      const params = proposal.parameters as RescheduleWorkoutParams | null;
+      if (params && typeof params.calendarEventId === "number") {
+        // Pre-fill the Plan edit screen with the proposed target slot. The
+        // proposal is marked "modified" on save (see plan.tsx deep-link).
+        const prefill = params.targetStartTime
+          ? buildLocalDateTimeParam(params.targetDate, params.targetStartTime)
+          : params.targetDate;
+        onRemove(proposal.id);
+        router.navigate({
+          pathname: "/(tabs)/plan",
+          params: {
+            editWorkoutId: String(params.calendarEventId),
+            prefillDate: prefill,
+            modifyProposalId: String(proposal.id),
+          },
+        });
+        return;
+      }
+    }
+    // Fallback: just open the Plan tab.
+    onRemove(proposal.id);
+    router.navigate("/(tabs)/plan");
   }
-  function handleDismiss() {
-    console.log("[action-proposal] dismiss", proposal.id, proposal.action_type);
+
+  async function handleDismiss() {
+    onRemove(proposal.id);
+    try {
+      await dismissProposal({ id: proposal.id, data: {} });
+    } catch {
+      // Optimistic: keep the card removed even if the call fails.
+    }
   }
 
   return (
@@ -710,8 +783,9 @@ function ActionProposalCard({
       <View style={styles.proposalActions}>
         <TouchableOpacity
           onPress={handleAccept}
+          disabled={executing}
           activeOpacity={0.8}
-          style={[styles.proposalBtn, { backgroundColor: colors.primary }]}
+          style={[styles.proposalBtn, { backgroundColor: colors.primary, opacity: executing ? 0.6 : 1 }]}
         >
           <Feather name="check" size={14} color={colors.primaryForeground} />
           <Text
@@ -1245,7 +1319,7 @@ export default function HomeScreen() {
   const [checkInOpen, setCheckInOpen] = useState(false);
   const [appsOpen, setAppsOpen] = useState(false);
 
-  const { data: briefing = null, isLoading: loading } = useQuery<Briefing | null>({
+  const { data: briefing = null, isLoading: loading, refetch: refetchBriefing } = useQuery<Briefing | null>({
     queryKey: ["/api/home-briefing"],
     queryFn: async () => {
       const token = await getToken();
@@ -1273,11 +1347,47 @@ export default function HomeScreen() {
   const firstName = briefing?.greeting_name ?? (name ? name.split(" ")[0] : "there") ?? "there";
   const greeting = getGreeting(tod);
 
+  const [removedProposalIds, setRemovedProposalIds] = useState<Set<number>>(new Set());
+  const [actionToast, setActionToast] = useState<{ message: string; actionLogId: number | null } | null>(null);
+  const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const { mutateAsync: undoAction } = useUndoAction();
+
+  const showActionToast = useCallback((message: string, actionLogId: number | null) => {
+    if (toastTimer.current) clearTimeout(toastTimer.current);
+    setActionToast({ message, actionLogId });
+    toastTimer.current = setTimeout(() => setActionToast(null), 6000);
+  }, []);
+
+  const removeProposal = useCallback((id: number) => {
+    setRemovedProposalIds((prev) => {
+      const next = new Set(prev);
+      next.add(id);
+      return next;
+    });
+  }, []);
+
+  const handleUndoAction = useCallback(async (actionLogId: number) => {
+    if (toastTimer.current) clearTimeout(toastTimer.current);
+    setActionToast(null);
+    try {
+      await undoAction({ id: actionLogId });
+      refetchBriefing();
+    } catch {
+      showActionToast("Could not undo that. Please try again.", null);
+    }
+  }, [undoAction, refetchBriefing, showActionToast]);
+
+  useEffect(() => () => { if (toastTimer.current) clearTimeout(toastTimer.current); }, []);
+
   const activeProposals = useMemo(() => {
     const list = briefing?.action_proposals ?? [];
     const now = Date.now();
-    return list.filter((p) => !p.expires_at || new Date(p.expires_at).getTime() > now);
-  }, [briefing?.action_proposals]);
+    return list.filter(
+      (p) =>
+        !removedProposalIds.has(p.id) &&
+        (!p.expires_at || new Date(p.expires_at).getTime() > now),
+    );
+  }, [briefing?.action_proposals, removedProposalIds]);
 
   return (
     <View style={[styles.safe, { backgroundColor: colors.background }]}>
@@ -1389,6 +1499,9 @@ export default function HomeScreen() {
               key={proposal.id}
               proposal={proposal}
               colors={colors}
+              router={router}
+              onRemove={removeProposal}
+              onToast={showActionToast}
             />
           ))}
 
@@ -1447,6 +1560,31 @@ export default function HomeScreen() {
         colors={colors}
         router={router}
       />
+
+      {actionToast && (
+        <View
+          style={[
+            styles.actionToast,
+            {
+              backgroundColor: colors.text,
+              bottom: (Platform.OS === "web" ? 34 : insets.bottom) + 96,
+            },
+          ]}
+        >
+          <Text style={[styles.actionToastText, { color: colors.background }]} numberOfLines={2}>
+            {actionToast.message}
+          </Text>
+          {actionToast.actionLogId !== null && (
+            <TouchableOpacity
+              onPress={() => handleUndoAction(actionToast.actionLogId!)}
+              hitSlop={8}
+              style={styles.actionToastUndo}
+            >
+              <Text style={[styles.actionToastUndoText, { color: colors.background }]}>Undo</Text>
+            </TouchableOpacity>
+          )}
+        </View>
+      )}
     </View>
   );
 }
@@ -1456,6 +1594,36 @@ export default function HomeScreen() {
 const styles = StyleSheet.create({
   safe: {
     flex: 1,
+  },
+  actionToast: {
+    position: "absolute",
+    left: 20,
+    right: 20,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 12,
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    borderRadius: 14,
+    shadowColor: "#000",
+    shadowOpacity: 0.18,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 6,
+  },
+  actionToastText: {
+    flex: 1,
+    fontSize: 14,
+    lineHeight: 19,
+  },
+  actionToastUndo: {
+    paddingVertical: 4,
+    paddingHorizontal: 8,
+  },
+  actionToastUndoText: {
+    fontSize: 14,
+    fontWeight: "700",
   },
   scroll: {
     paddingHorizontal: 20,
