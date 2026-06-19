@@ -1,7 +1,7 @@
 import { Router, type IRouter } from "express";
 import bcrypt from "bcryptjs";
 import { randomBytes, randomInt } from "crypto";
-import { and, eq, isNull, gt } from "drizzle-orm";
+import { and, eq, isNull, gt, desc } from "drizzle-orm";
 import { db, usersTable, userProfilesTable, passwordResetTokensTable } from "@workspace/db";
 import { requireAuth, type AuthenticatedRequest } from "../middlewares/requireAuth";
 import { deleteUserAccount } from "../lib/deleteAccount";
@@ -306,12 +306,12 @@ router.post("/auth/forgot-password", async (req, res): Promise<void> => {
       expiresAt: new Date(Date.now() + RESET_CODE_TTL_MS),
     });
 
-    try {
-      await sendPasswordResetEmail(normalizedEmail, code);
-    } catch (err) {
-      // Never leak existence/delivery failures to the caller; just log.
+    // Fire-and-forget: don't let the email round-trip add latency to the
+    // response (which would create a timing oracle distinguishing registered
+    // from unregistered addresses). Failures are logged, never surfaced.
+    void sendPasswordResetEmail(normalizedEmail, code).catch((err) => {
       req.log?.error({ err }, "Failed to send password-reset email");
-    }
+    });
   }
 
   res.json(neutral);
@@ -334,6 +334,18 @@ router.post("/auth/reset-password", async (req, res): Promise<void> => {
   const normalizedEmail = String(email).toLowerCase().trim();
   const codeStr = String(code).trim();
   const invalidCode = { error: "Invalid or expired code" } as const;
+
+  // Throttle code-guessing. A 6-digit code over a 15-min window is brute-forceable
+  // without this, so cap attempts by email and IP (10 / 15 min each).
+  const ip = clientIp(req);
+  const byEmail = rateLimit(`reset:email:${normalizedEmail}`, 10, RESET_CODE_TTL_MS);
+  const byIp = rateLimit(`reset:ip:${ip}`, 10, RESET_CODE_TTL_MS);
+  if (!byEmail.allowed || !byIp.allowed) {
+    const retryAfter = Math.max(byEmail.retryAfterSeconds, byIp.retryAfterSeconds);
+    res.setHeader("Retry-After", String(retryAfter));
+    res.status(429).json({ error: "Too many attempts. Please try again later." });
+    return;
+  }
 
   const [user] = await db
     .select({ id: usersTable.id })
@@ -358,7 +370,7 @@ router.post("/auth/reset-password", async (req, res): Promise<void> => {
         gt(passwordResetTokensTable.expiresAt, new Date()),
       ),
     )
-    .orderBy(passwordResetTokensTable.createdAt)
+    .orderBy(desc(passwordResetTokensTable.createdAt))
     .limit(1);
 
   if (!token) {
@@ -374,16 +386,32 @@ router.post("/auth/reset-password", async (req, res): Promise<void> => {
 
   const passwordHash = await bcrypt.hash(newPassword, 12);
 
-  // Update password + invalidate every active session, and consume the code.
-  await db
-    .update(usersTable)
-    .set({ passwordHash, sessionToken: null, sessionExpiresAt: null })
-    .where(eq(usersTable.id, user.id));
+  // Consume the code and update the password atomically. The conditional
+  // `usedAt IS NULL` guard makes single-use safe under concurrent requests:
+  // only the first transaction to claim the row proceeds; others see 0 rows
+  // affected and are rejected. The same transaction nulls the session token /
+  // expiry so every active session is invalidated on success.
+  const consumed = await db.transaction(async (tx) => {
+    const claimed = await tx
+      .update(passwordResetTokensTable)
+      .set({ usedAt: new Date() })
+      .where(and(eq(passwordResetTokensTable.id, token.id), isNull(passwordResetTokensTable.usedAt)))
+      .returning({ id: passwordResetTokensTable.id });
 
-  await db
-    .update(passwordResetTokensTable)
-    .set({ usedAt: new Date() })
-    .where(eq(passwordResetTokensTable.id, token.id));
+    if (claimed.length === 0) return false;
+
+    await tx
+      .update(usersTable)
+      .set({ passwordHash, sessionToken: null, sessionExpiresAt: null })
+      .where(eq(usersTable.id, user.id));
+
+    return true;
+  });
+
+  if (!consumed) {
+    res.status(400).json(invalidCode);
+    return;
+  }
 
   res.json({ ok: true });
 });
