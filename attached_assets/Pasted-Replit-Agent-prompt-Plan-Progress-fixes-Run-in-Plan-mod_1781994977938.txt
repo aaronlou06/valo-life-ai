@@ -1,0 +1,61 @@
+Replit Agent prompt — Plan & Progress fixes
+
+Run in Plan mode first. After you approve the plan, switch to Power mode and build the tasks in order, stopping at each checkpoint.
+
+These are related fixes on the Plan and Progress surfaces, verified against aaronlou06@gmail.com. Do Task 1 first and stop for my verification before continuing — it's the one that matters most.
+
+Plan mode first (no code changes)
+
+Investigate and report before writing:
+
+
+How habit completion and habit streak are each computed on the Progress page vs the Plan page, and why they disagree (Progress shows the habits completed; Plan shows "0 day streak" for all of them). Identify whether one surface reads a stored field while the other computes live, or whether they read different sources entirely.
+What feeds the Home "Coming up" list, and why a frequency-based habit/goal with no scheduled event ("Sleep 7+ hours consistently") is appearing in it.
+Whether "routines" not appearing on the Plan page is because none were seeded (expected empty) or a real query/render bug.
+Report findings and the proposed fix per task, then wait for approval.
+
+
+Task 1 — One source of truth for habit completion + streak  (CHECKPOINT)
+
+Problem: Progress and Plan disagree about the same habits — Progress shows them completed, Plan shows "0 day streak."
+
+Behavior wanted:
+
+
+Habit completion state and streak are computed once, from one shared source, and every surface (Plan, Progress, Home) reads that same result. No surface contradicts another.
+Streak definition follows the completion model already in the data: a completed scheduled day (completion = true) extends the streak, a missed scheduled day (completion = false) breaks it, an unscheduled day (no completion row) neither extends nor breaks it. Today-not-yet-done must not retroactively zero a real streak.
+Don't rely on a stored streak field that a surface can read while another computes live; if a stored field is kept, it must stay consistent with the shared computation.
+
+
+Done: on aaronlou06@gmail.com, the streak on Plan matches the completion history on Progress, and the two surfaces agree for every habit. If this requires a schema change, stop and report instead of changing schema.
+
+Stop here for my verification before continuing to Task 2.
+
+Task 2 — "Coming up" shows only dated items
+
+Problem: "Sleep 7+ hours consistently" — a frequency-based habit/goal with no scheduled event — appears under Home "Coming up."
+
+Behavior wanted: "Coming up" lists only items with a concrete upcoming date/time (calendar events, and any habit/goal occurrence that has an actual scheduled date). Frequency-based habits/goals with no specific date do not appear there.
+
+Done: "Sleep 7+ hours" no longer shows under Coming up; only dated items do.
+
+Task 3 — Routines on the Plan page
+
+If Plan mode found routines are simply unseeded → no change; confirm that in your report. If it's a real query/render bug where routine data exists but doesn't display → fix it so existing routines render on the Plan page.
+
+Task 4 — Tappable 13-week volume bars
+
+On the Progress volume chart (last 13 weeks), make each bar tappable to reveal that week's value (kg lifted) and which week it represents. Interaction only — keep the existing chart layout.
+
+Constraints
+
+
+No schema changes (if any task needs one, stop and report). pnpm only.
+Don't modify Recovery.tsx, GoalProgress.tsx, or Motivation.tsx.
+
+
+Out of scope
+
+
+mood_entries seeding / mood-source consolidation (separate decision).
+Any accountability / commitments work.
