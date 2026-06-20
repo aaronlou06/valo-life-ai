@@ -1,0 +1,66 @@
+Replit Agent prompt — Seed test account with realistic fake data
+
+Run in Plan mode first. After you approve the plan, switch to Power mode to build.
+
+
+Intent
+
+I want to fully populate one existing test account with realistic, multi-week fake data so I can exercise the whole app — and especially the AI check-in pipeline — by hand. The account already exists; its email is aaronlou06@gmail.com. Do not create a new account. Resolve this existing user and seed data onto it.
+
+Plan mode first (no code changes yet)
+
+Investigate, then report back and wait for my approval before writing anything:
+
+
+Locate the schema in the db package and list every table you'll write to, with the user-reference column for each.
+Note id-type conventions as they actually exist — the users id is a serial, while several user_id references are text. Match each table's existing convention; don't assume one id type across the board.
+Find the debrief / check-in record shape that the post-call summarizer consumes (look at processDebrief.ts and the surrounding pipeline) so seeded debriefs land in the exact format the pipeline reads.
+Report the plan: tables, fields, approximate row counts per domain, and the date range. Then stop and wait for approval.
+
+
+What to seed (after approval)
+
+Resolve the user from aaronlou06@gmail.com, then populate the following, scoped entirely to that user, across roughly the last 10–12 weeks:
+
+
+Health / daily logs: steps, sleep hours, resting HR, with realistic day-to-day variability — strong days and weak/quiet days, never a smooth line.
+Workout history: logged sessions spread over the range using exercises from the existing seeded library, with sets/reps/weight that produce a few believable PRs (e.g. bench, squat). Vary weekly volume so the 13-week volume chart has shape.
+Habits: one or two habit definitions with a completion record across the range that is deliberately mixed — some scheduled days completed, some scheduled days missed. Scheduled must never imply completed.
+Debriefs / check-ins: a batch of fake check-in records across the range, in the exact shape the summarizer consumes, with enough variety in mood, topics, and language that the pattern detector and weekly recap have real material to work with. This is the most important part — it's the pipeline's input.
+Commitments (accountability): a few with mixed status — in progress, overdue, completed.
+Calendar events: a handful spread across the range.
+Identity / profile: fill the profile fields (who I'm becoming, biggest motivator, core values, intentions) with plausible content.
+
+
+Data-shape requirements
+
+
+Include at least one quiet week where debriefs are sparse or absent but daily logs still exist (mirrors HealthKit auto-sync), alongside active weeks with debriefs present — so quiet-week handling can be tested. Quiet-week status keys on debrief count, not on daily_logs presence.
+Habit completion must be visibly mixed, so I can confirm the calendar distinguishes scheduled from completed.
+All data realistic and varied — never uniform.
+
+
+Reset behavior
+
+
+Provide a way to wipe and reseed this account's seeded data only, idempotently — re-running cleanly removes the previously seeded rows for this user and re-inserts. Never touch any other user's data, and never wipe globally.
+Parameterize the number of weeks of history, and parameterize the target (email or user id) so the same script can later point at other accounts.
+
+
+Constraints
+
+
+Insert into existing tables only. Do not alter the schema or run a migration. If a needed table or field doesn't exist, stop and report it rather than creating it.
+Don't modify Recovery.tsx, GoalProgress.tsx, or Motivation.tsx.
+pnpm only.
+
+
+Checkpoints / acceptance
+
+
+Plan approved before any writes.
+After seeding, logging into aaronlou06@gmail.com shows a populated Home, Health (14-day trends), Progress (workouts + PRs + volume with shape), Plan (events + habit dots), and Accountability (mixed statuses).
+Habit completion is visibly mixed — scheduled-but-not-completed days exist.
+At least one quiet week and one or more active weeks are present.
+Seeded debriefs match the format processDebrief consumes. If a manual pipeline trigger already exists, run it and confirm the "From Valo" card reflects the seeded data. If no trigger exists, just report that so I can wire one separately.
+Reset command works and is scoped to this user only.
