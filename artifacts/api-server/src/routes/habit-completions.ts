@@ -1,7 +1,8 @@
 import { Router, type IRouter } from "express";
 import { eq, and } from "drizzle-orm";
-import { db, habitCompletionsTable, habitsTable } from "@workspace/db";
+import { db, habitCompletionsTable } from "@workspace/db";
 import { requireAuth, type AuthenticatedRequest } from "../middlewares/requireAuth";
+import { recomputeAndPersistHabit } from "../lib/habitStreaks";
 
 const router: IRouter = Router();
 
@@ -39,32 +40,16 @@ router.post("/habit-completions/toggle", requireAuth, async (req, res): Promise<
       .set({ completed: newCompleted })
       .where(eq(habitCompletionsTable.id, current.id))
       .returning();
-    const habit = await db.select().from(habitsTable)
-      .where(and(eq(habitsTable.id, habitId), eq(habitsTable.userId, userId)));
-    if (habit[0]) {
-      const newStreak = newCompleted ? habit[0].streak + 1 : Math.max(0, habit[0].streak - 1);
-      await db.update(habitsTable).set({
-        completedToday: newCompleted,
-        streak: newStreak,
-        lastCompletedDate: newCompleted ? date : habit[0].lastCompletedDate,
-      }).where(and(eq(habitsTable.id, habitId), eq(habitsTable.userId, userId)));
-    }
+    // Recompute the cached streak/completedToday from the full completion
+    // history — never increment/decrement, so the cache always matches reality.
+    await recomputeAndPersistHabit(userId, habitId);
     res.json(updated);
   } else {
     const [created] = await db
       .insert(habitCompletionsTable)
       .values({ habitId, userId, completionDate: date, completed: true })
       .returning();
-    const habit = await db.select().from(habitsTable)
-      .where(and(eq(habitsTable.id, habitId), eq(habitsTable.userId, userId)));
-    if (habit[0]) {
-      const newStreak = habit[0].streak + 1;
-      await db.update(habitsTable).set({
-        completedToday: true,
-        streak: newStreak,
-        lastCompletedDate: date,
-      }).where(and(eq(habitsTable.id, habitId), eq(habitsTable.userId, userId)));
-    }
+    await recomputeAndPersistHabit(userId, habitId);
     res.status(201).json(created);
   }
 });

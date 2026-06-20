@@ -14,6 +14,7 @@ import {
   proposedActionsTable,
 } from "@workspace/db";
 import { getActionHandler } from "../lib/actions";
+import { deriveHabitStreaks, applyDerivedToHabit } from "../lib/habitStreaks";
 import {
   getCachedFromValo,
   generateFromValoWithTimeout,
@@ -135,7 +136,7 @@ router.get("/home-briefing", requireAuth, async (req, res): Promise<void> => {
       profileRows,
       todayLog,
       calendarEvents,
-      habits,
+      habitsRaw,
       debriefRows,
       insightRows,
       personalDates,
@@ -204,6 +205,10 @@ router.get("/home-briefing", requireAuth, async (req, res): Promise<void> => {
     ]);
 
     // ── Derived state ─────────────────────────────────────────────────────────
+
+    // Streak + completedToday derive from habit_completions, never the raw cache.
+    const { byHabitId: habitStreaksById } = await deriveHabitStreaks(userId);
+    const habits = habitsRaw.map((h) => applyDerivedToHabit(h, habitStreaksById));
 
     const profile = profileRows[0];
     const firstName = (profile?.name ?? "").split(" ")[0] || "there";

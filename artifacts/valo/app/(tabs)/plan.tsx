@@ -38,7 +38,6 @@ import {
   getListGoalsQueryKey,
   useListHabits,
   useCreateHabit,
-  useUpdateHabit,
   useDeleteHabit,
   getListHabitsQueryKey,
   useListCalendarEvents,
@@ -2817,8 +2816,8 @@ export default function PlanScreen() {
   const [sectionOpen, setSectionOpen] = useState({ goals: true, habits: true, schedule: true });
   const [addHabitRoutineId, setAddHabitRoutineId] = useState<string | null>(null);
   const createHabitMutation = useCreateHabit();
-  const updateHabitMutation = useUpdateHabit();
   const deleteHabitMutation = useDeleteHabit();
+  const toggleHabitCompletionMutation = useToggleHabitCompletion();
 
   // ── API hooks ──
   const queryClient = useQueryClient();
@@ -3062,10 +3061,14 @@ export default function PlanScreen() {
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
   };
 
-  const toggleHabit = async (id: number, completed: boolean, streak: number) => {
+  const toggleHabit = async (id: number) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    await updateHabitMutation.mutateAsync({ id, data: { completedToday: !completed, streak: !completed ? streak + 1 : Math.max(0, streak - 1) } });
+    // Write to habit_completions (the single source of truth); the server
+    // recomputes streak/completedToday on read. Never PATCH streak directly.
+    const date = todayStr();
+    await toggleHabitCompletionMutation.mutateAsync({ data: { habitId: id, date } });
     queryClient.invalidateQueries({ queryKey: getListHabitsQueryKey() });
+    queryClient.invalidateQueries({ queryKey: getListHabitCompletionsQueryKey(date) });
   };
 
   const handleDeleteHabit = (id: number) => {
@@ -3576,7 +3579,7 @@ export default function PlanScreen() {
                   key={habit.id}
                   habit={habit}
                   colors={colors}
-                  onToggle={() => toggleHabit(habit.id, habit.completedToday, habit.streak)}
+                  onToggle={() => toggleHabit(habit.id)}
                   onDelete={() => handleDeleteHabit(habit.id)}
                   reminder={habitReminder}
                   onBellPress={() => {
@@ -3650,7 +3653,7 @@ export default function PlanScreen() {
                             key={habit.id}
                             habit={habit}
                             colors={colors}
-                            onToggle={() => toggleHabit(habit.id, habit.completedToday, habit.streak)}
+                            onToggle={() => toggleHabit(habit.id)}
                             onDelete={() => handleDeleteHabit(habit.id)}
                             reminder={habitReminder}
                             onBellPress={() => {

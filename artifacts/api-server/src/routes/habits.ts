@@ -2,6 +2,7 @@ import { Router, type IRouter } from "express";
 import { eq, and, desc } from "drizzle-orm";
 import { db, habitsTable } from "@workspace/db";
 import { requireAuth, type AuthenticatedRequest } from "../middlewares/requireAuth";
+import { deriveHabitStreaks, applyDerivedToHabit } from "../lib/habitStreaks";
 
 const router: IRouter = Router();
 
@@ -10,7 +11,10 @@ router.get("/habits", requireAuth, async (req, res): Promise<void> => {
   const habits = await db.select().from(habitsTable)
     .where(eq(habitsTable.userId, userId))
     .orderBy(desc(habitsTable.createdAt));
-  res.json(habits);
+  // Streak + completedToday are always derived from habit_completions on read so
+  // the stored cache can never drift out of sync with the source of truth.
+  const { byHabitId } = await deriveHabitStreaks(userId);
+  res.json(habits.map((h) => applyDerivedToHabit(h, byHabitId)));
 });
 
 router.post("/habits", requireAuth, async (req, res): Promise<void> => {

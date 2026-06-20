@@ -84,10 +84,13 @@ function getPastDates(n: number): string[] {
   });
 }
 
-function computeBestStreak(habitId: number, sortedDates: string[], completedSet: Set<string>): number {
+function computeBestStreak(rows: Array<{ date: string; completed: boolean }>): number {
+  // Authoritative model: iterate completion rows in date order. A completed row
+  // extends the run, a missed (completed=false) row breaks it, and days with no
+  // row are simply absent here — i.e. skipped, not treated as a break.
   let best = 0, current = 0;
-  for (const date of sortedDates) {
-    if (completedSet.has(date)) {
+  for (const r of rows) {
+    if (r.completed) {
       current++;
       if (current > best) best = current;
     } else {
@@ -307,6 +310,7 @@ const barStyles = StyleSheet.create({
 function HabitCard({
   habit,
   completedSet,
+  completionRows,
   past30,
   past90Sorted,
   weekDates,
@@ -319,6 +323,7 @@ function HabitCard({
 }: {
   habit: HabitItem;
   completedSet: Set<string>;
+  completionRows: Array<{ date: string; completed: boolean }>;
   past30: string[];
   past90Sorted: string[];
   weekDates: string[];
@@ -331,8 +336,8 @@ function HabitCard({
 }) {
   const monthStats = useMemo(() => getMonthCompletions(completedSet), [completedSet]);
   const bestStreak = useMemo(
-    () => computeBestStreak(habit.id, past90Sorted, completedSet),
-    [habit.id, past90Sorted, completedSet]
+    () => computeBestStreak(completionRows),
+    [completionRows]
   );
   const weeklyBars = useMemo(
     () => getWeeklyBars(past90Sorted, completedSet),
@@ -1400,15 +1405,35 @@ export default function ProgressScreen() {
     })),
   });
 
-  // completedSet per habit: habitId -> Set<date>
+  // completedSet per habit: habitId -> Set<date> of COMPLETED days only.
+  // Used for grids, weekly bars and month totals — a missed (completed=false)
+  // row must not render as a completed day.
   const completionsByHabitId = useMemo<Map<number, Set<string>>>(() => {
     const map = new Map<number, Set<string>>();
     for (const q of completionQueries) {
       if (!q.data) continue;
       for (const c of q.data) {
+        if (!c.completed) continue;
         if (!map.has(c.habitId)) map.set(c.habitId, new Set());
         map.get(c.habitId)!.add(c.completionDate);
       }
+    }
+    return map;
+  }, [completionQueries]);
+
+  // All rows per habit (date + completed flag), sorted ascending — the
+  // authoritative input for the best-streak calculation.
+  const rowsByHabitId = useMemo<Map<number, Array<{ date: string; completed: boolean }>>>(() => {
+    const map = new Map<number, Array<{ date: string; completed: boolean }>>();
+    for (const q of completionQueries) {
+      if (!q.data) continue;
+      for (const c of q.data) {
+        if (!map.has(c.habitId)) map.set(c.habitId, []);
+        map.get(c.habitId)!.push({ date: c.completionDate, completed: c.completed });
+      }
+    }
+    for (const arr of map.values()) {
+      arr.sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
     }
     return map;
   }, [completionQueries]);
@@ -1457,6 +1482,7 @@ export default function ProgressScreen() {
         <HabitCard
           habit={item}
           completedSet={completionsByHabitId.get(item.id) ?? new Set()}
+          completionRows={rowsByHabitId.get(item.id) ?? []}
           past30={past30}
           past90Sorted={past90}
           weekDates={weekDates}
@@ -1469,7 +1495,7 @@ export default function ProgressScreen() {
         />
       </ScaleDecorator>
     ),
-    [completionsByHabitId, past30, past90, weekDates, todayStr, expanded, toggleExpand, colors]
+    [completionsByHabitId, rowsByHabitId, past30, past90, weekDates, todayStr, expanded, toggleExpand, colors]
   );
 
   const isLoading = habitsLoading || !orderLoaded;
