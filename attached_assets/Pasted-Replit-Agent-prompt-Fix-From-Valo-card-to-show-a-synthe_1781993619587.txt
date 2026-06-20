@@ -1,0 +1,41 @@
+Replit Agent prompt — Fix "From Valo" card to show a synthesized insight
+
+Run in Plan mode first. After you approve the plan, switch to Power mode to build.
+
+
+Problem
+
+The "From Valo" card on Home is showing a raw debrief stressor verbatim — e.g. "A tough call with a client drained me" — instead of a synthesized insight. The recurring-pattern detector already works (it produced 7 grounded patterns against the seeded data for this account), so the synthesis exists. The card appears to be wired to a raw extraction field rather than to the synthesized / pattern output.
+
+Plan mode first (no code changes)
+
+Trace and report before writing anything:
+
+
+Follow the "From Valo" card's content end to end — the home-briefing route (home-briefing.ts) and the pre-call intelligence generator — through to the exact field the client renders.
+Determine whether the card is (a) rendering a raw field off a debrief/extraction (a stressor / wins / intentions string), or (b) calling the synthesis path but with logic that collapses to a single stressor sentence.
+Check what detectRecurringPatterns and the pre-call intelligence generator actually output for this account, and whether the card consumes that output or bypasses it.
+Report the root cause and the proposed fix, then wait for approval.
+
+
+Desired behavior
+
+
+The card surfaces a synthesized insight grounded in the user's recent data — ideally cross-domain (ties a debrief theme to calendar load, sleep, workout volume, habit adherence, or a recurring pattern), not a single quoted stressor.
+Lead with the kind of insight only Valo can produce — a pattern across domains or across time — rather than echoing one debrief line or a single-metric trend.
+Grounded in real data only (no fabrication). When there isn't enough signal, degrade to an honest, lower-confidence message rather than inventing a pattern.
+
+
+Constraints
+
+
+No schema changes. pnpm only.
+Don't modify Recovery.tsx, GoalProgress.tsx, or Motivation.tsx.
+
+
+Acceptance
+
+
+Logged in as aaronlou06@gmail.com, the From Valo card shows a synthesized, multi-signal insight grounded in the seeded data — not a verbatim stressor.
+If synthesized/pattern output already exists (e.g. the 7 patterns from detectRecurringPatterns), the card consumes it rather than re-deriving a single field.
+Show me the before/after card content for this account.
