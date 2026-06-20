@@ -6,6 +6,8 @@
   "scripts": {
     "hello": "tsx ./src/hello.ts",
     "seed:exercises": "tsx ./src/seedExercises.ts",
+    "seed:test-account": "tsx ./src/seedTestAccount.ts",
+    "seed:test-account:reset": "tsx ./src/seedTestAccount.ts --reset-only",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
