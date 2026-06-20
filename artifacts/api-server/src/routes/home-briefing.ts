@@ -14,6 +14,10 @@ import {
   proposedActionsTable,
 } from "@workspace/db";
 import { getActionHandler } from "../lib/actions";
+import {
+  getCachedFromValo,
+  generateFromValoWithTimeout,
+} from "../lib/fromValoInsight";
 import { requireAuth, type AuthenticatedRequest } from "../middlewares/requireAuth";
 
 const router: IRouter = Router();
@@ -229,14 +233,21 @@ router.get("/home-briefing", requireAuth, async (req, res): Promise<void> => {
 
     let fromValo: FromValo | null = null;
 
-    if (debrief?.oneStruggle) {
-      fromValo = {
-        kind: "unresolved_thread",
-        text: debrief.oneStruggle,
-        cta_label: "Talk about it",
-        cta_action: "open_checkin",
-      };
+    // Lead with the synthesized cross-domain / cross-time insight (the kind only
+    // Valo can produce). It is cached per user per day; on a cache miss we race
+    // a fresh synthesis against a short timeout so the home load stays fast, and
+    // the synthesis keeps running in the background to populate the next load.
+    // We never echo the raw `oneStruggle` stressor verbatim as the headline.
+    let synthesized: FromValo | null = getCachedFromValo(userId);
+    if (!synthesized && hasIntelligence) {
+      synthesized = await generateFromValoWithTimeout(userId, 3500);
+    }
+
+    if (synthesized) {
+      fromValo = synthesized;
     } else if (insight?.content) {
+      // Grounded fallback: the latest synthesized insight line (already a
+      // reflection, not a raw extraction field).
       fromValo = {
         kind: "pattern_observation",
         text: insight.content,
@@ -250,11 +261,13 @@ router.get("/home-briefing", requireAuth, async (req, res): Promise<void> => {
         cta_label: "Reflect on it",
         cta_action: "open_checkin",
       };
-    } else if (debrief?.primaryEmotion) {
-      const tone = [debrief.primaryEmotion, debrief.energyLevel].filter(Boolean).join(", ");
+    } else if (hasIntelligence) {
+      // Honest low-confidence degrade: we have some history but no synthesized
+      // pattern yet. Invite a check-in rather than inventing a connection or
+      // quoting a single raw stressor.
       fromValo = {
         kind: "emotional_baseline",
-        text: `Your last check-in had a ${tone} tone. Worth checking in again today?`,
+        text: "I'm still piecing your patterns together. One more check-in and I'll have something real to share.",
         cta_label: "Check in",
         cta_action: "open_checkin",
       };
