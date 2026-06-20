@@ -303,6 +303,19 @@ const barStyles = StyleSheet.create({
     width: "90%",
     borderRadius: 3,
   },
+  readout: {
+    flexDirection: "row",
+    alignItems: "baseline",
+    gap: 6,
+    marginBottom: 2,
+    minHeight: 18,
+  },
+  readoutValue: {
+    fontSize: 14,
+  },
+  readoutLabel: {
+    fontSize: 11,
+  },
 });
 
 // ─── HabitCard ────────────────────────────────────────────────────────────────
@@ -606,6 +619,7 @@ function shortDate(iso: string): string {
 function WorkoutVolumeBars({ volume, colors }: { volume: VolumeWeek[]; colors: Colors }) {
   const maxTonnage = Math.max(...volume.map((w) => w.tonnageKg), 1);
   const maxH = 36;
+  const [selectedIdx, setSelectedIdx] = useState<number | null>(null);
 
   if (volume.length === 0) {
     return (
@@ -617,26 +631,49 @@ function WorkoutVolumeBars({ volume, colors }: { volume: VolumeWeek[]; colors: C
     );
   }
 
+  const selected = selectedIdx != null ? volume[selectedIdx] : null;
+
   return (
-    <View style={barStyles.wrapper}>
-      {volume.map((week, i) => {
-        const isLast = i === volume.length - 1;
-        const height =
-          week.tonnageKg > 0 ? Math.max(4, Math.round((week.tonnageKg / maxTonnage) * maxH)) : 3;
-        return (
-          <View key={week.label} style={barStyles.barCol}>
-            <View
-              style={[
-                barStyles.bar,
-                {
-                  height,
-                  backgroundColor: isLast ? colors.primary : colors.primary + "60",
-                },
-              ]}
-            />
-          </View>
-        );
-      })}
+    <View>
+      <View style={barStyles.readout}>
+        <Text style={[barStyles.readoutValue, { color: colors.foreground, fontFamily: "Inter_600SemiBold" }]}>
+          {selected
+            ? `${Math.round(selected.tonnageKg).toLocaleString()} kg`
+            : "Tap a bar"}
+        </Text>
+        <Text style={[barStyles.readoutLabel, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
+          {selected ? `Week of ${selected.label}` : "to see weekly volume"}
+        </Text>
+      </View>
+      <View style={barStyles.wrapper}>
+        {volume.map((week, i) => {
+          const isLast = i === volume.length - 1;
+          const isSelected = i === selectedIdx;
+          const height =
+            week.tonnageKg > 0 ? Math.max(4, Math.round((week.tonnageKg / maxTonnage) * maxH)) : 3;
+          return (
+            <TouchableOpacity
+              key={week.label}
+              style={barStyles.barCol}
+              activeOpacity={0.7}
+              onPress={() => setSelectedIdx((prev) => (prev === i ? null : i))}
+              accessibilityRole="button"
+              accessibilityLabel={`Week of ${week.label}, ${Math.round(week.tonnageKg)} kg lifted`}
+            >
+              <View
+                style={[
+                  barStyles.bar,
+                  {
+                    height,
+                    backgroundColor: isSelected || isLast ? colors.primary : colors.primary + "60",
+                    opacity: selectedIdx != null && !isSelected ? 0.5 : 1,
+                  },
+                ]}
+              />
+            </TouchableOpacity>
+          );
+        })}
+      </View>
     </View>
   );
 }

@@ -23,6 +23,11 @@ import { requireAuth, type AuthenticatedRequest } from "../middlewares/requireAu
 
 const router: IRouter = Router();
 
+// Only goals with a concrete, dated deadline belong in the countdown card.
+// Ongoing/frequency goal types (consistency, avoidance, readiness, leveling,
+// quota) carry a long-horizon review targetDate, not a scheduled occurrence.
+const CONCRETE_DEADLINE_GOAL_TYPES = new Set(["milestone", "performance", "measurement"]);
+
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 function todayISO(): string {
@@ -185,7 +190,7 @@ router.get("/home-briefing", requireAuth, async (req, res): Promise<void> => {
         .from(personalDatesTable)
         .where(eq(personalDatesTable.userId, userId)),
 
-      db.select({ title: goalsTable.title, targetDate: goalsTable.targetDate })
+      db.select({ title: goalsTable.title, targetDate: goalsTable.targetDate, goalType: goalsTable.goalType })
         .from(goalsTable)
         .where(eq(goalsTable.userId, userId)),
 
@@ -459,6 +464,7 @@ router.get("/home-briefing", requireAuth, async (req, res): Promise<void> => {
 
     for (const g of goals) {
       if (!g.targetDate) continue;
+      if (!CONCRETE_DEADLINE_GOAL_TYPES.has(g.goalType ?? "milestone")) continue;
       const d = new Date(g.targetDate);
       const now = new Date();
       now.setHours(0, 0, 0, 0);

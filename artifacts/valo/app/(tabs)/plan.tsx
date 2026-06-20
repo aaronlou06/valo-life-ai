@@ -2569,11 +2569,16 @@ function PersonalDatesModal({
 
 // ─── Countdown Strip ──────────────────────────────────────────────────────────
 
+// Only goals with a concrete, dated deadline belong in "Coming up".
+// Ongoing/frequency goal types (consistency, avoidance, readiness, leveling,
+// quota) carry a long-horizon review targetDate, not a scheduled occurrence.
+const CONCRETE_DEADLINE_GOAL_TYPES = new Set(["milestone", "performance", "measurement"]);
+
 function CountdownStrip({
   personalDates, goals, todayStr, colors, onSeeAll,
 }: {
   personalDates: PersonalDate[];
-  goals: { id: number; title: string; targetDate?: string | null | undefined }[];
+  goals: { id: number; title: string; targetDate?: string | null | undefined; goalType?: string | null | undefined }[];
   todayStr: string;
   colors: Colors;
   onSeeAll: () => void;
@@ -2591,6 +2596,7 @@ function CountdownStrip({
 
   for (const g of goals) {
     if (!g.targetDate) continue;
+    if (!CONCRETE_DEADLINE_GOAL_TYPES.has(g.goalType ?? "milestone")) continue;
     const target = new Date(g.targetDate + "T00:00:00");
     if (target < today) continue;
     const days = Math.round((target.getTime() - today.getTime()) / 86400000);
