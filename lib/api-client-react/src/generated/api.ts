@@ -64,6 +64,10 @@ import type {
   ListWorkoutSessionsParams,
   LogEntry,
   LogEntryInput,
+  MealPlanFull,
+  MealPlanInput,
+  MealSlotFull,
+  MealSwapInput,
   MoodEntry,
   MoodInput,
   OnboardingSaveInput,
@@ -71,6 +75,7 @@ import type {
   PersonalDate,
   PersonalDateInput,
   PersonalDateUpdate,
+  PrepListResponse,
   Reminder,
   ReminderInput,
   ReminderUpdate,
@@ -87,6 +92,8 @@ import type {
   UndoActionResult,
   UpdateSettings,
   UpdateSettings200,
+  UserDietPreferences,
+  UserDietPreferencesInput,
   UserSettings,
   VerificationEvent,
   VerificationEventInput,
@@ -7090,6 +7097,517 @@ export const useCreateEncouragement = <
   TContext
 > => {
   return useMutation(getCreateEncouragementMutationOptions(options));
+};
+
+/**
+ * @summary Generate and persist an AI meal plan from wizard inputs
+ */
+export const getCreateMealPlanUrl = () => {
+  return `/api/meal-plans`;
+};
+
+export const createMealPlan = async (
+  mealPlanInput: MealPlanInput,
+  options?: RequestInit,
+): Promise<MealPlanFull> => {
+  return customFetch<MealPlanFull>(getCreateMealPlanUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(mealPlanInput),
+  });
+};
+
+export const getCreateMealPlanMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createMealPlan>>,
+    TError,
+    { data: BodyType<MealPlanInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof createMealPlan>>,
+  TError,
+  { data: BodyType<MealPlanInput> },
+  TContext
+> => {
+  const mutationKey = ["createMealPlan"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof createMealPlan>>,
+    { data: BodyType<MealPlanInput> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return createMealPlan(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type CreateMealPlanMutationResult = NonNullable<
+  Awaited<ReturnType<typeof createMealPlan>>
+>;
+export type CreateMealPlanMutationBody = BodyType<MealPlanInput>;
+export type CreateMealPlanMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Generate and persist an AI meal plan from wizard inputs
+ */
+export const useCreateMealPlan = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createMealPlan>>,
+    TError,
+    { data: BodyType<MealPlanInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof createMealPlan>>,
+  TError,
+  { data: BodyType<MealPlanInput> },
+  TContext
+> => {
+  return useMutation(getCreateMealPlanMutationOptions(options));
+};
+
+/**
+ * @summary Get a meal plan with all day types, meals, and ingredients
+ */
+export const getGetMealPlanUrl = (id: number) => {
+  return `/api/meal-plans/${id}`;
+};
+
+export const getMealPlan = async (
+  id: number,
+  options?: RequestInit,
+): Promise<MealPlanFull> => {
+  return customFetch<MealPlanFull>(getGetMealPlanUrl(id), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetMealPlanQueryKey = (id: number) => {
+  return [`/api/meal-plans/${id}`] as const;
+};
+
+export const getGetMealPlanQueryOptions = <
+  TData = Awaited<ReturnType<typeof getMealPlan>>,
+  TError = ErrorType<void>,
+>(
+  id: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getMealPlan>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetMealPlanQueryKey(id);
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getMealPlan>>> = ({
+    signal,
+  }) => getMealPlan(id, { signal, ...requestOptions });
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: !!id,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof getMealPlan>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetMealPlanQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getMealPlan>>
+>;
+export type GetMealPlanQueryError = ErrorType<void>;
+
+/**
+ * @summary Get a meal plan with all day types, meals, and ingredients
+ */
+
+export function useGetMealPlan<
+  TData = Awaited<ReturnType<typeof getMealPlan>>,
+  TError = ErrorType<void>,
+>(
+  id: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getMealPlan>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetMealPlanQueryOptions(id, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Macro-constrained swap for a meal slot or ingredient
+ */
+export const getSwapMealSlotUrl = (id: number, mealId: number) => {
+  return `/api/meal-plans/${id}/meals/${mealId}/swap`;
+};
+
+export const swapMealSlot = async (
+  id: number,
+  mealId: number,
+  mealSwapInput?: MealSwapInput,
+  options?: RequestInit,
+): Promise<MealSlotFull> => {
+  return customFetch<MealSlotFull>(getSwapMealSlotUrl(id, mealId), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(mealSwapInput),
+  });
+};
+
+export const getSwapMealSlotMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof swapMealSlot>>,
+    TError,
+    { id: number; mealId: number; data: BodyType<MealSwapInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof swapMealSlot>>,
+  TError,
+  { id: number; mealId: number; data: BodyType<MealSwapInput> },
+  TContext
+> => {
+  const mutationKey = ["swapMealSlot"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof swapMealSlot>>,
+    { id: number; mealId: number; data: BodyType<MealSwapInput> }
+  > = (props) => {
+    const { id, mealId, data } = props ?? {};
+
+    return swapMealSlot(id, mealId, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type SwapMealSlotMutationResult = NonNullable<
+  Awaited<ReturnType<typeof swapMealSlot>>
+>;
+export type SwapMealSlotMutationBody = BodyType<MealSwapInput>;
+export type SwapMealSlotMutationError = ErrorType<void>;
+
+/**
+ * @summary Macro-constrained swap for a meal slot or ingredient
+ */
+export const useSwapMealSlot = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof swapMealSlot>>,
+    TError,
+    { id: number; mealId: number; data: BodyType<MealSwapInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof swapMealSlot>>,
+  TError,
+  { id: number; mealId: number; data: BodyType<MealSwapInput> },
+  TContext
+> => {
+  return useMutation(getSwapMealSlotMutationOptions(options));
+};
+
+/**
+ * @summary Weekly prep and shopping list (derived, not stored)
+ */
+export const getGetMealPlanPrepListUrl = (id: number) => {
+  return `/api/meal-plans/${id}/prep-list`;
+};
+
+export const getMealPlanPrepList = async (
+  id: number,
+  options?: RequestInit,
+): Promise<PrepListResponse> => {
+  return customFetch<PrepListResponse>(getGetMealPlanPrepListUrl(id), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetMealPlanPrepListQueryKey = (id: number) => {
+  return [`/api/meal-plans/${id}/prep-list`] as const;
+};
+
+export const getGetMealPlanPrepListQueryOptions = <
+  TData = Awaited<ReturnType<typeof getMealPlanPrepList>>,
+  TError = ErrorType<void>,
+>(
+  id: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getMealPlanPrepList>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetMealPlanPrepListQueryKey(id);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getMealPlanPrepList>>
+  > = ({ signal }) => getMealPlanPrepList(id, { signal, ...requestOptions });
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: !!id,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof getMealPlanPrepList>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetMealPlanPrepListQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getMealPlanPrepList>>
+>;
+export type GetMealPlanPrepListQueryError = ErrorType<void>;
+
+/**
+ * @summary Weekly prep and shopping list (derived, not stored)
+ */
+
+export function useGetMealPlanPrepList<
+  TData = Awaited<ReturnType<typeof getMealPlanPrepList>>,
+  TError = ErrorType<void>,
+>(
+  id: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getMealPlanPrepList>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetMealPlanPrepListQueryOptions(id, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Get saved diet preferences for the authenticated user
+ */
+export const getGetUserDietPreferencesUrl = () => {
+  return `/api/user-diet-preferences`;
+};
+
+export const getUserDietPreferences = async (
+  options?: RequestInit,
+): Promise<UserDietPreferences> => {
+  return customFetch<UserDietPreferences>(getGetUserDietPreferencesUrl(), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetUserDietPreferencesQueryKey = () => {
+  return [`/api/user-diet-preferences`] as const;
+};
+
+export const getGetUserDietPreferencesQueryOptions = <
+  TData = Awaited<ReturnType<typeof getUserDietPreferences>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getUserDietPreferences>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getGetUserDietPreferencesQueryKey();
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getUserDietPreferences>>
+  > = ({ signal }) => getUserDietPreferences({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getUserDietPreferences>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetUserDietPreferencesQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getUserDietPreferences>>
+>;
+export type GetUserDietPreferencesQueryError = ErrorType<unknown>;
+
+/**
+ * @summary Get saved diet preferences for the authenticated user
+ */
+
+export function useGetUserDietPreferences<
+  TData = Awaited<ReturnType<typeof getUserDietPreferences>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getUserDietPreferences>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetUserDietPreferencesQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Create or replace diet preferences for the authenticated user
+ */
+export const getPutUserDietPreferencesUrl = () => {
+  return `/api/user-diet-preferences`;
+};
+
+export const putUserDietPreferences = async (
+  userDietPreferencesInput: UserDietPreferencesInput,
+  options?: RequestInit,
+): Promise<UserDietPreferences> => {
+  return customFetch<UserDietPreferences>(getPutUserDietPreferencesUrl(), {
+    ...options,
+    method: "PUT",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(userDietPreferencesInput),
+  });
+};
+
+export const getPutUserDietPreferencesMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof putUserDietPreferences>>,
+    TError,
+    { data: BodyType<UserDietPreferencesInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof putUserDietPreferences>>,
+  TError,
+  { data: BodyType<UserDietPreferencesInput> },
+  TContext
+> => {
+  const mutationKey = ["putUserDietPreferences"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof putUserDietPreferences>>,
+    { data: BodyType<UserDietPreferencesInput> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return putUserDietPreferences(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type PutUserDietPreferencesMutationResult = NonNullable<
+  Awaited<ReturnType<typeof putUserDietPreferences>>
+>;
+export type PutUserDietPreferencesMutationBody =
+  BodyType<UserDietPreferencesInput>;
+export type PutUserDietPreferencesMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Create or replace diet preferences for the authenticated user
+ */
+export const usePutUserDietPreferences = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof putUserDietPreferences>>,
+    TError,
+    { data: BodyType<UserDietPreferencesInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof putUserDietPreferences>>,
+  TError,
+  { data: BodyType<UserDietPreferencesInput> },
+  TContext
+> => {
+  return useMutation(getPutUserDietPreferencesMutationOptions(options));
 };
 
 /**

@@ -51,6 +51,8 @@ tags:
     description: Buddy support taps on shared commitments
   - name: accountability
     description: Merged accountability activity feed
+  - name: meal-plans
+    description: AI-powered training-aware meal plans, ingredient swaps, and shopping/prep lists
 paths:
   /healthz:
     get:
@@ -1650,6 +1652,129 @@ paths:
           description: Commitment not found
         "409":
           description: Already encouraged this today
+
+  /meal-plans:
+    post:
+      operationId: createMealPlan
+      tags: [meal-plans]
+      summary: Generate and persist an AI meal plan from wizard inputs
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MealPlanInput"
+      responses:
+        "201":
+          description: Created meal plan
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MealPlanFull"
+
+  /meal-plans/{id}:
+    get:
+      operationId: getMealPlan
+      tags: [meal-plans]
+      summary: Get a meal plan with all day types, meals, and ingredients
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Full meal plan
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MealPlanFull"
+        "404":
+          description: Not found
+
+  /meal-plans/{id}/meals/{mealId}/swap:
+    post:
+      operationId: swapMealSlot
+      tags: [meal-plans]
+      summary: Macro-constrained swap for a meal slot or ingredient
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: mealId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MealSwapInput"
+      responses:
+        "200":
+          description: Updated meal slot
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MealSlotFull"
+        "404":
+          description: Not found
+
+  /meal-plans/{id}/prep-list:
+    get:
+      operationId: getMealPlanPrepList
+      tags: [meal-plans]
+      summary: Weekly prep and shopping list (derived, not stored)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Prep and shopping list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PrepListResponse"
+        "404":
+          description: Not found
+
+  /user-diet-preferences:
+    get:
+      operationId: getUserDietPreferences
+      tags: [meal-plans]
+      summary: Get saved diet preferences for the authenticated user
+      responses:
+        "200":
+          description: Diet preferences (may be empty/defaults if never saved)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserDietPreferences"
+    put:
+      operationId: putUserDietPreferences
+      tags: [meal-plans]
+      summary: Create or replace diet preferences for the authenticated user
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UserDietPreferencesInput"
+      responses:
+        "200":
+          description: Saved diet preferences
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserDietPreferences"
 
   /accountability/feed:
     get:
@@ -3425,6 +3550,256 @@ components:
         data:
           type: object
           additionalProperties: true
+
+    MealPlanInput:
+      type: object
+      required: [macroProfile, mealsPerDay, trainingDaysPerWeek, restDaysPerWeek]
+      properties:
+        macrosKnown:
+          type: boolean
+        knownCalories:
+          type: ["integer", "null"]
+        knownProteinG:
+          type: ["integer", "null"]
+        knownCarbsG:
+          type: ["integer", "null"]
+        knownFatG:
+          type: ["integer", "null"]
+        sex:
+          type: ["string", "null"]
+          description: "male | female — required when macrosKnown is false"
+        age:
+          type: ["integer", "null"]
+        weightKg:
+          type: ["number", "null"]
+        heightCm:
+          type: ["number", "null"]
+        activityLevel:
+          type: ["string", "null"]
+          description: "sedentary | lightly active | moderately active | very active | extra active"
+        goal:
+          type: ["string", "null"]
+          description: "deficit | maintenance | surplus"
+        macroProfile:
+          type: string
+          description: "balanced | high-protein | low-carb | keto | mediterranean"
+        cuisineStyle:
+          type: ["string", "null"]
+        allergies:
+          type: array
+          items:
+            type: string
+        dislikes:
+          type: ["string", "null"]
+        mealsPerDay:
+          type: integer
+          minimum: 1
+          maximum: 3
+        trainingDaysPerWeek:
+          type: integer
+          minimum: 0
+          maximum: 7
+        restDaysPerWeek:
+          type: integer
+          minimum: 0
+          maximum: 7
+        prepPerSlot:
+          type: object
+          additionalProperties:
+            type: string
+            description: "prep | cook"
+
+    MealIngredientItem:
+      type: object
+      required: [id, name, quantityPerServing, unit, caloriesPerServing, proteinG, carbsG, fatG]
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        quantityPerServing:
+          type: number
+        unit:
+          type: string
+        caloriesPerServing:
+          type: integer
+        proteinG:
+          type: number
+        carbsG:
+          type: number
+        fatG:
+          type: number
+
+    MealSlotFull:
+      type: object
+      required: [id, slotIndex, slotName, recipeName, prepMode, targetCalories, targetProteinG, targetCarbsG, targetFatG, actualCalories, actualProteinG, actualCarbsG, actualFatG, ingredients]
+      properties:
+        id:
+          type: integer
+        slotIndex:
+          type: integer
+        slotName:
+          type: string
+        recipeName:
+          type: string
+        instructions:
+          type: ["string", "null"]
+        prepMode:
+          type: string
+        targetCalories:
+          type: integer
+        targetProteinG:
+          type: integer
+        targetCarbsG:
+          type: integer
+        targetFatG:
+          type: integer
+        actualCalories:
+          type: integer
+        actualProteinG:
+          type: integer
+        actualCarbsG:
+          type: integer
+        actualFatG:
+          type: integer
+        ingredients:
+          type: array
+          items:
+            $ref: "#/components/schemas/MealIngredientItem"
+
+    MealPlanDayTypeFull:
+      type: object
+      required: [id, dayType, targetCalories, targetProteinG, targetCarbsG, targetFatG, meals]
+      properties:
+        id:
+          type: integer
+        dayType:
+          type: string
+        targetCalories:
+          type: integer
+        targetProteinG:
+          type: integer
+        targetCarbsG:
+          type: integer
+        targetFatG:
+          type: integer
+        meals:
+          type: array
+          items:
+            $ref: "#/components/schemas/MealSlotFull"
+
+    MealPlanFull:
+      type: object
+      required: [id, userId, macroProfile, mealsPerDay, trainingDaysPerWeek, restDaysPerWeek, dailyBaselineCalories, dailyProteinG, dailyCarbsG, dailyFatG, dayTypes, createdAt]
+      properties:
+        id:
+          type: integer
+        userId:
+          type: string
+        macroProfile:
+          type: string
+        cuisineStyle:
+          type: ["string", "null"]
+        allergies:
+          type: array
+          items:
+            type: string
+        dislikes:
+          type: ["string", "null"]
+        mealsPerDay:
+          type: integer
+        trainingDaysPerWeek:
+          type: integer
+        restDaysPerWeek:
+          type: integer
+        dailyBaselineCalories:
+          type: integer
+        dailyProteinG:
+          type: integer
+        dailyCarbsG:
+          type: integer
+        dailyFatG:
+          type: integer
+        dayTypes:
+          type: array
+          items:
+            $ref: "#/components/schemas/MealPlanDayTypeFull"
+        createdAt:
+          type: string
+        updatedAt:
+          type: string
+
+    MealSwapInput:
+      type: object
+      properties:
+        ingredientId:
+          type: ["integer", "null"]
+          description: "If provided, swap only this ingredient; otherwise swap the whole meal"
+
+    PrepListItem:
+      type: object
+      required: [name, quantity, unit, forMeal, prepMode]
+      properties:
+        name:
+          type: string
+        quantity:
+          type: number
+        unit:
+          type: string
+        forMeal:
+          type: string
+        prepMode:
+          type: string
+
+    PrepListResponse:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/PrepListItem"
+
+    UserDietPreferences:
+      type: object
+      required: [userId]
+      properties:
+        userId:
+          type: string
+        macroProfile:
+          type: ["string", "null"]
+        cuisineStyle:
+          type: ["string", "null"]
+        allergies:
+          type: array
+          items:
+            type: string
+        dislikes:
+          type: ["string", "null"]
+        mealsPerDay:
+          type: ["integer", "null"]
+        trainingDaysPerWeek:
+          type: ["integer", "null"]
+        updatedAt:
+          type: string
+
+    UserDietPreferencesInput:
+      type: object
+      properties:
+        macroProfile:
+          type: ["string", "null"]
+        cuisineStyle:
+          type: ["string", "null"]
+        allergies:
+          type: array
+          items:
+            type: string
+        dislikes:
+          type: ["string", "null"]
+        mealsPerDay:
+          type: ["integer", "null"]
+        trainingDaysPerWeek:
+          type: ["integer", "null"]
 
     AccountabilityFeed:
       type: object

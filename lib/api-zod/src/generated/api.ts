@@ -1874,6 +1874,224 @@ export const CreateEncouragementBody = zod.object({
 });
 
 /**
+ * @summary Generate and persist an AI meal plan from wizard inputs
+ */
+export const createMealPlanBodyMealsPerDayMax = 3;
+
+export const createMealPlanBodyTrainingDaysPerWeekMin = 0;
+export const createMealPlanBodyTrainingDaysPerWeekMax = 7;
+
+export const createMealPlanBodyRestDaysPerWeekMin = 0;
+export const createMealPlanBodyRestDaysPerWeekMax = 7;
+
+export const CreateMealPlanBody = zod.object({
+  macrosKnown: zod.boolean().optional(),
+  knownCalories: zod.number().nullish(),
+  knownProteinG: zod.number().nullish(),
+  knownCarbsG: zod.number().nullish(),
+  knownFatG: zod.number().nullish(),
+  sex: zod
+    .string()
+    .nullish()
+    .describe("male | female — required when macrosKnown is false"),
+  age: zod.number().nullish(),
+  weightKg: zod.number().nullish(),
+  heightCm: zod.number().nullish(),
+  activityLevel: zod
+    .string()
+    .nullish()
+    .describe(
+      "sedentary | lightly active | moderately active | very active | extra active",
+    ),
+  goal: zod.string().nullish().describe("deficit | maintenance | surplus"),
+  macroProfile: zod
+    .string()
+    .describe("balanced | high-protein | low-carb | keto | mediterranean"),
+  cuisineStyle: zod.string().nullish(),
+  allergies: zod.array(zod.string()).optional(),
+  dislikes: zod.string().nullish(),
+  mealsPerDay: zod.number().min(1).max(createMealPlanBodyMealsPerDayMax),
+  trainingDaysPerWeek: zod
+    .number()
+    .min(createMealPlanBodyTrainingDaysPerWeekMin)
+    .max(createMealPlanBodyTrainingDaysPerWeekMax),
+  restDaysPerWeek: zod
+    .number()
+    .min(createMealPlanBodyRestDaysPerWeekMin)
+    .max(createMealPlanBodyRestDaysPerWeekMax),
+  prepPerSlot: zod
+    .record(zod.string(), zod.string().describe("prep | cook"))
+    .optional(),
+});
+
+/**
+ * @summary Get a meal plan with all day types, meals, and ingredients
+ */
+export const GetMealPlanParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const GetMealPlanResponse = zod.object({
+  id: zod.number(),
+  userId: zod.string(),
+  macroProfile: zod.string(),
+  cuisineStyle: zod.string().nullish(),
+  allergies: zod.array(zod.string()).optional(),
+  dislikes: zod.string().nullish(),
+  mealsPerDay: zod.number(),
+  trainingDaysPerWeek: zod.number(),
+  restDaysPerWeek: zod.number(),
+  dailyBaselineCalories: zod.number(),
+  dailyProteinG: zod.number(),
+  dailyCarbsG: zod.number(),
+  dailyFatG: zod.number(),
+  dayTypes: zod.array(
+    zod.object({
+      id: zod.number(),
+      dayType: zod.string(),
+      targetCalories: zod.number(),
+      targetProteinG: zod.number(),
+      targetCarbsG: zod.number(),
+      targetFatG: zod.number(),
+      meals: zod.array(
+        zod.object({
+          id: zod.number(),
+          slotIndex: zod.number(),
+          slotName: zod.string(),
+          recipeName: zod.string(),
+          instructions: zod.string().nullish(),
+          prepMode: zod.string(),
+          targetCalories: zod.number(),
+          targetProteinG: zod.number(),
+          targetCarbsG: zod.number(),
+          targetFatG: zod.number(),
+          actualCalories: zod.number(),
+          actualProteinG: zod.number(),
+          actualCarbsG: zod.number(),
+          actualFatG: zod.number(),
+          ingredients: zod.array(
+            zod.object({
+              id: zod.number(),
+              name: zod.string(),
+              quantityPerServing: zod.number(),
+              unit: zod.string(),
+              caloriesPerServing: zod.number(),
+              proteinG: zod.number(),
+              carbsG: zod.number(),
+              fatG: zod.number(),
+            }),
+          ),
+        }),
+      ),
+    }),
+  ),
+  createdAt: zod.string(),
+  updatedAt: zod.string().optional(),
+});
+
+/**
+ * @summary Macro-constrained swap for a meal slot or ingredient
+ */
+export const SwapMealSlotParams = zod.object({
+  id: zod.coerce.number(),
+  mealId: zod.coerce.number(),
+});
+
+export const SwapMealSlotBody = zod.object({
+  ingredientId: zod
+    .number()
+    .nullish()
+    .describe(
+      "If provided, swap only this ingredient; otherwise swap the whole meal",
+    ),
+});
+
+export const SwapMealSlotResponse = zod.object({
+  id: zod.number(),
+  slotIndex: zod.number(),
+  slotName: zod.string(),
+  recipeName: zod.string(),
+  instructions: zod.string().nullish(),
+  prepMode: zod.string(),
+  targetCalories: zod.number(),
+  targetProteinG: zod.number(),
+  targetCarbsG: zod.number(),
+  targetFatG: zod.number(),
+  actualCalories: zod.number(),
+  actualProteinG: zod.number(),
+  actualCarbsG: zod.number(),
+  actualFatG: zod.number(),
+  ingredients: zod.array(
+    zod.object({
+      id: zod.number(),
+      name: zod.string(),
+      quantityPerServing: zod.number(),
+      unit: zod.string(),
+      caloriesPerServing: zod.number(),
+      proteinG: zod.number(),
+      carbsG: zod.number(),
+      fatG: zod.number(),
+    }),
+  ),
+});
+
+/**
+ * @summary Weekly prep and shopping list (derived, not stored)
+ */
+export const GetMealPlanPrepListParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const GetMealPlanPrepListResponse = zod.object({
+  items: zod.array(
+    zod.object({
+      name: zod.string(),
+      quantity: zod.number(),
+      unit: zod.string(),
+      forMeal: zod.string(),
+      prepMode: zod.string(),
+    }),
+  ),
+});
+
+/**
+ * @summary Get saved diet preferences for the authenticated user
+ */
+export const GetUserDietPreferencesResponse = zod.object({
+  userId: zod.string(),
+  macroProfile: zod.string().nullish(),
+  cuisineStyle: zod.string().nullish(),
+  allergies: zod.array(zod.string()).optional(),
+  dislikes: zod.string().nullish(),
+  mealsPerDay: zod.number().nullish(),
+  trainingDaysPerWeek: zod.number().nullish(),
+  updatedAt: zod.string().optional(),
+});
+
+/**
+ * @summary Create or replace diet preferences for the authenticated user
+ */
+export const PutUserDietPreferencesBody = zod.object({
+  macroProfile: zod.string().nullish(),
+  cuisineStyle: zod.string().nullish(),
+  allergies: zod.array(zod.string()).optional(),
+  dislikes: zod.string().nullish(),
+  mealsPerDay: zod.number().nullish(),
+  trainingDaysPerWeek: zod.number().nullish(),
+});
+
+export const PutUserDietPreferencesResponse = zod.object({
+  userId: zod.string(),
+  macroProfile: zod.string().nullish(),
+  cuisineStyle: zod.string().nullish(),
+  allergies: zod.array(zod.string()).optional(),
+  dislikes: zod.string().nullish(),
+  mealsPerDay: zod.number().nullish(),
+  trainingDaysPerWeek: zod.number().nullish(),
+  updatedAt: zod.string().optional(),
+});
+
+/**
  * @summary Merged, newest-first activity feed (cursor-paginated)
  */
 export const GetAccountabilityFeedQueryParams = zod.object({

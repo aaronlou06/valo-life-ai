@@ -37,6 +37,7 @@ import buddiesRouter from "./buddies";
 import sharedCommitmentsRouter from "./shared-commitments";
 import commitmentExceptionsRouter from "./commitment-exceptions";
 import encouragementsRouter from "./encouragements";
+import mealPlansRouter from "./meal-plans";
 
 const router: IRouter = Router();
 
@@ -78,5 +79,6 @@ router.use(buddiesRouter);
 router.use(sharedCommitmentsRouter);
 router.use(commitmentExceptionsRouter);
 router.use(encouragementsRouter);
+router.use(mealPlansRouter);
 
 export default router;

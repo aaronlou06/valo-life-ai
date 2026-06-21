@@ -44,3 +44,8 @@ export * from "./commitmentParticipants";
 export * from "./encouragements";
 export * from "./commitmentExceptions";
 export * from "./commitmentExceptionTargets";
+export * from "./mealPlans";
+export * from "./mealPlanDayTypes";
+export * from "./mealSlots";
+export * from "./mealIngredients";
+export * from "./userDietPreferences";

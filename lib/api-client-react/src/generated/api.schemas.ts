@@ -1262,6 +1262,175 @@ export interface AccountabilityFeedItem {
   data: AccountabilityFeedItemData;
 }
 
+export type MealPlanInputPrepPerSlot = { [key: string]: string };
+
+export interface MealPlanInput {
+  macrosKnown?: boolean;
+  /** @nullable */
+  knownCalories?: number | null;
+  /** @nullable */
+  knownProteinG?: number | null;
+  /** @nullable */
+  knownCarbsG?: number | null;
+  /** @nullable */
+  knownFatG?: number | null;
+  /**
+   * male | female — required when macrosKnown is false
+   * @nullable
+   */
+  sex?: string | null;
+  /** @nullable */
+  age?: number | null;
+  /** @nullable */
+  weightKg?: number | null;
+  /** @nullable */
+  heightCm?: number | null;
+  /**
+   * sedentary | lightly active | moderately active | very active | extra active
+   * @nullable
+   */
+  activityLevel?: string | null;
+  /**
+   * deficit | maintenance | surplus
+   * @nullable
+   */
+  goal?: string | null;
+  /** balanced | high-protein | low-carb | keto | mediterranean */
+  macroProfile: string;
+  /** @nullable */
+  cuisineStyle?: string | null;
+  allergies?: string[];
+  /** @nullable */
+  dislikes?: string | null;
+  /**
+   * @minimum 1
+   * @maximum 3
+   */
+  mealsPerDay: number;
+  /**
+   * @minimum 0
+   * @maximum 7
+   */
+  trainingDaysPerWeek: number;
+  /**
+   * @minimum 0
+   * @maximum 7
+   */
+  restDaysPerWeek: number;
+  prepPerSlot?: MealPlanInputPrepPerSlot;
+}
+
+export interface MealIngredientItem {
+  id: number;
+  name: string;
+  quantityPerServing: number;
+  unit: string;
+  caloriesPerServing: number;
+  proteinG: number;
+  carbsG: number;
+  fatG: number;
+}
+
+export interface MealSlotFull {
+  id: number;
+  slotIndex: number;
+  slotName: string;
+  recipeName: string;
+  /** @nullable */
+  instructions?: string | null;
+  prepMode: string;
+  targetCalories: number;
+  targetProteinG: number;
+  targetCarbsG: number;
+  targetFatG: number;
+  actualCalories: number;
+  actualProteinG: number;
+  actualCarbsG: number;
+  actualFatG: number;
+  ingredients: MealIngredientItem[];
+}
+
+export interface MealPlanDayTypeFull {
+  id: number;
+  dayType: string;
+  targetCalories: number;
+  targetProteinG: number;
+  targetCarbsG: number;
+  targetFatG: number;
+  meals: MealSlotFull[];
+}
+
+export interface MealPlanFull {
+  id: number;
+  userId: string;
+  macroProfile: string;
+  /** @nullable */
+  cuisineStyle?: string | null;
+  allergies?: string[];
+  /** @nullable */
+  dislikes?: string | null;
+  mealsPerDay: number;
+  trainingDaysPerWeek: number;
+  restDaysPerWeek: number;
+  dailyBaselineCalories: number;
+  dailyProteinG: number;
+  dailyCarbsG: number;
+  dailyFatG: number;
+  dayTypes: MealPlanDayTypeFull[];
+  createdAt: string;
+  updatedAt?: string;
+}
+
+export interface MealSwapInput {
+  /**
+   * If provided, swap only this ingredient; otherwise swap the whole meal
+   * @nullable
+   */
+  ingredientId?: number | null;
+}
+
+export interface PrepListItem {
+  name: string;
+  quantity: number;
+  unit: string;
+  forMeal: string;
+  prepMode: string;
+}
+
+export interface PrepListResponse {
+  items: PrepListItem[];
+}
+
+export interface UserDietPreferences {
+  userId: string;
+  /** @nullable */
+  macroProfile?: string | null;
+  /** @nullable */
+  cuisineStyle?: string | null;
+  allergies?: string[];
+  /** @nullable */
+  dislikes?: string | null;
+  /** @nullable */
+  mealsPerDay?: number | null;
+  /** @nullable */
+  trainingDaysPerWeek?: number | null;
+  updatedAt?: string;
+}
+
+export interface UserDietPreferencesInput {
+  /** @nullable */
+  macroProfile?: string | null;
+  /** @nullable */
+  cuisineStyle?: string | null;
+  allergies?: string[];
+  /** @nullable */
+  dislikes?: string | null;
+  /** @nullable */
+  mealsPerDay?: number | null;
+  /** @nullable */
+  trainingDaysPerWeek?: number | null;
+}
+
 export interface AccountabilityFeed {
   items: AccountabilityFeedItem[];
   /** @nullable */

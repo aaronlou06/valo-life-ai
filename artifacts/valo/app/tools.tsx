@@ -75,9 +75,9 @@ const CATEGORIES: Category[] = [
       {
         icon: "coffee",
         label: "Meal Planner",
-        description: "Plan meals, browse recipes",
+        description: "Training-aware meal plans and prep lists",
         accentColor: "#C17B3F",
-        route: "/(tools)/meal-plan",
+        route: "/meal-planner",
       },
       {
         icon: "shopping-cart",
