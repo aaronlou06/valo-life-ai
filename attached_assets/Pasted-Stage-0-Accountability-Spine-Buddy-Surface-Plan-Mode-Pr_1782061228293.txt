@@ -1,0 +1,48 @@
+Stage 0 — Accountability Spine + Buddy Surface — Plan-Mode Prompt
+
+Paste the block below into Replit Agent in Plan mode. It investigates the codebase and returns a written plan only — no build this pass. Review the plan with me before approving any build.
+
+
+PLAN MODE — investigate and propose a plan. Do not write code, create tables, or modify files in this pass.
+
+What we're building (Stage 0 of the accountability/coaching module): the foundational "shared commitment" spine plus the accountability-buddy surface. The governing principle is that every actor — an accountability buddy, the AI coach, and later a human coach — is a participant on the same shared-commitment model. This pass builds the buddy participant only, but the spine must be designed so a coach is added later as another participant type with no schema migration.
+
+First, investigate and report how these existing systems work, so the new spine wires into them rather than duplicating them:
+
+
+The agentic layer (proposed actions, action log, suggestion engine, execute/undo, decline cooldown) — a coach will later act through this; report how proposals and the acting party are represented.
+The current commitment model — how habits, goals, and verification events represent a recurring commitment and its completion/occurrence states.
+Any existing connection / friend / sharing / visibility model — there may be none; report what exists.
+The navigation structure and where module pages mount (the primary tabs plus the Apps/Tools surface) — propose where the accountability page should live.
+The push-notification send pipeline — whether device tokens are stored on the backend and whether a server-side send path (Expo Push API) exists, so the plan can state whether buddy nudges surface via push or in-app only.
+The Weekly Recap generation engine and the recurring-pattern detector — note them for reuse by the coach in a later pass.
+The Vapi check-in mode-branching (checkin type) — note it for the coach voice check-in in a later pass.
+
+
+Then plan the Stage 0 build (spine + buddy), covering:
+
+
+Shared-commitment spine (coach-agnostic).
+
+A commitment a user opts into accountability for, referencing or extending the existing habit/goal model, with a cadence and a metric type (binary check / count / streak).
+A participant + visibility model: a commitment can be shared with a participant at a chosen scope (e.g. streak-only vs. full detail). The user always sees exactly what is shared. Sharing is explicit and instantly revocable.
+Explicitly confirm the participant model generalizes from {buddy} to {AI coach, human coach} with no structural change, and call out anything that would not.
+
+
+
+Buddy relationship. Invite and accept via a shareable code or link (there is no social login — email/password only), with pending / active / blocked states.
+Encouragement. A single model that holds a "support" cheer now and preset messages plus free-text chat later. Build the model to carry all three types; surface only the support button this stage.
+Status exceptions. A structured exception on a commitment — pause / excused-absence / heads-up — with a window, a scope (one / several / all of a user's commitments), a visibility that reuses the share scope, and an optional note. Manual entry only this stage; calendar-inferred proposals come with the coach. Handle these behaviors:
+
+A pause freezes and holds a streak: missed days inside the window neither break the streak nor fake-advance it.
+For cadence commitments ("3×/week"), the window's target is waived rather than counted as a miss.
+Forward-declared exceptions are clean; retroactive ones are allowed but shown to the buddy as retroactive — history is never silently rewritten.
+
+
+
+The accountability page shell. A "your buddies" section listing each buddy's shared commitment(s) with a glanceable on-track / slipping / away status and a per-buddy support button; an empty/invite state; and an activity feed of recent encouragements and status events. Leave a clearly-marked placeholder where the AI coach section will mount in the next pass.
+
+
+Privacy defaults. Nothing is visible to a buddy that the user has not explicitly shared. There is no "share everything" switch. Outcome metrics such as weight and calories are never surfaced competitively — bias shared commitments toward process (did the workout, logged the meal).
+
+Deliverable (the plan). Return: the proposed schema for the spine; the participant-generalization check; the page surfaces; a recommended incremental build order with Checkpoints; the recommended Agent mode for the eventual build; and a list of open questions and risks. Do not build until the plan is reviewed.
