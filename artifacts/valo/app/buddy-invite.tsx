@@ -131,8 +131,21 @@ export default function BuddyInviteScreen() {
                 Expires {new Date(invite.expiresAt).toLocaleDateString()}
               </Text>
             </View>
+            <TouchableOpacity
+              onPress={share}
+              activeOpacity={0.75}
+              style={[styles.urlRow, { backgroundColor: colors.muted, borderColor: colors.border }]}
+            >
+              <Text
+                style={[styles.urlText, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}
+                numberOfLines={1}
+              >
+                {invite.shareUrl}
+              </Text>
+              <Feather name="share" size={15} color={colors.mutedForeground} />
+            </TouchableOpacity>
             <Text style={[styles.help, { color: colors.mutedForeground, fontFamily: "Inter_400Regular", textAlign: "center", marginBottom: 16 }]}>
-              Share this link with one person. It can be used once.
+              One person, one use. Tap the link above or share below.
             </Text>
             <TouchableOpacity
               onPress={share}
@@ -199,4 +212,16 @@ const styles = StyleSheet.create({
   codeLabel: { fontSize: 11, letterSpacing: 0.6, marginBottom: 8 },
   code: { fontSize: 30, letterSpacing: 4 },
   expiry: { fontSize: 12, marginTop: 10 },
+  urlRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    borderWidth: 1,
+    borderRadius: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 11,
+    marginTop: 12,
+    marginBottom: 4,
+  },
+  urlText: { flex: 1, fontSize: 12 },
 });

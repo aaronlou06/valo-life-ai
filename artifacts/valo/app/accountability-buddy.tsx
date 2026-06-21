@@ -1,4 +1,5 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import {
   ActivityIndicator,
   Platform,
@@ -274,18 +275,30 @@ function CommitmentRow({
   const createEncouragement = useCreateEncouragement();
   const [cheered, setCheered] = useState(false);
   const meta = STATUS_META[view.onTrackStatus] ?? STATUS_META.on_track!;
+  const cheerKey = `cheer_${view.commitmentId}_${new Date().toISOString().slice(0, 10)}`;
+
+  useEffect(() => {
+    AsyncStorage.getItem(cheerKey).then((v) => {
+      if (v === "1") setCheered(true);
+    });
+  }, [cheerKey]);
+
+  const markCheered = () => {
+    setCheered(true);
+    AsyncStorage.setItem(cheerKey, "1");
+  };
 
   const sendSupport = async () => {
     if (cheered || createEncouragement.isPending) return;
     try {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
       await createEncouragement.mutateAsync({ data: { commitmentId: view.commitmentId } });
-      setCheered(true);
+      markCheered();
       queryClient.invalidateQueries({ queryKey: getGetAccountabilityFeedQueryKey() });
     } catch (err) {
       // 409 means we already cheered today — reflect the muted state anyway.
       const status = (err as { response?: { status?: number } })?.response?.status;
-      if (status === 409) setCheered(true);
+      if (status === 409) markCheered();
     }
   };
 

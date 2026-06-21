@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from "react";
 import {
   ActivityIndicator,
+  Alert,
   Platform,
   ScrollView,
   StyleSheet,
@@ -110,15 +111,28 @@ export default function CommitmentDetailScreen() {
     }
   };
 
-  const revoke = async (participant: CommitmentParticipantSummary) => {
+  const revoke = (participant: CommitmentParticipantSummary) => {
     if (removeParticipant.isPending) return;
-    try {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-      await removeParticipant.mutateAsync({ id: commitmentId, participantId: participant.participantId });
-      invalidate();
-    } catch {
-      // surfaced via removeParticipant.isError
-    }
+    Alert.alert(
+      "Remove access",
+      `${participant.displayName ?? "Your buddy"} will no longer see this commitment. They won't be notified.`,
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Remove",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+              await removeParticipant.mutateAsync({ id: commitmentId, participantId: participant.participantId });
+              invalidate();
+            } catch {
+              // surfaced via removeParticipant.isError
+            }
+          },
+        },
+      ],
+    );
   };
 
   const pauseWeek = async () => {
@@ -323,6 +337,46 @@ export default function CommitmentDetailScreen() {
             </Text>
           )}
 
+          {/* Exception log */}
+          {exceptions.length > 0 && (
+            <>
+              <Text style={[styles.sectionLabel, { color: colors.mutedForeground, fontFamily: "Inter_500Medium", marginTop: 28 }]}>
+                EXCEPTION LOG
+              </Text>
+              {[...exceptions]
+                .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+                .map((ex) => (
+                  <View
+                    key={ex.id}
+                    style={[styles.exRow, { backgroundColor: colors.card, borderColor: colors.border }]}
+                  >
+                    <View style={{ flex: 1 }}>
+                      <View style={styles.exHeadRow}>
+                        <Text style={[styles.exKind, { color: colors.foreground, fontFamily: "Inter_500Medium" }]}>
+                          {ex.kind === "pause" ? "Pause" : "Excused absence"}
+                        </Text>
+                        {ex.isRetroactive && (
+                          <View style={[styles.retroBadge, { backgroundColor: `${AMBER}22` }]}>
+                            <Text style={[styles.retroText, { color: AMBER, fontFamily: "Inter_500Medium" }]}>
+                              noted retroactively
+                            </Text>
+                          </View>
+                        )}
+                      </View>
+                      <Text style={[styles.exDates, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
+                        {new Date(ex.startDate).toLocaleDateString()} – {new Date(ex.endDate).toLocaleDateString()}
+                      </Text>
+                      {ex.reason ? (
+                        <Text style={[styles.exReason, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
+                          {ex.reason}
+                        </Text>
+                      ) : null}
+                    </View>
+                  </View>
+                ))}
+            </>
+          )}
+
           {/* Encouragement history */}
           <Text style={[styles.sectionLabel, { color: colors.mutedForeground, fontFamily: "Inter_500Medium", marginTop: 28 }]}>
             ENCOURAGEMENT
@@ -441,4 +495,16 @@ const styles = StyleSheet.create({
   },
   encText: { fontSize: 13, flex: 1 },
   encTime: { fontSize: 11 },
+  exRow: {
+    borderRadius: 10,
+    borderWidth: 1,
+    padding: 12,
+    marginBottom: 8,
+  },
+  exHeadRow: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 2 },
+  exKind: { fontSize: 13 },
+  exDates: { fontSize: 12, lineHeight: 18 },
+  exReason: { fontSize: 12, lineHeight: 17, marginTop: 2 },
+  retroBadge: { borderRadius: 4, paddingHorizontal: 6, paddingVertical: 2 },
+  retroText: { fontSize: 10, letterSpacing: 0.2 },
 });
