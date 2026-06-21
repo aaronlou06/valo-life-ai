@@ -1,12 +1,13 @@
-import { eq, and } from "drizzle-orm";
-import { db, habitCompletionsTable, habitsTable, userProfilesTable } from "@workspace/db";
+import { eq, and, isNotNull } from "drizzle-orm";
+import { db, verificationEventsTable, habitsTable, userProfilesTable } from "@workspace/db";
 import { getDateInTimezone, DEFAULT_TIMEZONE } from "./dates";
 
 /**
  * Single source of truth for habit streaks.
  *
- * `habit_completions` rows are authoritative. A streak is derived purely from
- * those rows using a local-day model:
+ * `verification_events` rows (with habitId set) are authoritative. A streak is
+ * derived purely from those rows using a local-day model — status "done"
+ * extends, status "missed" breaks:
  *   - rows are considered in date order
  *   - a `completed = true` row extends the streak
  *   - a `completed = false` row breaks the streak
@@ -89,18 +90,25 @@ export async function deriveHabitStreaks(
   const today = await resolveToday(userId);
   const rows = await db
     .select({
-      habitId: habitCompletionsTable.habitId,
-      completionDate: habitCompletionsTable.completionDate,
-      completed: habitCompletionsTable.completed,
+      habitId: verificationEventsTable.habitId,
+      occurrenceDate: verificationEventsTable.occurrenceDate,
+      status: verificationEventsTable.status,
     })
-    .from(habitCompletionsTable)
-    .where(eq(habitCompletionsTable.userId, userId));
+    .from(verificationEventsTable)
+    .where(
+      and(
+        eq(verificationEventsTable.userId, userId),
+        isNotNull(verificationEventsTable.habitId),
+      ),
+    );
 
   const rowsByHabit = new Map<number, HabitCompletionRow[]>();
   for (const r of rows) {
+    if (r.habitId == null) continue;
+    const row = { completionDate: r.occurrenceDate, completed: r.status === "done" };
     const list = rowsByHabit.get(r.habitId);
-    if (list) list.push({ completionDate: r.completionDate, completed: r.completed });
-    else rowsByHabit.set(r.habitId, [{ completionDate: r.completionDate, completed: r.completed }]);
+    if (list) list.push(row);
+    else rowsByHabit.set(r.habitId, [row]);
   }
 
   const byHabitId = new Map<number, DerivedHabitStreak>();
@@ -136,7 +144,7 @@ export function applyDerivedToHabit<
 
 /**
  * Recompute a single habit's streak cache from its completion rows and persist
- * it. Call this after any write to `habit_completions`.
+ * it. Call this after any write to `verification_events`.
  */
 export async function recomputeAndPersistHabit(
   userId: string,
@@ -145,15 +153,21 @@ export async function recomputeAndPersistHabit(
   const today = await resolveToday(userId);
   const rows = await db
     .select({
-      completionDate: habitCompletionsTable.completionDate,
-      completed: habitCompletionsTable.completed,
+      occurrenceDate: verificationEventsTable.occurrenceDate,
+      status: verificationEventsTable.status,
     })
-    .from(habitCompletionsTable)
+    .from(verificationEventsTable)
     .where(
-      and(eq(habitCompletionsTable.userId, userId), eq(habitCompletionsTable.habitId, habitId)),
+      and(
+        eq(verificationEventsTable.userId, userId),
+        eq(verificationEventsTable.habitId, habitId),
+      ),
     );
 
-  const derived = computeHabitStreak(rows, today);
+  const derived = computeHabitStreak(
+    rows.map((r) => ({ completionDate: r.occurrenceDate, completed: r.status === "done" })),
+    today,
+  );
   await db
     .update(habitsTable)
     .set({

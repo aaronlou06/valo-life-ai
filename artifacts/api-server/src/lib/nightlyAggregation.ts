@@ -1,10 +1,10 @@
-import { eq, and, gte, lt } from "drizzle-orm";
+import { eq, and, gte, lt, isNotNull } from "drizzle-orm";
 import {
   db,
   usersTable,
   dailyLogsTable,
   habitsTable,
-  habitCompletionsTable,
+  verificationEventsTable,
   dailySummariesTable,
   weeklyRollupsTable,
 } from "@workspace/db";
@@ -34,13 +34,14 @@ async function upsertDailySummary(userId: string, day: string): Promise<void> {
   const [habitRows, completionRows] = await Promise.all([
     db.select({ id: habitsTable.id }).from(habitsTable).where(eq(habitsTable.userId, userId)),
     db
-      .select({ habitId: habitCompletionsTable.habitId })
-      .from(habitCompletionsTable)
+      .select({ habitId: verificationEventsTable.habitId })
+      .from(verificationEventsTable)
       .where(
         and(
-          eq(habitCompletionsTable.userId, userId),
-          eq(habitCompletionsTable.completionDate, day),
-          eq(habitCompletionsTable.completed, true),
+          eq(verificationEventsTable.userId, userId),
+          eq(verificationEventsTable.occurrenceDate, day),
+          eq(verificationEventsTable.status, "done"),
+          isNotNull(verificationEventsTable.habitId),
         ),
       ),
   ]);

@@ -3069,7 +3069,7 @@ export default function PlanScreen() {
 
   const toggleHabit = async (id: number) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    // Write to habit_completions (the single source of truth); the server
+    // Write to verification_events (the single source of truth); the server
     // recomputes streak/completedToday on read. Never PATCH streak directly.
     const date = todayStr();
     await toggleHabitCompletionMutation.mutateAsync({ data: { habitId: id, date } });

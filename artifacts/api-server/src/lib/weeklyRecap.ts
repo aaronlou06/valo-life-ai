@@ -1,11 +1,11 @@
-import { and, asc, desc, eq, gte, lte, inArray } from "drizzle-orm";
+import { and, asc, desc, eq, gte, lte, inArray, isNotNull } from "drizzle-orm";
 import { anthropic } from "@workspace/integrations-anthropic-ai";
 import {
   db,
   dailyLogsTable,
   debriefExtractionsTable,
   habitsTable,
-  habitCompletionsTable,
+  verificationEventsTable,
   workoutSessionsTable,
   nutritionLogsTable,
   insightsPatternsTable,
@@ -177,21 +177,21 @@ export async function buildWeeklyAggregate(
 
   // Habits completion %: completed completions this week / (habit count * 7).
   const habitIds = habits.map((h) => h.id);
-  let habitCompletions: { completed: boolean }[] = [];
+  let habitCompletions: { status: string }[] = [];
   if (habitIds.length > 0) {
     habitCompletions = await db
-      .select({ completed: habitCompletionsTable.completed })
-      .from(habitCompletionsTable)
+      .select({ status: verificationEventsTable.status })
+      .from(verificationEventsTable)
       .where(
         and(
-          eq(habitCompletionsTable.userId, userId),
-          inArray(habitCompletionsTable.habitId, habitIds),
-          gte(habitCompletionsTable.completionDate, weekStart),
-          lte(habitCompletionsTable.completionDate, weekEnd),
+          eq(verificationEventsTable.userId, userId),
+          inArray(verificationEventsTable.habitId, habitIds),
+          gte(verificationEventsTable.occurrenceDate, weekStart),
+          lte(verificationEventsTable.occurrenceDate, weekEnd),
         ),
       );
   }
-  const completedCount = habitCompletions.filter((c) => c.completed).length;
+  const completedCount = habitCompletions.filter((c) => c.status === "done").length;
   const expectedCount = habits.length * 7;
   const habitsCompletionPct =
     expectedCount > 0 ? clamp10((completedCount / expectedCount) * 10) * 10 : null;

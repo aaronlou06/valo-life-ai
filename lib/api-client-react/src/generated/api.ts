@@ -24,6 +24,7 @@ import type {
   CalendarEvent,
   CalendarEventInput,
   CalendarEventUpdate,
+  CatchUpResult,
   DailyLog,
   DailyLogInput,
   DailyLogOrNull,
@@ -70,6 +71,8 @@ import type {
   UpdateSettings,
   UpdateSettings200,
   UserSettings,
+  VerificationEvent,
+  VerificationEventInput,
   WeeklyRecap,
   WeeklyRecapStub,
   WorkoutCoachingResponse,
@@ -3450,6 +3453,168 @@ export const useToggleHabitCompletion = <
   TContext
 > => {
   return useMutation(getToggleHabitCompletionMutationOptions(options));
+};
+
+/**
+ * @summary Pending Verify items over a bounded lookback window (habits + routines)
+ */
+export const getGetCatchUpUrl = () => {
+  return `/api/catch-up`;
+};
+
+export const getCatchUp = async (
+  options?: RequestInit,
+): Promise<CatchUpResult> => {
+  return customFetch<CatchUpResult>(getGetCatchUpUrl(), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetCatchUpQueryKey = () => {
+  return [`/api/catch-up`] as const;
+};
+
+export const getGetCatchUpQueryOptions = <
+  TData = Awaited<ReturnType<typeof getCatchUp>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getCatchUp>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetCatchUpQueryKey();
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getCatchUp>>> = ({
+    signal,
+  }) => getCatchUp({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getCatchUp>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetCatchUpQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getCatchUp>>
+>;
+export type GetCatchUpQueryError = ErrorType<unknown>;
+
+/**
+ * @summary Pending Verify items over a bounded lookback window (habits + routines)
+ */
+
+export function useGetCatchUp<
+  TData = Awaited<ReturnType<typeof getCatchUp>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getCatchUp>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetCatchUpQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Record a verification event for a habit or routine (the shared Verify write path)
+ */
+export const getRecordVerificationEventUrl = () => {
+  return `/api/verification-events`;
+};
+
+export const recordVerificationEvent = async (
+  verificationEventInput: VerificationEventInput,
+  options?: RequestInit,
+): Promise<VerificationEvent> => {
+  return customFetch<VerificationEvent>(getRecordVerificationEventUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(verificationEventInput),
+  });
+};
+
+export const getRecordVerificationEventMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof recordVerificationEvent>>,
+    TError,
+    { data: BodyType<VerificationEventInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof recordVerificationEvent>>,
+  TError,
+  { data: BodyType<VerificationEventInput> },
+  TContext
+> => {
+  const mutationKey = ["recordVerificationEvent"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof recordVerificationEvent>>,
+    { data: BodyType<VerificationEventInput> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return recordVerificationEvent(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type RecordVerificationEventMutationResult = NonNullable<
+  Awaited<ReturnType<typeof recordVerificationEvent>>
+>;
+export type RecordVerificationEventMutationBody =
+  BodyType<VerificationEventInput>;
+export type RecordVerificationEventMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Record a verification event for a habit or routine (the shared Verify write path)
+ */
+export const useRecordVerificationEvent = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof recordVerificationEvent>>,
+    TError,
+    { data: BodyType<VerificationEventInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof recordVerificationEvent>>,
+  TError,
+  { data: BodyType<VerificationEventInput> },
+  TContext
+> => {
+  return useMutation(getRecordVerificationEventMutationOptions(options));
 };
 
 /**

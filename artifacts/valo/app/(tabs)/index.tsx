@@ -33,6 +33,8 @@ import {
   customFetch,
   useGetWeeklyRecapLatest,
   getGetWeeklyRecapLatestQueryKey,
+  useGetCatchUp,
+  getGetCatchUpQueryKey,
   useExecuteActionProposal,
   useDismissActionProposal,
   useUndoAction,
@@ -1308,6 +1310,82 @@ const recapStyles = StyleSheet.create({
   closeBtn: { padding: 2, alignSelf: "flex-start" },
 });
 
+// ── Catch-up card ────────────────────────────────────────────────────────────
+
+const CATCHUP_DISMISS_KEY = "valo:catchupDismissed";
+
+function CatchupCard({
+  colors,
+  router,
+}: {
+  colors: ReturnType<typeof useColors>;
+  router: ReturnType<typeof useRouter>;
+}) {
+  const [dismissedToday, setDismissedToday] = useState<string | null>(null);
+  const [loadedDismiss, setLoadedDismiss] = useState(false);
+
+  const { data: catchup } = useGetCatchUp({
+    query: { retry: false, queryKey: getGetCatchUpQueryKey() },
+  });
+
+  useEffect(() => {
+    let active = true;
+    AsyncStorage.getItem(CATCHUP_DISMISS_KEY)
+      .then((v) => {
+        if (!active) return;
+        setDismissedToday(v);
+        setLoadedDismiss(true);
+      })
+      .catch(() => {
+        if (active) setLoadedDismiss(true);
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  if (!loadedDismiss || !catchup || !catchup.hasGap) return null;
+  // Dismissal is keyed on `today` so the card resurfaces on a new day.
+  if (dismissedToday === catchup.today) return null;
+
+  const dismiss = () => {
+    setDismissedToday(catchup.today);
+    AsyncStorage.setItem(CATCHUP_DISMISS_KEY, catchup.today).catch(() => {});
+  };
+
+  return (
+    <TouchableOpacity
+      onPress={() => router.push("/catch-up")}
+      activeOpacity={0.85}
+      style={[
+        recapStyles.card,
+        { backgroundColor: colors.card, borderColor: colors.primary },
+      ]}
+    >
+      <View style={recapStyles.iconWrap}>
+        <Feather name="rotate-ccw" size={18} color={colors.primary} />
+      </View>
+      <View style={{ flex: 1 }}>
+        <Text style={[recapStyles.label, { color: colors.primary, fontFamily: "Inter_600SemiBold" }]}>
+          CATCH UP
+        </Text>
+        <Text
+          style={[recapStyles.title, { color: colors.foreground, fontFamily: "Inter_600SemiBold" }]}
+          numberOfLines={2}
+        >
+          {catchup.pendingCount} thing{catchup.pendingCount !== 1 ? "s" : ""} to verify from the last few days
+        </Text>
+        <Text style={[recapStyles.range, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
+          Tap to confirm what happened
+        </Text>
+      </View>
+      <TouchableOpacity onPress={dismiss} hitSlop={10} style={recapStyles.closeBtn}>
+        <Feather name="x" size={16} color={colors.mutedForeground} />
+      </TouchableOpacity>
+    </TouchableOpacity>
+  );
+}
+
 // ── HomeScreen ─────────────────────────────────────────────────────────────────
 
 export default function HomeScreen() {
@@ -1504,6 +1582,9 @@ export default function HomeScreen() {
               onToast={showActionToast}
             />
           ))}
+
+        {/* ── Catch up ── */}
+        <CatchupCard colors={colors} router={router} />
 
         {/* ── Weekly recap ── */}
         <WeeklyRecapGlance colors={colors} router={router} />

@@ -1,4 +1,4 @@
-import { and, desc, eq, gte, inArray, lte } from "drizzle-orm";
+import { and, desc, eq, gte, inArray, lte, isNotNull } from "drizzle-orm";
 import { anthropic } from "@workspace/integrations-anthropic-ai";
 import {
   db,
@@ -6,7 +6,7 @@ import {
   dailyLogsTable,
   debriefExtractionsTable,
   goalsTable,
-  habitCompletionsTable,
+  verificationEventsTable,
   habitsTable,
   logEntriesTable,
   userProfilesTable,
@@ -181,20 +181,24 @@ async function buildContextBlock(userId: string): Promise<string> {
   const completions =
     habitIds.length > 0
       ? await db
-          .select()
-          .from(habitCompletionsTable)
+          .select({
+            habitId: verificationEventsTable.habitId,
+            status: verificationEventsTable.status,
+          })
+          .from(verificationEventsTable)
           .where(
             and(
-              eq(habitCompletionsTable.userId, userId),
-              inArray(habitCompletionsTable.habitId, habitIds),
-              gte(habitCompletionsTable.completionDate, since14),
+              eq(verificationEventsTable.userId, userId),
+              inArray(verificationEventsTable.habitId, habitIds),
+              gte(verificationEventsTable.occurrenceDate, since14),
+              isNotNull(verificationEventsTable.habitId),
             ),
           )
       : [];
 
   const completionsByHabit = new Map<number, number>();
   for (const c of completions) {
-    if (c.completed) {
+    if (c.habitId != null && c.status === "done") {
       completionsByHabit.set(c.habitId, (completionsByHabit.get(c.habitId) ?? 0) + 1);
     }
   }

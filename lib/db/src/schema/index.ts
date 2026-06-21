@@ -12,7 +12,7 @@ export * from "./calls";
 export * from "./users";
 export * from "./passwordResetTokens";
 export * from "./routines";
-export * from "./habitCompletions";
+export * from "./verificationEvents";
 export * from "./insightsPatterns";
 export * from "./dailySummaries";
 export * from "./weeklyRollups";

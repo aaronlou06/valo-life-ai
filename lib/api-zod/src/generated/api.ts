@@ -829,6 +829,71 @@ export const ToggleHabitCompletionResponse = zod.object({
 });
 
 /**
+ * @summary Pending Verify items over a bounded lookback window (habits + routines)
+ */
+export const GetCatchUpResponse = zod.object({
+  today: zod.string(),
+  lookbackDays: zod.number(),
+  days: zod.array(zod.string()),
+  items: zod.array(
+    zod.object({
+      kind: zod.enum(["habit", "routine"]),
+      habitId: zod.number().nullable(),
+      routineId: zod.string().nullable(),
+      name: zod.string(),
+      cadence: zod.enum(["daily", "flexible", "routine"]),
+      cells: zod.array(
+        zod.object({
+          date: zod.string(),
+          status: zod.enum(["done", "missed", "pending"]),
+        }),
+      ),
+      weekly: zod.union([
+        zod.object({
+          done: zod.number(),
+          target: zod.number(),
+          weekStart: zod.string(),
+        }),
+        zod.null(),
+      ]),
+    }),
+  ),
+  pendingCount: zod.number(),
+  hasGap: zod.boolean(),
+});
+
+/**
+ * @summary Record a verification event for a habit or routine (the shared Verify write path)
+ */
+export const RecordVerificationEventBody = zod.object({
+  habitId: zod
+    .number()
+    .optional()
+    .describe("Set this OR routineId (exactly one)"),
+  routineId: zod
+    .string()
+    .optional()
+    .describe("Set this OR habitId (exactly one)"),
+  date: zod.string().describe("YYYY-MM-DD occurrence date"),
+  status: zod.enum(["done", "missed"]),
+  provenance: zod
+    .enum(["confirmed", "recalled", "assumed"])
+    .optional()
+    .describe("Defaults to confirmed"),
+});
+
+export const RecordVerificationEventResponse = zod.object({
+  id: zod.number(),
+  userId: zod.string(),
+  habitId: zod.number().nullish(),
+  routineId: zod.string().nullish(),
+  occurrenceDate: zod.string().describe("YYYY-MM-DD"),
+  status: zod.enum(["done", "missed"]),
+  provenance: zod.enum(["confirmed", "recalled", "assumed"]),
+  createdAt: zod.string(),
+});
+
+/**
  * @summary List all personal dates for the current user
  */
 export const ListPersonalDatesResponseItem = zod.object({

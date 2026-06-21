@@ -211,7 +211,7 @@ router.get("/home-briefing", requireAuth, async (req, res): Promise<void> => {
 
     // ── Derived state ─────────────────────────────────────────────────────────
 
-    // Streak + completedToday derive from habit_completions, never the raw cache.
+    // Streak + completedToday derive from verification_events, never the raw cache.
     const { byHabitId: habitStreaksById } = await deriveHabitStreaks(userId);
     const habits = habitsRaw.map((h) => applyDerivedToHabit(h, habitStreaksById));
 

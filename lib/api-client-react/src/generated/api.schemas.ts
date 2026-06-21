@@ -601,6 +601,127 @@ export interface ToggleHabitCompletionInput {
   date: string;
 }
 
+export type VerificationEventStatus =
+  (typeof VerificationEventStatus)[keyof typeof VerificationEventStatus];
+
+export const VerificationEventStatus = {
+  done: "done",
+  missed: "missed",
+} as const;
+
+export type VerificationEventProvenance =
+  (typeof VerificationEventProvenance)[keyof typeof VerificationEventProvenance];
+
+export const VerificationEventProvenance = {
+  confirmed: "confirmed",
+  recalled: "recalled",
+  assumed: "assumed",
+} as const;
+
+export interface VerificationEvent {
+  id: number;
+  userId: string;
+  /** @nullable */
+  habitId?: number | null;
+  /** @nullable */
+  routineId?: string | null;
+  /** YYYY-MM-DD */
+  occurrenceDate: string;
+  status: VerificationEventStatus;
+  provenance: VerificationEventProvenance;
+  createdAt: string;
+}
+
+export type VerificationEventInputStatus =
+  (typeof VerificationEventInputStatus)[keyof typeof VerificationEventInputStatus];
+
+export const VerificationEventInputStatus = {
+  done: "done",
+  missed: "missed",
+} as const;
+
+/**
+ * Defaults to confirmed
+ */
+export type VerificationEventInputProvenance =
+  (typeof VerificationEventInputProvenance)[keyof typeof VerificationEventInputProvenance];
+
+export const VerificationEventInputProvenance = {
+  confirmed: "confirmed",
+  recalled: "recalled",
+  assumed: "assumed",
+} as const;
+
+export interface VerificationEventInput {
+  /** Set this OR routineId (exactly one) */
+  habitId?: number;
+  /** Set this OR habitId (exactly one) */
+  routineId?: string;
+  /** YYYY-MM-DD occurrence date */
+  date: string;
+  status: VerificationEventInputStatus;
+  /** Defaults to confirmed */
+  provenance?: VerificationEventInputProvenance;
+}
+
+export type CatchupCellStatus =
+  (typeof CatchupCellStatus)[keyof typeof CatchupCellStatus];
+
+export const CatchupCellStatus = {
+  done: "done",
+  missed: "missed",
+  pending: "pending",
+} as const;
+
+export interface CatchupCell {
+  date: string;
+  status: CatchupCellStatus;
+}
+
+export interface CatchupWeekly {
+  done: number;
+  target: number;
+  weekStart: string;
+}
+
+export type CatchupItemKind =
+  (typeof CatchupItemKind)[keyof typeof CatchupItemKind];
+
+export const CatchupItemKind = {
+  habit: "habit",
+  routine: "routine",
+} as const;
+
+export type CatchupItemCadence =
+  (typeof CatchupItemCadence)[keyof typeof CatchupItemCadence];
+
+export const CatchupItemCadence = {
+  daily: "daily",
+  flexible: "flexible",
+  routine: "routine",
+} as const;
+
+export interface CatchupItem {
+  kind: CatchupItemKind;
+  /** @nullable */
+  habitId: number | null;
+  /** @nullable */
+  routineId: string | null;
+  name: string;
+  cadence: CatchupItemCadence;
+  cells: CatchupCell[];
+  weekly: CatchupWeekly | null;
+}
+
+export interface CatchUpResult {
+  today: string;
+  lookbackDays: number;
+  days: string[];
+  items: CatchupItem[];
+  pendingCount: number;
+  hasGap: boolean;
+}
+
 export type ReminderMetadata = { [key: string]: unknown } | null;
 
 export interface Reminder {

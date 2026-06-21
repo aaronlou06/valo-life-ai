@@ -30,7 +30,7 @@ import {
   voiceDebriefsTable,
   insightsTable,
   habitsTable,
-  habitCompletionsTable,
+  verificationEventsTable,
   goalsTable,
   calendarEventsTable,
   exercisesTable,
@@ -207,7 +207,7 @@ async function resetForUser(userId: string, startISO: string) {
   await db.delete(transcriptsTable).where(and(eq(transcriptsTable.userId, userId), gte(transcriptsTable.date, startISO)));
   await db.delete(voiceDebriefsTable).where(and(eq(voiceDebriefsTable.userId, userId), gte(voiceDebriefsTable.callDate, startISO)));
   await db.delete(insightsTable).where(and(eq(insightsTable.userId, userId), gte(insightsTable.date, startISO)));
-  await db.delete(habitCompletionsTable).where(and(eq(habitCompletionsTable.userId, userId), gte(habitCompletionsTable.completionDate, startISO)));
+  await db.delete(verificationEventsTable).where(and(eq(verificationEventsTable.userId, userId), gte(verificationEventsTable.occurrenceDate, startISO)));
 
   // Marker-based deletion so real/synced rows survive.
   await db.delete(calendarEventsTable).where(and(eq(calendarEventsTable.userId, userId), eq(calendarEventsTable.notes, SEED_MARKER)));
@@ -671,8 +671,16 @@ async function main() {
     .values({ userId, name: SEED_HABIT_NAMES[1]!, category: "growth", type: "good", targetFrequency: 5 })
     .returning({ id: habitsTable.id });
 
-  const completionRows: Array<typeof habitCompletionsTable.$inferInsert> = [];
-  const buildCompletions = (habitId: number, scheduledOn: (d: Date) => boolean, completeProb: number) => {
+  const completionRows: Array<typeof verificationEventsTable.$inferInsert> = [];
+  // `recordMissed` distinguishes daily habits (per-day occurrences that can be
+  // missed) from flexible weekly-target habits, which only ever record the days
+  // a run actually happened — they are never marked "missed" per day.
+  const buildCompletions = (
+    habitId: number,
+    scheduledOn: (d: Date) => boolean,
+    completeProb: number,
+    recordMissed: boolean,
+  ) => {
     let lastCompleted: string | null = null;
     let streak = 0;
     let longest = 0;
@@ -681,22 +689,37 @@ async function main() {
       const iso = toISO(d);
       if (!scheduledOn(d)) return; // not scheduled → no row
       const done = chance(completeProb);
-      completionRows.push({ habitId, userId, completionDate: iso, completed: done });
       if (done) {
+        completionRows.push({
+          habitId,
+          userId,
+          occurrenceDate: iso,
+          status: "done",
+          provenance: "confirmed",
+        });
         lastCompleted = iso;
         streak += 1;
         longest = Math.max(longest, streak);
         if (iso === toISO(today)) completedToday = true;
       } else {
+        if (recordMissed) {
+          completionRows.push({
+            habitId,
+            userId,
+            occurrenceDate: iso,
+            status: "missed",
+            provenance: "confirmed",
+          });
+        }
         streak = 0;
       }
     });
     return { lastCompleted, streak, longest, completedToday };
   };
 
-  const aStats = buildCompletions(habitA!.id, () => true, 0.72);
-  const bStats = buildCompletions(habitB!.id, (d) => d.getDay() >= 1 && d.getDay() <= 5, 0.6);
-  await chunkInsert(habitCompletionsTable, completionRows);
+  const aStats = buildCompletions(habitA!.id, () => true, 0.72, true);
+  const bStats = buildCompletions(habitB!.id, (d) => d.getDay() >= 1 && d.getDay() <= 5, 0.6, false);
+  await chunkInsert(verificationEventsTable, completionRows);
   await db
     .update(habitsTable)
     .set({ streak: aStats.streak, longestStreak: aStats.longest, lastCompletedDate: aStats.lastCompleted, completedToday: aStats.completedToday })
@@ -705,7 +728,7 @@ async function main() {
     .update(habitsTable)
     .set({ streak: bStats.streak, longestStreak: bStats.longest, lastCompletedDate: bStats.lastCompleted, completedToday: bStats.completedToday })
     .where(eq(habitsTable.id, habitB!.id));
-  console.log(`  habits: 2, habit_completions: ${completionRows.length} (mixed completed/missed)`);
+  console.log(`  habits: 2, verification_events: ${completionRows.length} (mixed done/missed)`);
 
   // ── Goals ─────────────────────────────────────────────────────────────────────
   const goalRows = [

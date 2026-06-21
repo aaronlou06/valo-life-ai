@@ -19,3 +19,4 @@
 - [Agentic action registry](action-registry.md) — Suggest & Act: proposed_actions + action_log tables; ActionHandler registry (new action = 1 entry); handlers self-authorize via ActionContext{userId}+domain guard.
 - [Suggestion engine](suggestion-engine.md) — generateActionProposals(userId) runs in nightly job (not home-briefing); business gates (behind<0.6, 1/run, declined, idempotent) in CODE not prompt; time/id fields re-derived from real event.
 - [Account deletion](account-deletion.md) — deleteUserAccount(): external revokes then 1 atomic tx; per-user tables via schema reflection, but non-cascade FKs between user tables MUST be deleted child-before-parent in EXPLICIT_OR_PRESERVED.
+- [Verify spine + catch-up](verify-spine.md) — verification_events is the ONE write path (habits+routines, events excluded), replaced/dropped habit_completions; catch-up = 5-day lookback gaps; new expo route needs typegen restart.

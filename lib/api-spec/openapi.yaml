@@ -773,6 +773,38 @@ paths:
               schema:
                 $ref: "#/components/schemas/HabitCompletion"
 
+  /catch-up:
+    get:
+      operationId: getCatchUp
+      tags: [habits]
+      summary: Pending Verify items over a bounded lookback window (habits + routines)
+      responses:
+        "200":
+          description: Catch-up gap summary
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CatchUpResult"
+
+  /verification-events:
+    post:
+      operationId: recordVerificationEvent
+      tags: [habits]
+      summary: Record a verification event for a habit or routine (the shared Verify write path)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/VerificationEventInput"
+      responses:
+        "200":
+          description: Recorded verification event
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VerificationEvent"
+
   /personal-dates:
     get:
       operationId: listPersonalDates
@@ -2176,6 +2208,118 @@ components:
         date:
           type: string
           description: YYYY-MM-DD
+
+    VerificationEvent:
+      type: object
+      required: [id, userId, occurrenceDate, status, provenance, createdAt]
+      properties:
+        id:
+          type: integer
+        userId:
+          type: string
+        habitId:
+          type: ["integer", "null"]
+        routineId:
+          type: ["string", "null"]
+        occurrenceDate:
+          type: string
+          description: YYYY-MM-DD
+        status:
+          type: string
+          enum: [done, missed]
+        provenance:
+          type: string
+          enum: [confirmed, recalled, assumed]
+        createdAt:
+          type: string
+
+    VerificationEventInput:
+      type: object
+      required: [date, status]
+      properties:
+        habitId:
+          type: integer
+          description: Set this OR routineId (exactly one)
+        routineId:
+          type: string
+          description: Set this OR habitId (exactly one)
+        date:
+          type: string
+          description: YYYY-MM-DD occurrence date
+        status:
+          type: string
+          enum: [done, missed]
+        provenance:
+          type: string
+          enum: [confirmed, recalled, assumed]
+          description: Defaults to confirmed
+
+    CatchupCell:
+      type: object
+      required: [date, status]
+      properties:
+        date:
+          type: string
+        status:
+          type: string
+          enum: [done, missed, pending]
+
+    CatchupWeekly:
+      type: object
+      required: [done, target, weekStart]
+      properties:
+        done:
+          type: integer
+        target:
+          type: integer
+        weekStart:
+          type: string
+
+    CatchupItem:
+      type: object
+      required: [kind, habitId, routineId, name, cadence, cells, weekly]
+      properties:
+        kind:
+          type: string
+          enum: [habit, routine]
+        habitId:
+          type: ["integer", "null"]
+        routineId:
+          type: ["string", "null"]
+        name:
+          type: string
+        cadence:
+          type: string
+          enum: [daily, flexible, routine]
+        cells:
+          type: array
+          items:
+            $ref: "#/components/schemas/CatchupCell"
+        weekly:
+          oneOf:
+            - $ref: "#/components/schemas/CatchupWeekly"
+            - type: "null"
+
+    CatchUpResult:
+      type: object
+      required: [today, lookbackDays, days, items, pendingCount, hasGap]
+      properties:
+        today:
+          type: string
+        lookbackDays:
+          type: integer
+        days:
+          type: array
+          items:
+            type: string
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/CatchupItem"
+        pendingCount:
+          type: integer
+        hasGap:
+          type: boolean
 
     Reminder:
       type: object

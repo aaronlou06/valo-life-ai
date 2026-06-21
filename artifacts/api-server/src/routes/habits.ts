@@ -11,7 +11,7 @@ router.get("/habits", requireAuth, async (req, res): Promise<void> => {
   const habits = await db.select().from(habitsTable)
     .where(eq(habitsTable.userId, userId))
     .orderBy(desc(habitsTable.createdAt));
-  // Streak + completedToday are always derived from habit_completions on read so
+  // Streak + completedToday are always derived from verification_events on read so
   // the stored cache can never drift out of sync with the source of truth.
   const { byHabitId } = await deriveHabitStreaks(userId);
   res.json(habits.map((h) => applyDerivedToHabit(h, byHabitId)));
