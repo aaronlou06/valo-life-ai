@@ -1,0 +1,34 @@
+Decisions on open questions
+
+
+Q1 — Display names. Never expose a user's email to a buddy. Use a display name; if userProfiles has no display-name field, add one and prompt for it during invite/accept. The invite link and buddy surface show display name only — no email, no email prefix.
+Q2 — Deep-link vs. manual code. Do not gate Stage 0 on universal-link domain verification. Build manual code entry as the reliable accept path; the share link carries the code and deep-links if AASA / asset-links happen to be configured, otherwise falls back to manual entry. Domain-verification config is a parallel follow-up, not a blocker.
+Q3 — Invite code expiry. Yes. Add expires_at (14 days), reject expired codes at the API layer, and codes are single-use (consumed on accept).
+Q4 — Scope-boundary privacy. Endorsed and required. Compute on-track/slipping/away status server-side and return it as a pre-computed enum alongside the streak count, so a buddy's view never receives raw occurrence dates regardless of scope.
+Q5 — Solo tool. Deprecate the local-state solo tool; redirect to /commitment/new. Nothing to migrate — it was never persisted.
+Q6 — Catch-up interaction. Required: the catch-up / gap-detection route must consult active pause exceptions and suppress catch-up prompts for covered dates. A user who declared a pause must never be nagged to catch up on those days. Handle in Checkpoint D, loading exceptions the same way the streak logic does.
+Q7 — Encouragement rate limit. Endorsed. One support tap per buddy, per commitment, per calendar day (partial unique index). The support tap is a once-a-day "I see you"; repeated/expressive encouragement is what presets and text are for, later.
+Q8 — Mutual sharing. Correct — no auto-sharing. A buddy relationship grants zero data visibility by itself; visibility comes only from explicit per-commitment shares. The post-accept "share a commitment with [buddy]?" prompt is optional, never mandatory. Keep it exactly as proposed.
+R1 — Push. Confirmed in-app only for Stage 0.
+R3 — Exception scope. Confirmed: ship one and all only. several + the junction table stays schema-ready but UI-deferred.
+
+
+Amendments (changes to the plan as written)
+
+
+Scope Stage 0 to habit-backed commitments only. Keep source_type's enum (habit/goal/standalone) so the schema is ready, but the create flow surfaces only existing habits this stage. Reason: streak/cadence/pause semantics are fully defined for habits, but goals are progress-based (no verification spine) and standalone has no completion log — their status and exception behavior would be half-defined. The create flow for "something not tracked yet" helps the user make a habit first, then share it. Goal-backed sharing is the immediate follow-on, once its status and pause semantics are defined.
+One exception-aware streak path — kill the missed-caller risk (R2). Do not thread a new "exceptions" argument through every caller of the streak computation; a missed caller silently computes streaks blind. Instead, require that no code path can compute a streak without exception-awareness — either the streak function resolves active exceptions itself, or every caller is routed through one canonical exception-aware function. Audit all current callers (verification route, catch-up route, Progress computed route) and add a test asserting a paused day neither breaks nor advances a streak.
+Re-inject the process-over-outcome guardrail. The commitment-create flow biases toward process framing. Never surface body-weight or calorie outcome numbers to a buddy. The metric types (binary/count/streak) are already process-shaped — keep it that way; do not add an outcome-number metric a buddy sees competitively.
+Per-commitment unshare is silent. Revoking a single commitment share simply drops that commitment from the buddy's view — no "you were unshared" notification (needlessly hurtful). Only ending or blocking the whole relationship surfaces as an event to both parties.
+Note for Stage 1 (not now): the unique index (commitment_id, participant_type, buddy_relationship_id) treats NULLs as distinct, so it won't prevent duplicate ai_coach rows (NULL relationship id) on one commitment. Handle with NULLS NOT DISTINCT or a partial unique index when the coach participant lands. No action in Stage 0 (no ai_coach rows yet).
+
+
+Build order & mode
+
+Build mode, granular checkpoints, with one change to the Agent's run grouping: isolate the streak-logic change (Checkpoint D) from the greenfield API work. D modifies existing streak computation that the Progress tab and catch-up already depend on, so it gets its own checkpoint and on-device verification against the current Progress tab before any UI is built on top of it. Static-green is not sufficient here — the streak change must be verified at runtime.
+
+Sequence: A (schema, verify push + typecheck) → B–C (buddy + commitment API) → D (exceptions + encouragement + exception-aware streak + catch-up — own checkpoint, device-verified) → E–F (UI) → G (polish + scope enforcement).
+
+Green light
+
+Approved to build in this order with the decisions and amendments above. Land Checkpoint A first and report the schema before proceeding.
