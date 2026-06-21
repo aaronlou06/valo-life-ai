@@ -1,0 +1,54 @@
+Replit Agent prompt — Plan: unified Verify spine + catch-up surface (INVESTIGATION ONLY)
+
+Run in Plan mode. Do not change any code or schema — investigate, report a plan, and wait for my approval. The build afterward will be Power mode.
+
+What we're building (context)
+
+A single verification spine for recurring commitments, plus a catch-up surface for reconciling missed days.
+
+
+Two buckets. Verify = habits and routines — the only things tracked for completion (expected → confirmed done/missed → later, assumed). Context / anchors = work, school, fixed blocks, and most events — typed but never verified; they exist for the planner to schedule around (that planner work is a separate, later build).
+Three occurrence states: pending (expected, unverified), confirmed (done or missed), assumed (exception-mode — later). A pending-but-past occurrence must never silently count as done.
+Provenance on every verification event: confirmed (same-day), recalled (backfilled via catch-up), assumed (exception-mode — later). Kept distinct so downstream insights can weight them.
+Expected occurrences are derived from each item's recurrence rule for a window — do not pre-materialize a pile of future rows.
+One shared write path for verification events, reused by the manual UI now and the voice check-in later. Do not create a manual-only completion path — that would recreate the dual-write-path problem we just fixed in the habit-streak work.
+
+
+This build is confirm-mode only. The exception-mode flip and the planner/prep layer are explicitly later — but the model must leave room for them.
+
+Investigate and report (no changes)
+
+
+Current recurrence + completion + type modeling, per item type — habits, routines, events, goals: where each stores its schedule/frequency, where it stores "done" state (if any), and how its type is expressed.
+The post-#97 completion model (the shared habit-streak/completion helper and habit_completions): can it generalize to routines, or does routine completion work differently today? What is the smallest way to make one shared verification-event concept cover both?
+Verify-vs-Anchor typing: is there an existing field to mark an item as Verify vs Anchor, or is one needed? How are work/school currently represented (calendar events? a type?), and what's required to type them as anchors so the spine excludes them.
+Expected-occurrence derivation: how to derive the expected occurrences of a habit/routine for a date window from its recurrence rule, addressable enough that a verification event attaches to a specific occurrence.
+Gap detection: what signal defines a "verification gap" that should trigger the catch-up surface (e.g. N days of pending Verify items), and where that check would live.
+Voice readiness: where the check-in pipeline currently reads/writes completion, so the shared write path is something the voice flow can drive later with the same confirm/miss semantics.
+
+
+The plan must propose
+
+
+The unified Verify model: the expected-occurrence + verification-event shape, with the three states and the provenance tag, extending the existing completion work rather than paralleling it.
+The typing approach for Verify vs Anchor, including any schema needed (surface it for approval — don't apply it).
+The catch-up surface spec: the gap trigger; a fast grid of Verify items × the missing days; bounded ~3–5 day lookback (older lapses unverified, not forced); gentle/dismissible placement (a Home card or soft prompt, not a blocking modal); catch-up entries written with recalled provenance.
+The single shared write path for verification events (manual now, voice-ready), with confirmation that no second path is introduced.
+Explicit confirm-mode scope, with a forward-compatible hook for the later exception-mode flip (e.g. a per-item mode field defined but unused) — defined, not built.
+A list of the files/areas it will touch and any schema changes, called out for my approval before any build.
+
+
+Out of scope (this build)
+
+
+The exception-mode flip / confidence threshold (later).
+The planning/prep layer that consumes anchors (later).
+Voice wiring itself — the model must be voice-ready, but the voice integration is a separate build.
+
+
+Constraints
+
+
+Plan mode: no code or schema changes; investigate and report, then wait for approval.
+Don't modify Recovery.tsx, GoalProgress.tsx, or Motivation.tsx.
+pnpm only.
