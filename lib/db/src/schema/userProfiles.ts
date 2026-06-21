@@ -6,6 +6,9 @@ export const userProfilesTable = pgTable("user_profiles", {
   id: serial("id").primaryKey(),
   userId: text("user_id").notNull().unique(),
   name: text("name"),
+  // Public-facing name shown to accountability buddies. Email is NEVER exposed
+  // to buddies; only this field is surfaced cross-user.
+  displayName: text("display_name"),
   lifePriorities: text("life_priorities"),
   phoneNumber: text("phone_number"),
   preferredCallTime: text("preferred_call_time"),
