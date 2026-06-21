@@ -71,8 +71,13 @@ common (a write can fan out), and a timestamp-only cursor silently loses them.
 
 ## Buddy surface UI (Stage 0 screens)
 - SINGULAR file `app/accountability-buddy.tsx` is the live surface (sections:
-  buddies, own commitments, activity feed, AI-coach placeholder). The plural
-  `accountability-buddies.tsx` was an orphan and was deleted — do not recreate it.
+  buddies, own commitments, activity feed, AI-coach placeholder). The PLURAL
+  route `accountability-buddies.tsx` is kept as a thin `<Redirect>` alias to the
+  singular route (the original stub contract was plural) — keep both registered
+  in `_layout.tsx` so external/legacy `/accountability-buddies` links still work.
+- `buddy-accept/[code].tsx` supports MANUAL code entry: the code is editable
+  state prefilled from the `[code]` URL param (deep-link autofills, no link =
+  user types it). Accept button is gated on a non-empty code.
 - Per-commitment encouragement "history" on `commitment/[id].tsx` is derived by
   filtering the GLOBAL `/accountability/feed` (type==='encouragement' &&
   Number(data.commitmentId)===id). `AccountabilityFeedItemData` is a loose

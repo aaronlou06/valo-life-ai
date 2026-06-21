@@ -28,8 +28,9 @@ export default function BuddyAcceptScreen() {
   const queryClient = useQueryClient();
   const { name, updateName } = useValoAuth();
   const params = useLocalSearchParams<{ code?: string }>();
-  const code = (params.code ?? "").trim();
 
+  const [codeInput, setCodeInput] = useState((params.code ?? "").trim());
+  const code = codeInput.trim();
   const [displayName, setDisplayName] = useState(name ?? "");
   const [accepted, setAccepted] = useState(false);
   const [inviterName, setInviterName] = useState<string | null>(null);
@@ -89,15 +90,29 @@ export default function BuddyAcceptScreen() {
               <Text style={[styles.primaryBtnText, { fontFamily: "Inter_600SemiBold" }]}>Go to Accountability</Text>
             </TouchableOpacity>
           </View>
-        ) : !code ? (
-          <Text style={[styles.lead, { color: colors.destructive, fontFamily: "Inter_400Regular" }]}>
-            This invite link is missing its code.
-          </Text>
         ) : (
           <>
             <Text style={[styles.lead, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
               Accept this invite to become accountability buddies. You'll each only see the commitments the other chooses to share.
             </Text>
+            <Text style={[styles.label, { color: colors.foreground, fontFamily: "Inter_500Medium" }]}>
+              Invite code
+            </Text>
+            <Text style={[styles.help, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
+              Paste the code your buddy shared, or open their invite link to fill it in automatically.
+            </Text>
+            <TextInput
+              value={codeInput}
+              onChangeText={setCodeInput}
+              placeholder="Enter invite code"
+              placeholderTextColor={colors.mutedForeground}
+              autoCapitalize="none"
+              autoCorrect={false}
+              style={[
+                styles.input,
+                { color: colors.foreground, borderColor: colors.border, backgroundColor: colors.card, fontFamily: "Inter_400Regular", marginBottom: 20 },
+              ]}
+            />
             <Text style={[styles.label, { color: colors.foreground, fontFamily: "Inter_500Medium" }]}>
               Your name
             </Text>
@@ -122,8 +137,8 @@ export default function BuddyAcceptScreen() {
             <TouchableOpacity
               onPress={accept}
               activeOpacity={0.85}
-              disabled={acceptInvite.isPending}
-              style={[styles.primaryBtn, { backgroundColor: TERRACOTTA, opacity: acceptInvite.isPending ? 0.7 : 1 }]}
+              disabled={acceptInvite.isPending || !code}
+              style={[styles.primaryBtn, { backgroundColor: TERRACOTTA, opacity: acceptInvite.isPending || !code ? 0.5 : 1 }]}
             >
               {acceptInvite.isPending ? (
                 <ActivityIndicator color="#FFFFFF" />
