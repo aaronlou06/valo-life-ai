@@ -42,6 +42,21 @@ participant generalization keeps a single read/share path.
   messageType='support'. `sentDate` is stored explicitly (computed in sender's
   local TZ) to avoid server-TZ ambiguity of a date(sentAt) expression.
 
+## Exception schema: two fields still needed for per-commitment exceptions
+`commitment_exceptions` needs two more fields before per-commitment exceptions work:
+- `commitmentId` (nullable int FK → shared_commitments): scope='one' has no inline
+  target column, so a single-commitment exception currently can't point anywhere.
+  Add nullable; set for scope='one', null for 'all'/'several' (which use the
+  junction table / all active commitments).
+- `isRetroactive` (boolean): auto-set server-side at write = (startDate < today);
+  feed badges these "noted retroactively".
+Until `commitmentId` exists, the buddy view's `away` status (in
+`buildBuddyCommitmentViews`) only honors scope='all' exceptions; scope='one'
+away-state needs this column.
+Naming diverged intentionally from plan and is fine: `kind`(pause/excused) not
+`exceptionType`, `reason` not `note`, `startDate`/`endDate` not window*. No
+`heads_up` type (not in done-looks-like). These are additive dev-push changes.
+
 ## Stage 0 scope
 - HABIT-backed commitments only in UI (sourceType enum keeps goal/standalone
   schema-ready). Exception scope ships `one`+`all` only (`several` + junction

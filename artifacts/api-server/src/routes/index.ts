@@ -33,6 +33,8 @@ import workoutRouter from "./workout";
 import askRouter from "./ask";
 import weeklyRecapRouter from "./weekly-recap";
 import actionProposalsRouter from "./action-proposals";
+import buddiesRouter from "./buddies";
+import sharedCommitmentsRouter from "./shared-commitments";
 
 const router: IRouter = Router();
 
@@ -70,5 +72,7 @@ router.use(workoutRouter);
 router.use(askRouter);
 router.use(weeklyRecapRouter);
 router.use(actionProposalsRouter);
+router.use(buddiesRouter);
+router.use(sharedCommitmentsRouter);
 
 export default router;

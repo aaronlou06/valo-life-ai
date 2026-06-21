@@ -1678,3 +1678,133 @@ export const UndoActionParams = zod.object({
 export const UndoActionResponse = zod.object({
   undone: zod.boolean().describe("Always true on success."),
 });
+
+/**
+ * @summary Accept a buddy invite by code
+ */
+export const AcceptBuddyInviteBody = zod.object({
+  code: zod.string(),
+  displayName: zod.string().optional(),
+});
+
+export const AcceptBuddyInviteResponse = zod.object({
+  relationshipId: zod.number(),
+  inviterDisplayName: zod.string().nullish(),
+  status: zod.string(),
+});
+
+/**
+ * @summary List active buddy relationships
+ */
+export const ListBuddiesResponseItem = zod.object({
+  relationshipId: zod.number(),
+  displayName: zod.string().nullish(),
+  role: zod
+    .string()
+    .describe("inviter or invitee — my role in this relationship"),
+  status: zod.string(),
+  since: zod.string().nullish().describe("acceptedAt timestamp"),
+});
+export const ListBuddiesResponse = zod.array(ListBuddiesResponseItem);
+
+/**
+ * @summary Block a buddy relationship
+ */
+export const BlockBuddyParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+/**
+ * @summary List commitments a buddy has shared with me (scope-enforced)
+ */
+export const ListBuddyCommitmentsParams = zod.object({
+  buddyRelationshipId: zod.coerce.number(),
+});
+
+export const ListBuddyCommitmentsResponseItem = zod.object({
+  commitmentId: zod.number(),
+  title: zod.string(),
+  metricType: zod.string(),
+  cadence: zod.string(),
+  shareScope: zod.string(),
+  onTrackStatus: zod.string().describe("on_track | slipping | away"),
+  streak: zod.number().nullish(),
+  completionRate: zod
+    .number()
+    .nullish()
+    .describe("Present only for summary and full scopes"),
+  weeklyTarget: zod
+    .number()
+    .nullish()
+    .describe(
+      "Expected actions per week; present only for summary and full scopes",
+    ),
+});
+export const ListBuddyCommitmentsResponse = zod.array(
+  ListBuddyCommitmentsResponseItem,
+);
+
+/**
+ * @summary List my shared commitments with participant summary
+ */
+export const ListSharedCommitmentsResponseItem = zod.object({
+  id: zod.number(),
+  userId: zod.string(),
+  title: zod.string(),
+  description: zod.string().nullish(),
+  sourceType: zod.string(),
+  sourceId: zod.number().nullish(),
+  metricType: zod.string(),
+  cadence: zod.string(),
+  cadenceDaysPerWeek: zod.number().nullish(),
+  isActive: zod.boolean(),
+  createdAt: zod.string(),
+  updatedAt: zod.string(),
+  participants: zod.array(
+    zod.object({
+      participantId: zod.number(),
+      participantType: zod.string(),
+      shareScope: zod.string(),
+      displayName: zod.string().nullish(),
+      buddyRelationshipId: zod.number().nullish(),
+    }),
+  ),
+});
+export const ListSharedCommitmentsResponse = zod.array(
+  ListSharedCommitmentsResponseItem,
+);
+
+/**
+ * @summary Create a shared commitment (habit-backed in Stage 0)
+ */
+export const CreateSharedCommitmentBody = zod.object({
+  title: zod.string(),
+  description: zod.string().nullish(),
+  sourceType: zod
+    .string()
+    .describe("habit | goal | standalone (Stage 0 accepts habit only)"),
+  sourceId: zod.number().nullish(),
+  metricType: zod.string().describe("binary | count | streak"),
+  cadence: zod.string().describe("daily | weekly | custom"),
+  cadenceDaysPerWeek: zod.number().nullish(),
+});
+
+/**
+ * @summary Share a commitment with an active buddy at a scope
+ */
+export const AddCommitmentParticipantParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const AddCommitmentParticipantBody = zod.object({
+  buddyRelationshipId: zod.number(),
+  shareScope: zod.string().describe("streak_only | summary | full"),
+});
+
+/**
+ * @summary Revoke a participant's access (silent — no buddy notification)
+ */
+export const RemoveCommitmentParticipantParams = zod.object({
+  id: zod.coerce.number(),
+  participantId: zod.coerce.number(),
+});

@@ -41,6 +41,10 @@ tags:
     description: Workout sessions, set logging, coaching, PR tracking, and volume trends
   - name: action-proposals
     description: Agentic action proposals — execute, dismiss, and undo
+  - name: buddies
+    description: Accountability buddy relationships and the buddy-facing view
+  - name: shared-commitments
+    description: Shared accountability commitments and their participants
 paths:
   /healthz:
     get:
@@ -1385,6 +1389,182 @@ paths:
           description: Action log entry not found
         "409":
           description: Action already undone
+
+  /buddies/invite:
+    post:
+      operationId: createBuddyInvite
+      tags: [buddies]
+      summary: Create a single-use buddy invite code
+      responses:
+        "201":
+          description: Invite created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BuddyInviteResponse"
+
+  /buddies/accept:
+    post:
+      operationId: acceptBuddyInvite
+      tags: [buddies]
+      summary: Accept a buddy invite by code
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BuddyAcceptInput"
+      responses:
+        "200":
+          description: Invite accepted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BuddyAcceptResponse"
+        "400":
+          description: Invalid, expired, or already-used code
+        "409":
+          description: Cannot accept own invite, or already connected
+
+  /buddies:
+    get:
+      operationId: listBuddies
+      tags: [buddies]
+      summary: List active buddy relationships
+      responses:
+        "200":
+          description: Active buddies
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Buddy"
+
+  /buddies/{id}/block:
+    post:
+      operationId: blockBuddy
+      tags: [buddies]
+      summary: Block a buddy relationship
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Blocked
+        "404":
+          description: Not found
+
+  /buddies/{buddyRelationshipId}/commitments:
+    get:
+      operationId: listBuddyCommitments
+      tags: [buddies]
+      summary: List commitments a buddy has shared with me (scope-enforced)
+      parameters:
+        - name: buddyRelationshipId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Shared commitments visible to me
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/BuddyCommitmentView"
+        "404":
+          description: Relationship not found or inactive
+
+  /shared-commitments:
+    get:
+      operationId: listSharedCommitments
+      tags: [shared-commitments]
+      summary: List my shared commitments with participant summary
+      responses:
+        "200":
+          description: My commitments
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/SharedCommitmentWithParticipants"
+    post:
+      operationId: createSharedCommitment
+      tags: [shared-commitments]
+      summary: Create a shared commitment (habit-backed in Stage 0)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SharedCommitmentInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SharedCommitment"
+        "400":
+          description: Invalid input or source not owned by user
+
+  /shared-commitments/{id}/participants:
+    post:
+      operationId: addCommitmentParticipant
+      tags: [shared-commitments]
+      summary: Share a commitment with an active buddy at a scope
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AddParticipantInput"
+      responses:
+        "201":
+          description: Participant added
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CommitmentParticipant"
+        "400":
+          description: Invalid scope or relationship not active
+        "404":
+          description: Commitment not found
+
+  /shared-commitments/{id}/participants/{participantId}:
+    delete:
+      operationId: removeCommitmentParticipant
+      tags: [shared-commitments]
+      summary: Revoke a participant's access (silent — no buddy notification)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: participantId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Revoked
+        "404":
+          description: Commitment not found
 
 components:
   schemas:
@@ -2822,3 +3002,209 @@ components:
         undone:
           type: boolean
           description: Always true on success.
+
+    BuddyInviteResponse:
+      type: object
+      required: [relationshipId, code, shareUrl, expiresAt]
+      properties:
+        relationshipId:
+          type: integer
+        code:
+          type: string
+        shareUrl:
+          type: string
+        expiresAt:
+          type: string
+
+    BuddyAcceptInput:
+      type: object
+      required: [code]
+      properties:
+        code:
+          type: string
+        displayName:
+          type: string
+
+    BuddyAcceptResponse:
+      type: object
+      required: [relationshipId, status]
+      properties:
+        relationshipId:
+          type: integer
+        inviterDisplayName:
+          type: ["string", "null"]
+        status:
+          type: string
+
+    Buddy:
+      type: object
+      required: [relationshipId, role, status]
+      properties:
+        relationshipId:
+          type: integer
+        displayName:
+          type: ["string", "null"]
+        role:
+          type: string
+          description: "inviter or invitee — my role in this relationship"
+        status:
+          type: string
+        since:
+          type: ["string", "null"]
+          description: acceptedAt timestamp
+
+    SharedCommitmentInput:
+      type: object
+      required: [title, sourceType, metricType, cadence]
+      properties:
+        title:
+          type: string
+        description:
+          type: ["string", "null"]
+        sourceType:
+          type: string
+          description: "habit | goal | standalone (Stage 0 accepts habit only)"
+        sourceId:
+          type: ["integer", "null"]
+        metricType:
+          type: string
+          description: "binary | count | streak"
+        cadence:
+          type: string
+          description: "daily | weekly | custom"
+        cadenceDaysPerWeek:
+          type: ["integer", "null"]
+
+    SharedCommitment:
+      type: object
+      required: [id, userId, title, sourceType, metricType, cadence, isActive, createdAt, updatedAt]
+      properties:
+        id:
+          type: integer
+        userId:
+          type: string
+        title:
+          type: string
+        description:
+          type: ["string", "null"]
+        sourceType:
+          type: string
+        sourceId:
+          type: ["integer", "null"]
+        metricType:
+          type: string
+        cadence:
+          type: string
+        cadenceDaysPerWeek:
+          type: ["integer", "null"]
+        isActive:
+          type: boolean
+        createdAt:
+          type: string
+        updatedAt:
+          type: string
+
+    CommitmentParticipantSummary:
+      type: object
+      required: [participantId, participantType, shareScope]
+      properties:
+        participantId:
+          type: integer
+        participantType:
+          type: string
+        shareScope:
+          type: string
+        displayName:
+          type: ["string", "null"]
+        buddyRelationshipId:
+          type: ["integer", "null"]
+
+    SharedCommitmentWithParticipants:
+      type: object
+      required: [id, userId, title, sourceType, metricType, cadence, isActive, createdAt, updatedAt, participants]
+      properties:
+        id:
+          type: integer
+        userId:
+          type: string
+        title:
+          type: string
+        description:
+          type: ["string", "null"]
+        sourceType:
+          type: string
+        sourceId:
+          type: ["integer", "null"]
+        metricType:
+          type: string
+        cadence:
+          type: string
+        cadenceDaysPerWeek:
+          type: ["integer", "null"]
+        isActive:
+          type: boolean
+        createdAt:
+          type: string
+        updatedAt:
+          type: string
+        participants:
+          type: array
+          items:
+            $ref: "#/components/schemas/CommitmentParticipantSummary"
+
+    CommitmentParticipant:
+      type: object
+      required: [id, commitmentId, participantType, shareScope, isActive, createdAt, updatedAt]
+      properties:
+        id:
+          type: integer
+        commitmentId:
+          type: integer
+        participantType:
+          type: string
+        buddyRelationshipId:
+          type: ["integer", "null"]
+        shareScope:
+          type: string
+        isActive:
+          type: boolean
+        createdAt:
+          type: string
+        updatedAt:
+          type: string
+
+    AddParticipantInput:
+      type: object
+      required: [buddyRelationshipId, shareScope]
+      properties:
+        buddyRelationshipId:
+          type: integer
+        shareScope:
+          type: string
+          description: "streak_only | summary | full"
+
+    BuddyCommitmentView:
+      type: object
+      required: [commitmentId, title, metricType, cadence, shareScope, onTrackStatus]
+      properties:
+        commitmentId:
+          type: integer
+        title:
+          type: string
+        metricType:
+          type: string
+        cadence:
+          type: string
+        shareScope:
+          type: string
+        onTrackStatus:
+          type: string
+          description: "on_track | slipping | away"
+        streak:
+          type: ["integer", "null"]
+        completionRate:
+          type: ["number", "null"]
+          description: "Present only for summary and full scopes"
+        weeklyTarget:
+          type: ["integer", "null"]
+          description: "Expected actions per week; present only for summary and full scopes"

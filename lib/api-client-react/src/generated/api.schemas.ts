@@ -1055,6 +1055,142 @@ export interface UndoActionResult {
   undone: boolean;
 }
 
+export interface BuddyInviteResponse {
+  relationshipId: number;
+  code: string;
+  shareUrl: string;
+  expiresAt: string;
+}
+
+export interface BuddyAcceptInput {
+  code: string;
+  displayName?: string;
+}
+
+export interface BuddyAcceptResponse {
+  relationshipId: number;
+  /** @nullable */
+  inviterDisplayName?: string | null;
+  status: string;
+}
+
+export interface Buddy {
+  relationshipId: number;
+  /** @nullable */
+  displayName?: string | null;
+  /** inviter or invitee — my role in this relationship */
+  role: string;
+  status: string;
+  /**
+   * acceptedAt timestamp
+   * @nullable
+   */
+  since?: string | null;
+}
+
+export interface SharedCommitmentInput {
+  title: string;
+  /** @nullable */
+  description?: string | null;
+  /** habit | goal | standalone (Stage 0 accepts habit only) */
+  sourceType: string;
+  /** @nullable */
+  sourceId?: number | null;
+  /** binary | count | streak */
+  metricType: string;
+  /** daily | weekly | custom */
+  cadence: string;
+  /** @nullable */
+  cadenceDaysPerWeek?: number | null;
+}
+
+export interface SharedCommitment {
+  id: number;
+  userId: string;
+  title: string;
+  /** @nullable */
+  description?: string | null;
+  sourceType: string;
+  /** @nullable */
+  sourceId?: number | null;
+  metricType: string;
+  cadence: string;
+  /** @nullable */
+  cadenceDaysPerWeek?: number | null;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CommitmentParticipantSummary {
+  participantId: number;
+  participantType: string;
+  shareScope: string;
+  /** @nullable */
+  displayName?: string | null;
+  /** @nullable */
+  buddyRelationshipId?: number | null;
+}
+
+export interface SharedCommitmentWithParticipants {
+  id: number;
+  userId: string;
+  title: string;
+  /** @nullable */
+  description?: string | null;
+  sourceType: string;
+  /** @nullable */
+  sourceId?: number | null;
+  metricType: string;
+  cadence: string;
+  /** @nullable */
+  cadenceDaysPerWeek?: number | null;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+  participants: CommitmentParticipantSummary[];
+}
+
+export interface CommitmentParticipant {
+  id: number;
+  commitmentId: number;
+  participantType: string;
+  /** @nullable */
+  buddyRelationshipId?: number | null;
+  shareScope: string;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface AddParticipantInput {
+  buddyRelationshipId: number;
+  /** streak_only | summary | full */
+  shareScope: string;
+}
+
+export interface BuddyCommitmentView {
+  commitmentId: number;
+  title: string;
+  metricType: string;
+  cadence: string;
+  shareScope: string;
+  /** on_track | slipping | away */
+  onTrackStatus: string;
+  /** @nullable */
+  streak?: number | null;
+  /**
+   * Present only for summary and full scopes
+   * @nullable
+   */
+  completionRate?: number | null;
+  /**
+   * Expected actions per week; present only for summary and full scopes
+   * @nullable
+   */
+  weeklyTarget?: number | null;
+}
+
 export type ListDailyLogHistoryParams = {
   /**
    * ISO date (YYYY-MM-DD). When provided, return all logs on or after this date. When omitted, defaults to the last 30 days.

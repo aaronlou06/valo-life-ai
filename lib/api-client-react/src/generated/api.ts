@@ -17,14 +17,21 @@ import type {
 } from "@tanstack/react-query";
 
 import type {
+  AddParticipantInput,
   AnalyzeImageInput,
   AnalyzeImageResult,
   AskRequest,
   AskResponse,
+  Buddy,
+  BuddyAcceptInput,
+  BuddyAcceptResponse,
+  BuddyCommitmentView,
+  BuddyInviteResponse,
   CalendarEvent,
   CalendarEventInput,
   CalendarEventUpdate,
   CatchUpResult,
+  CommitmentParticipant,
   DailyLog,
   DailyLogInput,
   DailyLogOrNull,
@@ -64,6 +71,9 @@ import type {
   RoutineInput,
   RoutineUpdate,
   SaveOnboarding200,
+  SharedCommitment,
+  SharedCommitmentInput,
+  SharedCommitmentWithParticipants,
   StaleActionResponse,
   StreakData,
   ToggleHabitCompletionInput,
@@ -6034,4 +6044,773 @@ export const useUndoAction = <
   TContext
 > => {
   return useMutation(getUndoActionMutationOptions(options));
+};
+
+/**
+ * @summary Create a single-use buddy invite code
+ */
+export const getCreateBuddyInviteUrl = () => {
+  return `/api/buddies/invite`;
+};
+
+export const createBuddyInvite = async (
+  options?: RequestInit,
+): Promise<BuddyInviteResponse> => {
+  return customFetch<BuddyInviteResponse>(getCreateBuddyInviteUrl(), {
+    ...options,
+    method: "POST",
+  });
+};
+
+export const getCreateBuddyInviteMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createBuddyInvite>>,
+    TError,
+    void,
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof createBuddyInvite>>,
+  TError,
+  void,
+  TContext
+> => {
+  const mutationKey = ["createBuddyInvite"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof createBuddyInvite>>,
+    void
+  > = () => {
+    return createBuddyInvite(requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type CreateBuddyInviteMutationResult = NonNullable<
+  Awaited<ReturnType<typeof createBuddyInvite>>
+>;
+
+export type CreateBuddyInviteMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Create a single-use buddy invite code
+ */
+export const useCreateBuddyInvite = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createBuddyInvite>>,
+    TError,
+    void,
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof createBuddyInvite>>,
+  TError,
+  void,
+  TContext
+> => {
+  return useMutation(getCreateBuddyInviteMutationOptions(options));
+};
+
+/**
+ * @summary Accept a buddy invite by code
+ */
+export const getAcceptBuddyInviteUrl = () => {
+  return `/api/buddies/accept`;
+};
+
+export const acceptBuddyInvite = async (
+  buddyAcceptInput: BuddyAcceptInput,
+  options?: RequestInit,
+): Promise<BuddyAcceptResponse> => {
+  return customFetch<BuddyAcceptResponse>(getAcceptBuddyInviteUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(buddyAcceptInput),
+  });
+};
+
+export const getAcceptBuddyInviteMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof acceptBuddyInvite>>,
+    TError,
+    { data: BodyType<BuddyAcceptInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof acceptBuddyInvite>>,
+  TError,
+  { data: BodyType<BuddyAcceptInput> },
+  TContext
+> => {
+  const mutationKey = ["acceptBuddyInvite"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof acceptBuddyInvite>>,
+    { data: BodyType<BuddyAcceptInput> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return acceptBuddyInvite(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type AcceptBuddyInviteMutationResult = NonNullable<
+  Awaited<ReturnType<typeof acceptBuddyInvite>>
+>;
+export type AcceptBuddyInviteMutationBody = BodyType<BuddyAcceptInput>;
+export type AcceptBuddyInviteMutationError = ErrorType<void>;
+
+/**
+ * @summary Accept a buddy invite by code
+ */
+export const useAcceptBuddyInvite = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof acceptBuddyInvite>>,
+    TError,
+    { data: BodyType<BuddyAcceptInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof acceptBuddyInvite>>,
+  TError,
+  { data: BodyType<BuddyAcceptInput> },
+  TContext
+> => {
+  return useMutation(getAcceptBuddyInviteMutationOptions(options));
+};
+
+/**
+ * @summary List active buddy relationships
+ */
+export const getListBuddiesUrl = () => {
+  return `/api/buddies`;
+};
+
+export const listBuddies = async (options?: RequestInit): Promise<Buddy[]> => {
+  return customFetch<Buddy[]>(getListBuddiesUrl(), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getListBuddiesQueryKey = () => {
+  return [`/api/buddies`] as const;
+};
+
+export const getListBuddiesQueryOptions = <
+  TData = Awaited<ReturnType<typeof listBuddies>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof listBuddies>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getListBuddiesQueryKey();
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof listBuddies>>> = ({
+    signal,
+  }) => listBuddies({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof listBuddies>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type ListBuddiesQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listBuddies>>
+>;
+export type ListBuddiesQueryError = ErrorType<unknown>;
+
+/**
+ * @summary List active buddy relationships
+ */
+
+export function useListBuddies<
+  TData = Awaited<ReturnType<typeof listBuddies>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof listBuddies>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getListBuddiesQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Block a buddy relationship
+ */
+export const getBlockBuddyUrl = (id: number) => {
+  return `/api/buddies/${id}/block`;
+};
+
+export const blockBuddy = async (
+  id: number,
+  options?: RequestInit,
+): Promise<void> => {
+  return customFetch<void>(getBlockBuddyUrl(id), {
+    ...options,
+    method: "POST",
+  });
+};
+
+export const getBlockBuddyMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof blockBuddy>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof blockBuddy>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  const mutationKey = ["blockBuddy"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof blockBuddy>>,
+    { id: number }
+  > = (props) => {
+    const { id } = props ?? {};
+
+    return blockBuddy(id, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type BlockBuddyMutationResult = NonNullable<
+  Awaited<ReturnType<typeof blockBuddy>>
+>;
+
+export type BlockBuddyMutationError = ErrorType<void>;
+
+/**
+ * @summary Block a buddy relationship
+ */
+export const useBlockBuddy = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof blockBuddy>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof blockBuddy>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  return useMutation(getBlockBuddyMutationOptions(options));
+};
+
+/**
+ * @summary List commitments a buddy has shared with me (scope-enforced)
+ */
+export const getListBuddyCommitmentsUrl = (buddyRelationshipId: number) => {
+  return `/api/buddies/${buddyRelationshipId}/commitments`;
+};
+
+export const listBuddyCommitments = async (
+  buddyRelationshipId: number,
+  options?: RequestInit,
+): Promise<BuddyCommitmentView[]> => {
+  return customFetch<BuddyCommitmentView[]>(
+    getListBuddyCommitmentsUrl(buddyRelationshipId),
+    {
+      ...options,
+      method: "GET",
+    },
+  );
+};
+
+export const getListBuddyCommitmentsQueryKey = (
+  buddyRelationshipId: number,
+) => {
+  return [`/api/buddies/${buddyRelationshipId}/commitments`] as const;
+};
+
+export const getListBuddyCommitmentsQueryOptions = <
+  TData = Awaited<ReturnType<typeof listBuddyCommitments>>,
+  TError = ErrorType<void>,
+>(
+  buddyRelationshipId: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listBuddyCommitments>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ??
+    getListBuddyCommitmentsQueryKey(buddyRelationshipId);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof listBuddyCommitments>>
+  > = ({ signal }) =>
+    listBuddyCommitments(buddyRelationshipId, { signal, ...requestOptions });
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: !!buddyRelationshipId,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof listBuddyCommitments>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type ListBuddyCommitmentsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listBuddyCommitments>>
+>;
+export type ListBuddyCommitmentsQueryError = ErrorType<void>;
+
+/**
+ * @summary List commitments a buddy has shared with me (scope-enforced)
+ */
+
+export function useListBuddyCommitments<
+  TData = Awaited<ReturnType<typeof listBuddyCommitments>>,
+  TError = ErrorType<void>,
+>(
+  buddyRelationshipId: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listBuddyCommitments>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getListBuddyCommitmentsQueryOptions(
+    buddyRelationshipId,
+    options,
+  );
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary List my shared commitments with participant summary
+ */
+export const getListSharedCommitmentsUrl = () => {
+  return `/api/shared-commitments`;
+};
+
+export const listSharedCommitments = async (
+  options?: RequestInit,
+): Promise<SharedCommitmentWithParticipants[]> => {
+  return customFetch<SharedCommitmentWithParticipants[]>(
+    getListSharedCommitmentsUrl(),
+    {
+      ...options,
+      method: "GET",
+    },
+  );
+};
+
+export const getListSharedCommitmentsQueryKey = () => {
+  return [`/api/shared-commitments`] as const;
+};
+
+export const getListSharedCommitmentsQueryOptions = <
+  TData = Awaited<ReturnType<typeof listSharedCommitments>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof listSharedCommitments>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getListSharedCommitmentsQueryKey();
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof listSharedCommitments>>
+  > = ({ signal }) => listSharedCommitments({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof listSharedCommitments>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type ListSharedCommitmentsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listSharedCommitments>>
+>;
+export type ListSharedCommitmentsQueryError = ErrorType<unknown>;
+
+/**
+ * @summary List my shared commitments with participant summary
+ */
+
+export function useListSharedCommitments<
+  TData = Awaited<ReturnType<typeof listSharedCommitments>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof listSharedCommitments>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getListSharedCommitmentsQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Create a shared commitment (habit-backed in Stage 0)
+ */
+export const getCreateSharedCommitmentUrl = () => {
+  return `/api/shared-commitments`;
+};
+
+export const createSharedCommitment = async (
+  sharedCommitmentInput: SharedCommitmentInput,
+  options?: RequestInit,
+): Promise<SharedCommitment> => {
+  return customFetch<SharedCommitment>(getCreateSharedCommitmentUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(sharedCommitmentInput),
+  });
+};
+
+export const getCreateSharedCommitmentMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createSharedCommitment>>,
+    TError,
+    { data: BodyType<SharedCommitmentInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof createSharedCommitment>>,
+  TError,
+  { data: BodyType<SharedCommitmentInput> },
+  TContext
+> => {
+  const mutationKey = ["createSharedCommitment"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof createSharedCommitment>>,
+    { data: BodyType<SharedCommitmentInput> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return createSharedCommitment(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type CreateSharedCommitmentMutationResult = NonNullable<
+  Awaited<ReturnType<typeof createSharedCommitment>>
+>;
+export type CreateSharedCommitmentMutationBody =
+  BodyType<SharedCommitmentInput>;
+export type CreateSharedCommitmentMutationError = ErrorType<void>;
+
+/**
+ * @summary Create a shared commitment (habit-backed in Stage 0)
+ */
+export const useCreateSharedCommitment = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createSharedCommitment>>,
+    TError,
+    { data: BodyType<SharedCommitmentInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof createSharedCommitment>>,
+  TError,
+  { data: BodyType<SharedCommitmentInput> },
+  TContext
+> => {
+  return useMutation(getCreateSharedCommitmentMutationOptions(options));
+};
+
+/**
+ * @summary Share a commitment with an active buddy at a scope
+ */
+export const getAddCommitmentParticipantUrl = (id: number) => {
+  return `/api/shared-commitments/${id}/participants`;
+};
+
+export const addCommitmentParticipant = async (
+  id: number,
+  addParticipantInput: AddParticipantInput,
+  options?: RequestInit,
+): Promise<CommitmentParticipant> => {
+  return customFetch<CommitmentParticipant>(
+    getAddCommitmentParticipantUrl(id),
+    {
+      ...options,
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...options?.headers },
+      body: JSON.stringify(addParticipantInput),
+    },
+  );
+};
+
+export const getAddCommitmentParticipantMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof addCommitmentParticipant>>,
+    TError,
+    { id: number; data: BodyType<AddParticipantInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof addCommitmentParticipant>>,
+  TError,
+  { id: number; data: BodyType<AddParticipantInput> },
+  TContext
+> => {
+  const mutationKey = ["addCommitmentParticipant"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof addCommitmentParticipant>>,
+    { id: number; data: BodyType<AddParticipantInput> }
+  > = (props) => {
+    const { id, data } = props ?? {};
+
+    return addCommitmentParticipant(id, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type AddCommitmentParticipantMutationResult = NonNullable<
+  Awaited<ReturnType<typeof addCommitmentParticipant>>
+>;
+export type AddCommitmentParticipantMutationBody =
+  BodyType<AddParticipantInput>;
+export type AddCommitmentParticipantMutationError = ErrorType<void>;
+
+/**
+ * @summary Share a commitment with an active buddy at a scope
+ */
+export const useAddCommitmentParticipant = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof addCommitmentParticipant>>,
+    TError,
+    { id: number; data: BodyType<AddParticipantInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof addCommitmentParticipant>>,
+  TError,
+  { id: number; data: BodyType<AddParticipantInput> },
+  TContext
+> => {
+  return useMutation(getAddCommitmentParticipantMutationOptions(options));
+};
+
+/**
+ * @summary Revoke a participant's access (silent — no buddy notification)
+ */
+export const getRemoveCommitmentParticipantUrl = (
+  id: number,
+  participantId: number,
+) => {
+  return `/api/shared-commitments/${id}/participants/${participantId}`;
+};
+
+export const removeCommitmentParticipant = async (
+  id: number,
+  participantId: number,
+  options?: RequestInit,
+): Promise<void> => {
+  return customFetch<void>(
+    getRemoveCommitmentParticipantUrl(id, participantId),
+    {
+      ...options,
+      method: "DELETE",
+    },
+  );
+};
+
+export const getRemoveCommitmentParticipantMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof removeCommitmentParticipant>>,
+    TError,
+    { id: number; participantId: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof removeCommitmentParticipant>>,
+  TError,
+  { id: number; participantId: number },
+  TContext
+> => {
+  const mutationKey = ["removeCommitmentParticipant"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof removeCommitmentParticipant>>,
+    { id: number; participantId: number }
+  > = (props) => {
+    const { id, participantId } = props ?? {};
+
+    return removeCommitmentParticipant(id, participantId, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type RemoveCommitmentParticipantMutationResult = NonNullable<
+  Awaited<ReturnType<typeof removeCommitmentParticipant>>
+>;
+
+export type RemoveCommitmentParticipantMutationError = ErrorType<void>;
+
+/**
+ * @summary Revoke a participant's access (silent — no buddy notification)
+ */
+export const useRemoveCommitmentParticipant = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof removeCommitmentParticipant>>,
+    TError,
+    { id: number; participantId: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof removeCommitmentParticipant>>,
+  TError,
+  { id: number; participantId: number },
+  TContext
+> => {
+  return useMutation(getRemoveCommitmentParticipantMutationOptions(options));
 };
