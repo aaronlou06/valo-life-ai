@@ -5,7 +5,7 @@ import React, {
   useEffect,
   useCallback,
 } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   View,
   Text,
@@ -23,7 +23,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Feather } from "@expo/vector-icons";
 import { SymbolView } from "expo-symbols";
-import { useRouter } from "expo-router";
+import { useRouter, useFocusEffect } from "expo-router";
 import { useColors } from "@/hooks/useColors";
 import { useValoAuth } from "@/contexts/AuthContext";
 import { CheckInSheet } from "@/components/CheckInSheet";
@@ -1324,8 +1324,18 @@ function CatchupCard({
   const [dismissedToday, setDismissedToday] = useState<string | null>(null);
   const [loadedDismiss, setLoadedDismiss] = useState(false);
 
+  const queryClient = useQueryClient();
+
+  // Refetch the gap signal every time Home comes into focus so the card
+  // reflects real state immediately on return from the catch-up screen.
+  useFocusEffect(
+    useCallback(() => {
+      queryClient.invalidateQueries({ queryKey: getGetCatchUpQueryKey() });
+    }, [queryClient]),
+  );
+
   const { data: catchup } = useGetCatchUp({
-    query: { retry: false, queryKey: getGetCatchUpQueryKey() },
+    query: { retry: false, staleTime: 0, queryKey: getGetCatchUpQueryKey() },
   });
 
   useEffect(() => {

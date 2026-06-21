@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useCallback } from "react";
 import {
   View,
   Text,
@@ -46,6 +46,11 @@ export default function CatchUpScreen() {
   // Which pending cell is currently expanded for a Done/Missed choice.
   const [active, setActive] = useState<{ key: string; date: string } | null>(null);
 
+  const handleDone = useCallback(async () => {
+    await queryClient.invalidateQueries({ queryKey: getGetCatchUpQueryKey() });
+    router.back();
+  }, [queryClient, router]);
+
   async function handleRecord(item: CatchupItem, date: string, status: "done" | "missed") {
     setActive(null);
     try {
@@ -87,7 +92,7 @@ export default function CatchUpScreen() {
 
       <ScrollView
         style={{ flex: 1 }}
-        contentContainerStyle={[styles.scroll, { paddingBottom: insets.bottom + 40 }]}
+        contentContainerStyle={[styles.scroll, { paddingBottom: 16 }]}
         showsVerticalScrollIndicator={false}
       >
         <Text style={[styles.intro, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
@@ -227,6 +232,26 @@ export default function CatchUpScreen() {
           </>
         )}
       </ScrollView>
+
+      {/* Sticky Done button */}
+      {!isLoading && (
+        <View
+          style={[
+            styles.footer,
+            { paddingBottom: insets.bottom + 12, borderTopColor: colors.border, backgroundColor: colors.background },
+          ]}
+        >
+          <TouchableOpacity
+            onPress={handleDone}
+            activeOpacity={0.85}
+            style={[styles.doneBtn, { backgroundColor: colors.primary }]}
+          >
+            <Text style={[styles.doneBtnText, { color: colors.primaryForeground, fontFamily: "Inter_600SemiBold" }]}>
+              Done
+            </Text>
+          </TouchableOpacity>
+        </View>
+      )}
     </View>
   );
 }
@@ -353,4 +378,15 @@ const styles = StyleSheet.create({
     padding: 16,
     marginBottom: 12,
   },
+  footer: {
+    paddingHorizontal: 20,
+    paddingTop: 12,
+    borderTopWidth: StyleSheet.hairlineWidth,
+  },
+  doneBtn: {
+    borderRadius: 14,
+    paddingVertical: 15,
+    alignItems: "center",
+  },
+  doneBtnText: { fontSize: 16 },
 });
