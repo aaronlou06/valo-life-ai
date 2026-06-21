@@ -46,6 +46,18 @@ export interface BuddyCommitmentView {
   weeklyTarget: number | null;
   /** True if the viewing buddy already sent a support tap today (uses sentDate, same boundary as the DB unique index). */
   cheeredToday: boolean;
+  /**
+   * Occurrence calendar for the 7-day window. Present only at full scope; null for streak_only and summary.
+   *   doneDates     — dates with a "done" verification event.
+   *   missedDates   — expected but unverified dates (daily cadence only; always [] for weekly/custom).
+   *   exceptionDates — dates covered by a pause or excused exception.
+   * Outcome metrics (weight, calories) are never included at any scope.
+   */
+  calendar: {
+    doneDates: string[];
+    missedDates: string[];
+    exceptionDates: string[];
+  } | null;
 }
 
 function weeklyTargetFor(commitment: Pick<SharedCommitment, "cadence" | "cadenceDaysPerWeek">): number | null {
@@ -58,7 +70,19 @@ function weeklyTargetFor(commitment: Pick<SharedCommitment, "cadence" | "cadence
 function isoDaysBefore(isoDate: string, days: number): string {
   const d = new Date(`${isoDate}T00:00:00Z`);
   d.setUTCDate(d.getUTCDate() - days);
-  return d.toISOString().split("T")[0]!;
+  return d.toISOString().slice(0, 10);
+}
+
+/** Enumerate every YYYY-MM-DD in [start, end] inclusive (UTC day arithmetic). */
+function datesInRange(start: string, end: string): string[] {
+  const dates: string[] = [];
+  let cur = new Date(`${start}T00:00:00Z`);
+  const endD = new Date(`${end}T00:00:00Z`);
+  while (cur <= endD) {
+    dates.push(cur.toISOString().slice(0, 10));
+    cur = new Date(cur.getTime() + 86400000);
+  }
+  return dates;
 }
 
 /**
@@ -103,6 +127,8 @@ export async function buildBuddyCommitmentViews(
     .filter((c) => c.sourceType === "habit" && c.sourceId != null)
     .map((c) => c.sourceId as number);
   const doneByHabit = new Map<number, number>();
+  // Also track individual done dates — needed for the full-scope calendar.
+  const doneDatesByHabit = new Map<number, string[]>();
   if (habitIds.length > 0) {
     const rows = await db
       .select({
@@ -122,6 +148,9 @@ export async function buildBuddyCommitmentViews(
     for (const r of rows) {
       if (r.habitId == null || r.status !== "done") continue;
       doneByHabit.set(r.habitId, (doneByHabit.get(r.habitId) ?? 0) + 1);
+      const dates = doneDatesByHabit.get(r.habitId) ?? [];
+      dates.push(r.occurrenceDate);
+      doneDatesByHabit.set(r.habitId, dates);
     }
   }
 
@@ -168,6 +197,27 @@ export async function buildBuddyCommitmentViews(
     else if (e.scope === "one" && e.commitmentId != null) awayCommitmentIds.add(e.commitmentId);
   }
 
+  // Window exceptions for the full-scope calendar: all exceptions overlapping [windowStart, today].
+  // Fetched only when at least one commitment is at full scope to avoid unnecessary DB work.
+  const hasFullScope = commitments.some((c) => c.shareScope === "full");
+  const windowExceptionRows = hasFullScope
+    ? await db
+        .select({
+          scope: commitmentExceptionsTable.scope,
+          commitmentId: commitmentExceptionsTable.commitmentId,
+          startDate: commitmentExceptionsTable.startDate,
+          endDate: commitmentExceptionsTable.endDate,
+        })
+        .from(commitmentExceptionsTable)
+        .where(
+          and(
+            eq(commitmentExceptionsTable.userId, ownerId),
+            lte(commitmentExceptionsTable.startDate, today),
+            gte(commitmentExceptionsTable.endDate, windowStart),
+          ),
+        )
+    : [];
+
   return commitments.map((c) => {
     const scope = c.shareScope;
     const weeklyTarget = weeklyTargetFor(c);
@@ -188,9 +238,46 @@ export async function buildBuddyCommitmentViews(
     else if (completionRate != null && completionRate < 0.6) onTrackStatus = "slipping";
     else onTrackStatus = "on_track";
 
-    // Scope gating: streak_only exposes only streak + status; summary/full add
-    // completionRate + weeklyTarget. No scope returns occurrence dates.
+    // Scope gating: streak_only → streak + status only; summary → adds completionRate + target;
+    // full → adds completionRate + target + occurrence calendar.
     const summaryOrFull = scope === "summary" || scope === "full";
+
+    // Build calendar only for full scope. Outcome metrics (weight, calories) are never included.
+    let calendar: BuddyCommitmentView["calendar"] = null;
+    if (scope === "full") {
+      const doneDates = (
+        c.sourceType === "habit" && c.sourceId != null
+          ? doneDatesByHabit.get(c.sourceId) ?? []
+          : []
+      ).slice().sort();
+
+      // Exception dates that cover any day in the 7-day window for this commitment.
+      const applicableExceptions = windowExceptionRows.filter(
+        (e) => e.scope === "all" || (e.scope === "one" && e.commitmentId === c.id),
+      );
+      const exceptionDateSet = new Set<string>(
+        applicableExceptions.flatMap((e) =>
+          datesInRange(
+            e.startDate < windowStart ? windowStart : e.startDate,
+            e.endDate > today ? today : e.endDate,
+          ),
+        ),
+      );
+      const exceptionDates = [...exceptionDateSet].sort();
+
+      // Missed = expected day not done and not excused. Only computable for daily cadence
+      // (weekly/custom has no per-day schedule on record).
+      const doneDateSet = new Set(doneDates);
+      const missedDates =
+        c.cadence === "daily"
+          ? datesInRange(windowStart, today).filter(
+              (d) => !doneDateSet.has(d) && !exceptionDateSet.has(d),
+            )
+          : [];
+
+      calendar = { doneDates, missedDates, exceptionDates };
+    }
+
     return {
       commitmentId: c.id,
       title: c.title,
@@ -202,6 +289,7 @@ export async function buildBuddyCommitmentViews(
       completionRate: summaryOrFull ? completionRate : null,
       weeklyTarget: summaryOrFull ? weeklyTarget : null,
       cheeredToday: cheeredSet.has(c.id),
+      calendar,
     };
   });
 }

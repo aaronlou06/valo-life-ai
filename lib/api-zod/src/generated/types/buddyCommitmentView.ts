@@ -5,6 +5,7 @@
  * Valo API specification
  * OpenAPI spec version: 0.1.0
  */
+import type { BuddyCommitmentViewCalendar } from "./buddyCommitmentViewCalendar";
 
 export interface BuddyCommitmentView {
   commitmentId: number;
@@ -28,4 +29,6 @@ export interface BuddyCommitmentView {
   weeklyTarget?: number | null;
   /** True if the viewing buddy already sent a support tap today (server-derived, uses sentDate boundary — same as the DB partial unique index) */
   cheeredToday: boolean;
+  /** Occurrence calendar for the 7-day window. Present only at full scope; null for streak_only and summary. Outcome metrics are never included. */
+  calendar?: BuddyCommitmentViewCalendar;
 }

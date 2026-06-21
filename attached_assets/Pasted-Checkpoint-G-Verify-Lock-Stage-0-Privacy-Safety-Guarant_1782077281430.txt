@@ -1,0 +1,30 @@
+Checkpoint G — Verify & Lock Stage 0 Privacy/Safety Guarantees
+
+What & why: Close Stage 0 by locking the three leak surfaces with integration tests, not one-time manual checks: scope enforcement, silent revoke, and block-cuts-data. These are the worst-case privacy failures (a buddy seeing data they shouldn't), so they get tests that stay in the suite.
+
+Do:
+
+
+Scope-matrix integration test on GET /buddies/:buddyRelationshipId/commitments. Share one habit-backed commitment at each scope and assert the buddy's payload:
+
+streak_only → contains only streak + onTrackStatus. Assert no occurrence dates, no done/missed day arrays, no completionRate.
+summary → adds completionRate + target. Still no occurrence dates.
+full → may include the done/missed/exception calendar (dates are allowed here). If the current implementation returns no dates at full, fix it so full exposes the calendar to the buddy — that is the entire purpose of the tier. Outcome metrics (weight, calories) are never exposed at any scope.
+
+
+
+Revoke integration test. After DELETE /shared-commitments/:id/participants/:participantId, assert the buddy's GET .../commitments no longer includes that commitment, and assert no activity-feed event is emitted to the buddy (revoke is silent).
+Block integration test. After POST /buddies/:id/block, assert the relationship is absent from both parties' buddy lists, and assert the buddy's GET /buddies/:id/commitments returns zero commitments. A non-active relationship must yield no data — block cuts data, not just hides the list row.
+Confirm (no new code expected): the activity feed renders the "noted retroactively" badge for exceptions where isRetroactive is true, and the Support button shows the muted "Cheered today" state after a tap.
+
+
+Done looks like:
+
+
+The three integration tests pass and remain in the suite.
+streak_only and summary provably never ship occurrence dates; full intentionally does.
+A blocked or revoked buddy provably cannot read shared-commitment data.
+Both typechecks clean.
+
+
+Relevant files: the buddy-surface commitments route and lib/accountability.ts, the buddies route (block/revoke), the activity-feed route, the integration-test directory.

@@ -23,6 +23,7 @@ export * from "./buddy";
 export * from "./buddyAcceptInput";
 export * from "./buddyAcceptResponse";
 export * from "./buddyCommitmentView";
+export * from "./buddyCommitmentViewCalendar";
 export * from "./buddyInviteInput";
 export * from "./buddyInviteResponse";
 export * from "./calendarEvent";

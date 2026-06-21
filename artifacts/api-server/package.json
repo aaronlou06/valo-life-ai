@@ -10,6 +10,7 @@
     "test:actions": "tsx ./src/lib/actions/rescheduleWorkout.test.ts",
     "test:proposals": "tsx ./src/lib/generateActionProposals.test.ts",
     "test:mealcalc": "tsx ./src/lib/mealCalc.test.ts",
+    "test:accountability": "tsx ./src/lib/accountability.test.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {

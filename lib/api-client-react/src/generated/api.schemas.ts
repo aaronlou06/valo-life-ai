@@ -1174,6 +1174,18 @@ export interface AddParticipantInput {
   shareScope: string;
 }
 
+/**
+ * Occurrence calendar for the 7-day window. Present only at full scope; null for streak_only and summary. Outcome metrics are never included.
+ */
+export type BuddyCommitmentViewCalendar = null | {
+  /** YYYY-MM-DD dates with a done verification event in the window */
+  doneDates: string[];
+  /** Expected but unverified dates (daily cadence only; always empty for weekly/custom) */
+  missedDates: string[];
+  /** Dates covered by a pause or excused exception */
+  exceptionDates: string[];
+};
+
 export interface BuddyCommitmentView {
   commitmentId: number;
   title: string;
@@ -1196,6 +1208,8 @@ export interface BuddyCommitmentView {
   weeklyTarget?: number | null;
   /** True if the viewing buddy already sent a support tap today (server-derived, uses sentDate boundary — same as the DB partial unique index) */
   cheeredToday: boolean;
+  /** Occurrence calendar for the 7-day window. Present only at full scope; null for streak_only and summary. Outcome metrics are never included. */
+  calendar?: BuddyCommitmentViewCalendar;
 }
 
 export interface CommitmentExceptionInput {

@@ -1754,6 +1754,29 @@ export const ListBuddyCommitmentsResponseItem = zod.object({
     .describe(
       "True if the viewing buddy already sent a support tap today (server-derived, uses sentDate boundary — same as the DB partial unique index)",
     ),
+  calendar: zod
+    .union([
+      zod.null(),
+      zod.object({
+        doneDates: zod
+          .array(zod.string())
+          .describe(
+            "YYYY-MM-DD dates with a done verification event in the window",
+          ),
+        missedDates: zod
+          .array(zod.string())
+          .describe(
+            "Expected but unverified dates (daily cadence only; always empty for weekly\/custom)",
+          ),
+        exceptionDates: zod
+          .array(zod.string())
+          .describe("Dates covered by a pause or excused exception"),
+      }),
+    ])
+    .optional()
+    .describe(
+      "Occurrence calendar for the 7-day window. Present only at full scope; null for streak_only and summary. Outcome metrics are never included.",
+    ),
 });
 export const ListBuddyCommitmentsResponse = zod.array(
   ListBuddyCommitmentsResponseItem,

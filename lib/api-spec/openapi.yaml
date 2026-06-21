@@ -3453,6 +3453,28 @@ components:
         cheeredToday:
           type: boolean
           description: "True if the viewing buddy already sent a support tap today (server-derived, uses sentDate boundary — same as the DB partial unique index)"
+        calendar:
+          description: "Occurrence calendar for the 7-day window. Present only at full scope; null for streak_only and summary. Outcome metrics are never included."
+          oneOf:
+            - type: "null"
+            - type: object
+              required: [doneDates, missedDates, exceptionDates]
+              properties:
+                doneDates:
+                  type: array
+                  items:
+                    type: string
+                  description: "YYYY-MM-DD dates with a done verification event in the window"
+                missedDates:
+                  type: array
+                  items:
+                    type: string
+                  description: "Expected but unverified dates (daily cadence only; always empty for weekly/custom)"
+                exceptionDates:
+                  type: array
+                  items:
+                    type: string
+                  description: "Dates covered by a pause or excused exception"
 
     CommitmentExceptionInput:
       type: object
