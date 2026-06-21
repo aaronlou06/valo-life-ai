@@ -1680,6 +1680,16 @@ export const UndoActionResponse = zod.object({
 });
 
 /**
+ * @summary Create a single-use buddy invite code
+ */
+export const CreateBuddyInviteBody = zod.object({
+  displayName: zod
+    .string()
+    .optional()
+    .describe("Optional name the inviter wants their buddy to see"),
+});
+
+/**
  * @summary Accept a buddy invite by code
  */
 export const AcceptBuddyInviteBody = zod.object({
@@ -1807,4 +1817,76 @@ export const AddCommitmentParticipantBody = zod.object({
 export const RemoveCommitmentParticipantParams = zod.object({
   id: zod.coerce.number(),
   participantId: zod.coerce.number(),
+});
+
+/**
+ * @summary Declare a pause or excused-absence window
+ */
+export const CreateCommitmentExceptionBody = zod.object({
+  kind: zod.string().describe("pause | excused"),
+  scope: zod
+    .string()
+    .describe("one | all (Stage 0; 'several' is schema-ready, UI-deferred)"),
+  commitmentId: zod
+    .number()
+    .nullish()
+    .describe("Required when scope is 'one'; the owned commitment to pause"),
+  startDate: zod.string().describe("YYYY-MM-DD inclusive"),
+  endDate: zod.string().describe("YYYY-MM-DD inclusive"),
+  reason: zod.string().nullish(),
+});
+
+/**
+ * @summary Exceptions affecting one commitment, newest first
+ */
+export const ListCommitmentExceptionsParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const ListCommitmentExceptionsResponseItem = zod.object({
+  id: zod.number(),
+  userId: zod.string(),
+  commitmentId: zod.number().nullish(),
+  kind: zod.string(),
+  scope: zod.string(),
+  startDate: zod.string(),
+  endDate: zod.string(),
+  reason: zod.string().nullish(),
+  isRetroactive: zod.boolean(),
+  createdAt: zod.string(),
+  updatedAt: zod.string(),
+});
+export const ListCommitmentExceptionsResponse = zod.array(
+  ListCommitmentExceptionsResponseItem,
+);
+
+/**
+ * @summary Send a one-tap support encouragement (one per buddy/commitment/day)
+ */
+export const CreateEncouragementBody = zod.object({
+  commitmentId: zod.number(),
+  messageType: zod.string().optional().describe("support (Stage 0 only)"),
+});
+
+/**
+ * @summary Merged, newest-first activity feed (cursor-paginated)
+ */
+export const GetAccountabilityFeedQueryParams = zod.object({
+  cursor: zod.coerce
+    .string()
+    .optional()
+    .describe("ISO timestamp of the last item from the previous page"),
+  limit: zod.coerce.number().optional(),
+});
+
+export const GetAccountabilityFeedResponse = zod.object({
+  items: zod.array(
+    zod.object({
+      type: zod.string().describe("encouragement | exception | buddy_joined"),
+      id: zod.number(),
+      timestamp: zod.string(),
+      data: zod.record(zod.string(), zod.unknown()),
+    }),
+  ),
+  nextCursor: zod.string().nullable(),
 });

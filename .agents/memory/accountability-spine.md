@@ -42,23 +42,46 @@ participant generalization keeps a single read/share path.
   messageType='support'. `sentDate` is stored explicitly (computed in sender's
   local TZ) to avoid server-TZ ambiguity of a date(sentAt) expression.
 
-## Exception schema: two fields still needed for per-commitment exceptions
-`commitment_exceptions` needs two more fields before per-commitment exceptions work:
-- `commitmentId` (nullable int FK → shared_commitments): scope='one' has no inline
-  target column, so a single-commitment exception currently can't point anywhere.
-  Add nullable; set for scope='one', null for 'all'/'several' (which use the
-  junction table / all active commitments).
-- `isRetroactive` (boolean): auto-set server-side at write = (startDate < today);
-  feed badges these "noted retroactively".
-Until `commitmentId` exists, the buddy view's `away` status (in
-`buildBuddyCommitmentViews`) only honors scope='all' exceptions; scope='one'
-away-state needs this column.
-Naming diverged intentionally from plan and is fine: `kind`(pause/excused) not
-`exceptionType`, `reason` not `note`, `startDate`/`endDate` not window*. No
-`heads_up` type (not in done-looks-like). These are additive dev-push changes.
+## Exception semantics & naming
+- A scope='one' exception targets its commitment via the `commitmentId` column;
+  scope='all' leaves it null (applies to all the user's active commitments).
+  Buddy `away` status honors both scopes through this column.
+- `isRetroactive` is decided server-side at write = (startDate < today's date in
+  the user's timezone). The feed badges these "noted retroactively" — history is
+  never silently rewritten.
+- Schema vocabulary intentionally diverges from the original plan: `kind`
+  (pause/excused), `reason`, `startDate`/`endDate`. There is no `heads_up` kind.
+- Exception windows are capped (MAX_EXCEPTION_WINDOW_DAYS) at the write route, so
+  the date-expansion loop never silently truncates a valid window.
+
+## Activity-feed pagination
+The merged feed (encouragements + exceptions + buddy-joins) must paginate on a
+stable composite cursor `timestamp|type|id`, NOT bare timestamp. Per-source
+filters use an inclusive `lte` on the timestamp and an in-memory tuple filter
+drops already-returned rows; a bare `<timestamp` cursor permanently skips any
+other events that share the boundary second.
+**Why:** three independent sources are merged in app code; same-second events are
+common (a write can fan out), and a timestamp-only cursor silently loses them.
 
 ## Stage 0 scope
 - HABIT-backed commitments only in UI (sourceType enum keeps goal/standalone
   schema-ready). Exception scope ships `one`+`all` only (`several` + junction
   table `commitment_exception_targets` is schema-ready, UI-deferred).
 - Solo accountability tool deprecated → redirect to /commitment/new.
+
+## Buddy surface UI (Stage 0 screens)
+- SINGULAR file `app/accountability-buddy.tsx` is the live surface (sections:
+  buddies, own commitments, activity feed, AI-coach placeholder). The plural
+  `accountability-buddies.tsx` was an orphan and was deleted — do not recreate it.
+- Per-commitment encouragement "history" on `commitment/[id].tsx` is derived by
+  filtering the GLOBAL `/accountability/feed` (type==='encouragement' &&
+  Number(data.commitmentId)===id). `AccountabilityFeedItemData` is a loose
+  `Record<string,unknown>`, so coerce `commitmentId` with `Number()` before
+  comparing. This only reads feed page 1 — full paginated per-commitment history
+  is a deferred follow-up (acceptable for v1).
+- Heatmap / 30-day occurrence calendar was planned but NOT built: there is no
+  occurrence-history GET endpoint (`/verification-events` is POST-only,
+  `/habit-completions/{date}` is per-date). Building it needs a net-new owner
+  occurrence-history endpoint — deferred, documented as drift.
+- New-commitment screen defers buddy/scope selection to the detail screen
+  (plan allowed "share later"); metric-type picker ships binary|count|streak.

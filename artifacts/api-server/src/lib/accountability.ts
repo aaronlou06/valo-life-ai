@@ -63,10 +63,9 @@ function isoDaysBefore(isoDate: string, days: number): string {
  * user. Computes onTrackStatus server-side and gates metric detail by scope so
  * raw occurrence dates are NEVER returned to a buddy at any scope.
  *
- * STAGE 0 NOTE: "away" is derived from exceptions that cover today. Until the
- * commitmentId column lands on commitment_exceptions (Checkpoint D), only
- * scope='all' exceptions (which apply to every active commitment) are honored
- * here; per-commitment scope='one' away-state completes in Checkpoint D.
+ * "away" is derived from any exception (pause or excused) whose window covers
+ * today: a scope='all' exception marks every commitment away, and a scope='one'
+ * exception marks just its commitmentId away.
  */
 export async function buildBuddyCommitmentViews(
   ownerId: string,
@@ -111,19 +110,27 @@ export async function buildBuddyCommitmentViews(
     }
   }
 
-  // Owner-wide "all"-scope exceptions covering today (pause or excused).
-  const allScopeExceptions = await db
-    .select({ id: commitmentExceptionsTable.id })
+  // Exceptions (pause or excused) whose window covers today. scope='all' marks
+  // every commitment away; scope='one' marks just its commitmentId away.
+  const todayExceptions = await db
+    .select({
+      scope: commitmentExceptionsTable.scope,
+      commitmentId: commitmentExceptionsTable.commitmentId,
+    })
     .from(commitmentExceptionsTable)
     .where(
       and(
         eq(commitmentExceptionsTable.userId, ownerId),
-        eq(commitmentExceptionsTable.scope, "all"),
         lte(commitmentExceptionsTable.startDate, today),
         gte(commitmentExceptionsTable.endDate, today),
       ),
     );
-  const awayFromAllScope = allScopeExceptions.length > 0;
+  let awayFromAllScope = false;
+  const awayCommitmentIds = new Set<number>();
+  for (const e of todayExceptions) {
+    if (e.scope === "all") awayFromAllScope = true;
+    else if (e.scope === "one" && e.commitmentId != null) awayCommitmentIds.add(e.commitmentId);
+  }
 
   return commitments.map((c) => {
     const scope = c.shareScope;
@@ -141,7 +148,7 @@ export async function buildBuddyCommitmentViews(
     }
 
     let onTrackStatus: OnTrackStatus;
-    if (awayFromAllScope) onTrackStatus = "away";
+    if (awayFromAllScope || awayCommitmentIds.has(c.id)) onTrackStatus = "away";
     else if (completionRate != null && completionRate < 0.6) onTrackStatus = "slipping";
     else onTrackStatus = "on_track";
 

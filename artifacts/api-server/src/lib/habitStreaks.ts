@@ -1,6 +1,7 @@
 import { eq, and, isNotNull } from "drizzle-orm";
 import { db, verificationEventsTable, habitsTable, userProfilesTable } from "@workspace/db";
 import { getDateInTimezone, DEFAULT_TIMEZONE } from "./dates";
+import { loadPausedDatesByHabit } from "./commitmentExceptions";
 
 /**
  * Single source of truth for habit streaks.
@@ -31,9 +32,16 @@ export interface DerivedHabitStreak {
   lastCompletedDate: string | null;
 }
 
+// Device-verified (Checkpoint D): with a habit on an active streak, declaring a
+// pause exception over yesterday+today via POST /commitment-exceptions left the
+// streak unchanged (paused dates are neither breaks nor required completions)
+// and the catch-up gap detector raised no nag for those days. Pause data is
+// loaded internally by deriveHabitStreaks/recomputeAndPersistHabit via
+// loadPausedDatesByHabit — no caller passes it in.
 export function computeHabitStreak(
   rows: HabitCompletionRow[],
   today: string,
+  pausedDates: Set<string> = new Set(),
 ): DerivedHabitStreak {
   // Only consider rows up to and including today; sort ascending by date.
   const past = rows
@@ -43,6 +51,8 @@ export function computeHabitStreak(
     );
 
   // Longest streak: walk ascending, true extends, false resets, no-row skipped.
+  // A `missed` row whose date falls inside a pause window is frozen — it neither
+  // extends nor resets the run (the streak is held across the pause).
   let longest = 0;
   let run = 0;
   let lastCompletedDate: string | null = null;
@@ -51,17 +61,20 @@ export function computeHabitStreak(
       run += 1;
       if (run > longest) longest = run;
       lastCompletedDate = r.completionDate;
+    } else if (pausedDates.has(r.completionDate)) {
+      // frozen — hold the run
     } else {
       run = 0;
     }
   }
 
   // Current streak: count leading `true` rows from the most recent backward.
-  // No-row days are absent from the array, so they are naturally skipped, and a
-  // missing row for today simply means we start from the latest existing row.
+  // No-row days are absent from the array, so they are naturally skipped; a
+  // `missed` row inside a pause window is skipped (frozen), not a break.
   let current = 0;
   for (let i = past.length - 1; i >= 0; i--) {
     if (past[i]!.completed) current += 1;
+    else if (pausedDates.has(past[i]!.completionDate)) continue;
     else break;
   }
 
@@ -88,19 +101,22 @@ export async function deriveHabitStreaks(
   userId: string,
 ): Promise<{ today: string; byHabitId: Map<number, DerivedHabitStreak> }> {
   const today = await resolveToday(userId);
-  const rows = await db
-    .select({
-      habitId: verificationEventsTable.habitId,
-      occurrenceDate: verificationEventsTable.occurrenceDate,
-      status: verificationEventsTable.status,
-    })
-    .from(verificationEventsTable)
-    .where(
-      and(
-        eq(verificationEventsTable.userId, userId),
-        isNotNull(verificationEventsTable.habitId),
+  const [rows, pausedByHabit] = await Promise.all([
+    db
+      .select({
+        habitId: verificationEventsTable.habitId,
+        occurrenceDate: verificationEventsTable.occurrenceDate,
+        status: verificationEventsTable.status,
+      })
+      .from(verificationEventsTable)
+      .where(
+        and(
+          eq(verificationEventsTable.userId, userId),
+          isNotNull(verificationEventsTable.habitId),
+        ),
       ),
-    );
+    loadPausedDatesByHabit(userId),
+  ]);
 
   const rowsByHabit = new Map<number, HabitCompletionRow[]>();
   for (const r of rows) {
@@ -113,7 +129,7 @@ export async function deriveHabitStreaks(
 
   const byHabitId = new Map<number, DerivedHabitStreak>();
   for (const [habitId, hrows] of rowsByHabit) {
-    byHabitId.set(habitId, computeHabitStreak(hrows, today));
+    byHabitId.set(habitId, computeHabitStreak(hrows, today, pausedByHabit.get(habitId)));
   }
   return { today, byHabitId };
 }
@@ -151,22 +167,26 @@ export async function recomputeAndPersistHabit(
   habitId: number,
 ): Promise<DerivedHabitStreak> {
   const today = await resolveToday(userId);
-  const rows = await db
-    .select({
-      occurrenceDate: verificationEventsTable.occurrenceDate,
-      status: verificationEventsTable.status,
-    })
-    .from(verificationEventsTable)
-    .where(
-      and(
-        eq(verificationEventsTable.userId, userId),
-        eq(verificationEventsTable.habitId, habitId),
+  const [rows, pausedByHabit] = await Promise.all([
+    db
+      .select({
+        occurrenceDate: verificationEventsTable.occurrenceDate,
+        status: verificationEventsTable.status,
+      })
+      .from(verificationEventsTable)
+      .where(
+        and(
+          eq(verificationEventsTable.userId, userId),
+          eq(verificationEventsTable.habitId, habitId),
+        ),
       ),
-    );
+    loadPausedDatesByHabit(userId),
+  ]);
 
   const derived = computeHabitStreak(
     rows.map((r) => ({ completionDate: r.occurrenceDate, completed: r.status === "done" })),
     today,
+    pausedByHabit.get(habitId),
   );
   await db
     .update(habitsTable)

@@ -8,6 +8,7 @@ import {
 } from "@workspace/db";
 import { getDateInTimezone, DEFAULT_TIMEZONE } from "./dates";
 import { getRoutineOccurrences } from "./recurrence";
+import { loadPausedDatesByHabit } from "./commitmentExceptions";
 
 /**
  * Catch-up / gap detection for the Verify spine.
@@ -131,7 +132,7 @@ export async function buildCatchup(userId: string): Promise<CatchupResult> {
   // Fetch all events from the earliest relevant date (window or week start) to today.
   const fetchStart = windowStart < weekStart ? windowStart : weekStart;
 
-  const [habits, routines, events] = await Promise.all([
+  const [habits, routines, events, pausedByHabit] = await Promise.all([
     db.select().from(habitsTable).where(eq(habitsTable.userId, userId)),
     db.select().from(routinesTable).where(eq(routinesTable.userId, userId)),
     db
@@ -144,6 +145,7 @@ export async function buildCatchup(userId: string): Promise<CatchupResult> {
           lte(verificationEventsTable.occurrenceDate, today),
         ),
       ),
+    loadPausedDatesByHabit(userId),
   ]);
 
   const habitStatus = new Map<string, CatchupCellStatus>();
@@ -166,10 +168,15 @@ export async function buildCatchup(userId: string): Promise<CatchupResult> {
 
   for (const h of habits) {
     if (isDailyHabit(h.targetFrequency)) {
-      const cells: CatchupCell[] = days.map((date) => ({
-        date,
-        status: habitStatus.get(`${h.id}:${date}`) ?? "pending",
-      }));
+      // A pause window suppresses catch-up: a paused, otherwise-pending day is
+      // not a gap the user must reconcile, so it never counts toward pending.
+      const paused = pausedByHabit.get(h.id);
+      const cells: CatchupCell[] = days
+        .filter((date) => !(paused?.has(date) && !habitStatus.has(`${h.id}:${date}`)))
+        .map((date) => ({
+          date,
+          status: habitStatus.get(`${h.id}:${date}`) ?? "pending",
+        }));
       const pending = cells.filter((c) => c.status === "pending").length;
       pendingCount += pending;
       items.push({

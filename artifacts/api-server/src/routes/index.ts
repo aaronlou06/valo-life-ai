@@ -35,6 +35,8 @@ import weeklyRecapRouter from "./weekly-recap";
 import actionProposalsRouter from "./action-proposals";
 import buddiesRouter from "./buddies";
 import sharedCommitmentsRouter from "./shared-commitments";
+import commitmentExceptionsRouter from "./commitment-exceptions";
+import encouragementsRouter from "./encouragements";
 
 const router: IRouter = Router();
 
@@ -74,5 +76,7 @@ router.use(weeklyRecapRouter);
 router.use(actionProposalsRouter);
 router.use(buddiesRouter);
 router.use(sharedCommitmentsRouter);
+router.use(commitmentExceptionsRouter);
+router.use(encouragementsRouter);
 
 export default router;

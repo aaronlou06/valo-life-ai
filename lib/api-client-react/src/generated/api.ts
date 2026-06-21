@@ -17,6 +17,7 @@ import type {
 } from "@tanstack/react-query";
 
 import type {
+  AccountabilityFeed,
   AddParticipantInput,
   AnalyzeImageInput,
   AnalyzeImageResult,
@@ -26,11 +27,14 @@ import type {
   BuddyAcceptInput,
   BuddyAcceptResponse,
   BuddyCommitmentView,
+  BuddyInviteInput,
   BuddyInviteResponse,
   CalendarEvent,
   CalendarEventInput,
   CalendarEventUpdate,
   CatchUpResult,
+  CommitmentException,
+  CommitmentExceptionInput,
   CommitmentParticipant,
   DailyLog,
   DailyLogInput,
@@ -38,8 +42,11 @@ import type {
   Dashboard,
   DismissActionRequest,
   DismissActionResponse,
+  Encouragement,
+  EncouragementInput,
   ExecuteActionResponse,
   Exercise,
+  GetAccountabilityFeedParams,
   GetWorkoutVolumeParams,
   Goal,
   GoalInput,
@@ -6054,11 +6061,14 @@ export const getCreateBuddyInviteUrl = () => {
 };
 
 export const createBuddyInvite = async (
+  buddyInviteInput?: BuddyInviteInput,
   options?: RequestInit,
 ): Promise<BuddyInviteResponse> => {
   return customFetch<BuddyInviteResponse>(getCreateBuddyInviteUrl(), {
     ...options,
     method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(buddyInviteInput),
   });
 };
 
@@ -6069,14 +6079,14 @@ export const getCreateBuddyInviteMutationOptions = <
   mutation?: UseMutationOptions<
     Awaited<ReturnType<typeof createBuddyInvite>>,
     TError,
-    void,
+    { data: BodyType<BuddyInviteInput> },
     TContext
   >;
   request?: SecondParameter<typeof customFetch>;
 }): UseMutationOptions<
   Awaited<ReturnType<typeof createBuddyInvite>>,
   TError,
-  void,
+  { data: BodyType<BuddyInviteInput> },
   TContext
 > => {
   const mutationKey = ["createBuddyInvite"];
@@ -6090,9 +6100,11 @@ export const getCreateBuddyInviteMutationOptions = <
 
   const mutationFn: MutationFunction<
     Awaited<ReturnType<typeof createBuddyInvite>>,
-    void
-  > = () => {
-    return createBuddyInvite(requestOptions);
+    { data: BodyType<BuddyInviteInput> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return createBuddyInvite(data, requestOptions);
   };
 
   return { mutationFn, ...mutationOptions };
@@ -6101,7 +6113,7 @@ export const getCreateBuddyInviteMutationOptions = <
 export type CreateBuddyInviteMutationResult = NonNullable<
   Awaited<ReturnType<typeof createBuddyInvite>>
 >;
-
+export type CreateBuddyInviteMutationBody = BodyType<BuddyInviteInput>;
 export type CreateBuddyInviteMutationError = ErrorType<unknown>;
 
 /**
@@ -6114,14 +6126,14 @@ export const useCreateBuddyInvite = <
   mutation?: UseMutationOptions<
     Awaited<ReturnType<typeof createBuddyInvite>>,
     TError,
-    void,
+    { data: BodyType<BuddyInviteInput> },
     TContext
   >;
   request?: SecondParameter<typeof customFetch>;
 }): UseMutationResult<
   Awaited<ReturnType<typeof createBuddyInvite>>,
   TError,
-  void,
+  { data: BodyType<BuddyInviteInput> },
   TContext
 > => {
   return useMutation(getCreateBuddyInviteMutationOptions(options));
@@ -6814,3 +6826,368 @@ export const useRemoveCommitmentParticipant = <
 > => {
   return useMutation(getRemoveCommitmentParticipantMutationOptions(options));
 };
+
+/**
+ * @summary Declare a pause or excused-absence window
+ */
+export const getCreateCommitmentExceptionUrl = () => {
+  return `/api/commitment-exceptions`;
+};
+
+export const createCommitmentException = async (
+  commitmentExceptionInput: CommitmentExceptionInput,
+  options?: RequestInit,
+): Promise<CommitmentException> => {
+  return customFetch<CommitmentException>(getCreateCommitmentExceptionUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(commitmentExceptionInput),
+  });
+};
+
+export const getCreateCommitmentExceptionMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createCommitmentException>>,
+    TError,
+    { data: BodyType<CommitmentExceptionInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof createCommitmentException>>,
+  TError,
+  { data: BodyType<CommitmentExceptionInput> },
+  TContext
+> => {
+  const mutationKey = ["createCommitmentException"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof createCommitmentException>>,
+    { data: BodyType<CommitmentExceptionInput> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return createCommitmentException(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type CreateCommitmentExceptionMutationResult = NonNullable<
+  Awaited<ReturnType<typeof createCommitmentException>>
+>;
+export type CreateCommitmentExceptionMutationBody =
+  BodyType<CommitmentExceptionInput>;
+export type CreateCommitmentExceptionMutationError = ErrorType<void>;
+
+/**
+ * @summary Declare a pause or excused-absence window
+ */
+export const useCreateCommitmentException = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createCommitmentException>>,
+    TError,
+    { data: BodyType<CommitmentExceptionInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof createCommitmentException>>,
+  TError,
+  { data: BodyType<CommitmentExceptionInput> },
+  TContext
+> => {
+  return useMutation(getCreateCommitmentExceptionMutationOptions(options));
+};
+
+/**
+ * @summary Exceptions affecting one commitment, newest first
+ */
+export const getListCommitmentExceptionsUrl = (id: number) => {
+  return `/api/shared-commitments/${id}/exceptions`;
+};
+
+export const listCommitmentExceptions = async (
+  id: number,
+  options?: RequestInit,
+): Promise<CommitmentException[]> => {
+  return customFetch<CommitmentException[]>(
+    getListCommitmentExceptionsUrl(id),
+    {
+      ...options,
+      method: "GET",
+    },
+  );
+};
+
+export const getListCommitmentExceptionsQueryKey = (id: number) => {
+  return [`/api/shared-commitments/${id}/exceptions`] as const;
+};
+
+export const getListCommitmentExceptionsQueryOptions = <
+  TData = Awaited<ReturnType<typeof listCommitmentExceptions>>,
+  TError = ErrorType<void>,
+>(
+  id: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listCommitmentExceptions>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getListCommitmentExceptionsQueryKey(id);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof listCommitmentExceptions>>
+  > = ({ signal }) =>
+    listCommitmentExceptions(id, { signal, ...requestOptions });
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: !!id,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof listCommitmentExceptions>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type ListCommitmentExceptionsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listCommitmentExceptions>>
+>;
+export type ListCommitmentExceptionsQueryError = ErrorType<void>;
+
+/**
+ * @summary Exceptions affecting one commitment, newest first
+ */
+
+export function useListCommitmentExceptions<
+  TData = Awaited<ReturnType<typeof listCommitmentExceptions>>,
+  TError = ErrorType<void>,
+>(
+  id: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listCommitmentExceptions>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getListCommitmentExceptionsQueryOptions(id, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Send a one-tap support encouragement (one per buddy/commitment/day)
+ */
+export const getCreateEncouragementUrl = () => {
+  return `/api/encouragements`;
+};
+
+export const createEncouragement = async (
+  encouragementInput: EncouragementInput,
+  options?: RequestInit,
+): Promise<Encouragement> => {
+  return customFetch<Encouragement>(getCreateEncouragementUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(encouragementInput),
+  });
+};
+
+export const getCreateEncouragementMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createEncouragement>>,
+    TError,
+    { data: BodyType<EncouragementInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof createEncouragement>>,
+  TError,
+  { data: BodyType<EncouragementInput> },
+  TContext
+> => {
+  const mutationKey = ["createEncouragement"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof createEncouragement>>,
+    { data: BodyType<EncouragementInput> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return createEncouragement(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type CreateEncouragementMutationResult = NonNullable<
+  Awaited<ReturnType<typeof createEncouragement>>
+>;
+export type CreateEncouragementMutationBody = BodyType<EncouragementInput>;
+export type CreateEncouragementMutationError = ErrorType<void>;
+
+/**
+ * @summary Send a one-tap support encouragement (one per buddy/commitment/day)
+ */
+export const useCreateEncouragement = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createEncouragement>>,
+    TError,
+    { data: BodyType<EncouragementInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof createEncouragement>>,
+  TError,
+  { data: BodyType<EncouragementInput> },
+  TContext
+> => {
+  return useMutation(getCreateEncouragementMutationOptions(options));
+};
+
+/**
+ * @summary Merged, newest-first activity feed (cursor-paginated)
+ */
+export const getGetAccountabilityFeedUrl = (
+  params?: GetAccountabilityFeedParams,
+) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/accountability/feed?${stringifiedParams}`
+    : `/api/accountability/feed`;
+};
+
+export const getAccountabilityFeed = async (
+  params?: GetAccountabilityFeedParams,
+  options?: RequestInit,
+): Promise<AccountabilityFeed> => {
+  return customFetch<AccountabilityFeed>(getGetAccountabilityFeedUrl(params), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetAccountabilityFeedQueryKey = (
+  params?: GetAccountabilityFeedParams,
+) => {
+  return [`/api/accountability/feed`, ...(params ? [params] : [])] as const;
+};
+
+export const getGetAccountabilityFeedQueryOptions = <
+  TData = Awaited<ReturnType<typeof getAccountabilityFeed>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: GetAccountabilityFeedParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getAccountabilityFeed>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getGetAccountabilityFeedQueryKey(params);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getAccountabilityFeed>>
+  > = ({ signal }) =>
+    getAccountabilityFeed(params, { signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getAccountabilityFeed>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetAccountabilityFeedQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getAccountabilityFeed>>
+>;
+export type GetAccountabilityFeedQueryError = ErrorType<unknown>;
+
+/**
+ * @summary Merged, newest-first activity feed (cursor-paginated)
+ */
+
+export function useGetAccountabilityFeed<
+  TData = Awaited<ReturnType<typeof getAccountabilityFeed>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: GetAccountabilityFeedParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getAccountabilityFeed>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetAccountabilityFeedQueryOptions(params, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}

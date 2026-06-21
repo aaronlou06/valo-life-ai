@@ -19,9 +19,15 @@ const router: IRouter = Router();
 const INVITE_TTL_MS = 14 * 24 * 60 * 60 * 1000; // 14 days
 const APP_SCHEME = "valo";
 
-// POST /buddies/invite — create a single-use, 14-day invite code.
+// POST /buddies/invite — create a single-use, 14-day invite code. Accepts an
+// optional displayName so the inviter can set the name their buddy will see
+// (the only other place it gets set is the accept flow).
 router.post("/buddies/invite", requireAuth, async (req, res): Promise<void> => {
   const userId = (req as AuthenticatedRequest).userId;
+  const { displayName } = (req.body ?? {}) as { displayName?: string };
+  if (displayName && displayName.trim()) {
+    await upsertDisplayName(userId, displayName.trim());
+  }
   const expiresAt = new Date(Date.now() + INVITE_TTL_MS);
 
   // Retry on the rare unique-code collision.

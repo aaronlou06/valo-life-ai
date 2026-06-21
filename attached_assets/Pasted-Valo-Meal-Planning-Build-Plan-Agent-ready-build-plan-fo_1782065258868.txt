@@ -1,0 +1,138 @@
+Valo — Meal Planning: Build Plan
+Agent-ready build plan for the meal-planning feature. Encodes the corrected reasoning (dependency-ordered inputs, weekly-budget cycling, per-serving portion as source of truth). Structured for the workflow: Plan mode → phased build on a branch with Checkpoints → device verify on an EAS dev build.
+
+
+0. Intent & scope
+Build a meal-planning tool where the AI generates an accurate, training-aware plan from the user's targets and preferences, and every quantity reconciles from one atomic unit.
+
+The governing principle: the per-serving portion is the single source of truth. A day-type plan is the sum of its per-meal portions; the week is the day-types summed to a weekly budget; prep quantities are the per-serving portion multiplied by how many times it recurs. Nothing is computed independently of that chain — that's what keeps the numbers trustworthy after generation and after edits.
+
+In v1: Create flow (calculator + AI build + macro-constrained swaps + weekly prep list). Deferred to v1.1: Upload (parse an existing plan) and Find (browse shared/template plans) — scaffold the menu entries now, build the paths later.
+
+
+1. Reasoning invariants (must always hold)
+These are the correctness guarantees the build must preserve. Treat them as assertions to test against, not guidelines.
+
+Per-serving is atomic. Every ingredient stores per-single-serving amount and per-single-serving macros. All larger quantities are derived.
+Daily reconciliation. For each day-type, the sum of its per-meal macro targets equals that day-type's daily target.
+Weekly reconciliation. training_day_target × training_days + rest_day_target × rest_days = daily_baseline × 7. The week always nets to the budget; training/rest days are a distribution of one weekly budget, never two independent numbers.
+Prep batching. A prepped meal's batch quantity = its per-serving amount × the recurrence of its day-type that week (training-day meal → ×training_days; rest-day meal → ×rest_days).
+Macro-constrained edits. Any swap (meal or ingredient) must land within tolerance of the slot's macro target, then portions recompute. Edits never silently drift the plan.
+Hard constraints. Allergen exclusions are absolute and survive swaps. Calorie/protein floors are enforced — the calculator clamps unsafe inputs and explains rather than obeying them.
+Arithmetic is owned by code, not the model. The AI proposes recipes and ingredients; the backend validates and scales portions to hit targets within tolerance. The LLM's numbers are never trusted as final.
+
+
+2. Data model (Drizzle, in @workspace/db)
+Design intent below; let the Agent match existing naming/patterns in the schema rather than copying field names literally.
+
+meal_plans — one generated plan id, user_id, name, status (active | archived), source (created | uploaded | template), created_at, plus the locked targets the plan reconciles to: diet_type, goal, meals_per_day, training_days_per_week, rest_days_per_week, weekly_calories, weekly_protein_g, weekly_carbs_g, weekly_fat_g, and an inputs_snapshot (biometrics/activity/goal at generation time, for recompute/audit).
+
+meal_plan_day_types — the training-day template and the rest-day template (not seven literal days) id, plan_id, day_type (training | rest), target_calories, target_protein_g, target_carbs_g, target_fat_g.
+
+meals — a meal slot within a day-type id, day_type_id, slot_index (1..meals_per_day), name, prep_mode (prep | cook), per-serving slot targets (target_calories, target_protein_g, target_carbs_g, target_fat_g), recipe_title, instructions.
+
+meal_ingredients — per single serving id, meal_id, name, amount, unit, and per-serving calories, protein_g, carbs_g, fat_g.
+
+user_diet_preferences — reusable across plans user_id, known_macros (bool), optional stored protein_g/carbs_g/fat_g, diet_type, allergies (json array — hard excludes), dislikes (json array — soft excludes), default meals_per_day, default training_days_per_week/rest_days_per_week.
+
+Weekly prep/shopping list is derived, not stored (a computed endpoint): aggregate prepped-meal ingredients × recurrence, plus cook-meal ingredients per occurrence.
+
+Migration via pnpm --filter @workspace/db run push. New tables should target the settled storage path given the in-progress Supabase migration — confirm in Plan mode where new schema should land so this doesn't get stranded mid-migration.
+
+
+3. The calculation engine (backend, pure & unit-tested)
+Pure functions, no I/O, fully testable. This is where accuracy is enforced.
+
+calcBMR(sex, age, weightKg, heightCm) — Mifflin–St Jeor.
+calcTDEE(bmr, activityLevel) — activity multiplier.
+applyGoal(tdee, goal) — deficit/maintenance/surplus, with floor clamps (reject/raise unsafe deficits; explain the clamp).
+deriveMacros(dailyCalories, bodyweight, dietType, goal) — protein from bodyweight first, then carbs/fat by diet-type ratio against remaining calories; enforce protein floor.
+distributeWeekly(dailyMacros, trainingDays, restDays) — returns per-day-type targets satisfying invariant #3: protein held ~constant per day, carbs shifted toward training days, fat fills the remainder. Must assert the weekly sum equals the budget.
+splitMeals(dayTypeTarget, mealsPerDay, dayType) — per-meal targets: protein distributed evenly; carbs weighted toward training-adjacent meals on training days.
+batchQuantity(perServingAmount, recurrence) — for prepped meals.
+buildShoppingList(plan) — aggregates per §2.
+
+Acceptance: unit tests assert daily and weekly reconciliation (invariants #2, #3) on fixed inputs; floor clamps trigger on unsafe inputs; prep batch math (invariant #4) verified by hand on a sample.
+
+
+4. The AI build step (Claude API)
+One generation call per plan (not per meal), so a stronger model is affordable here.
+
+Input contract: for each day-type, the per-meal macro targets + prep_mode; plus diet_type, allergies, dislikes, meals_per_day.
+
+Task: for each meal slot, produce a recipe — title, ingredients with per-serving amounts and per-serving macros, instructions — that fits the slot's macro target, matches the diet type, and excludes all allergens and dislikes.
+
+Output: structured JSON matching the meals / meal_ingredients shape (JSON mode).
+
+Backend validation (not optional): after generation, the backend checks each meal's ingredient macros against the slot target and scales portions to snap to target within tolerance; if a meal can't be reconciled or contains an excluded item, re-prompt that slot. The model proposes; the code guarantees (invariant #7).
+
+Acceptance: generated plan's per-meal macros reconcile to targets within tolerance after snapping; no allergen ever appears; day and week reconcile.
+
+
+5. Swap logic (backend + UI)
+Endpoint takes a meal_id (or a single ingredient) and returns a substitute hitting the same slot target within tolerance, respecting diet/allergy/dislike constraints, then recomputes and persists portions.
+
+Acceptance: post-swap, the slot still meets its target within tolerance, portions update, and the plan still reconciles daily and weekly (invariants #2, #3, #5). Allergens never reintroduced.
+
+
+6. UX flow
+Empty state. Tool description + a + button. No plan yet → this is all the user sees.
+
++ → floating menu (a sheet/modal over the same screen, not a route change): Create, Upload, Find.
+
+Create wizard — steps in dependency order (collect what drives the math before the math):
+
+Macros known? Yes → input protein/carbs/fat. No → calculator (sex, age, weight, height, activity level, goal).
+Training vs rest days per week.
+Diet type (variety, Mediterranean, high-protein, low-carb, Asian, …).
+Allergies / dislikes.
+Meals per day (1 / 2 / 3).
+Prep vs cook for each meal slot.
+Generate (loading state → §4 build).
+Review: training-day and rest-day plans, per-meal portions, the weekly prep list, and swap controls per meal/ingredient.
+
+Gate the Generate step on all required inputs being present. Upload and Find are scaffolded entries that route to "coming soon" in v1.
+
+Follow the existing design system (terracotta accent, dark warm background, Inter, the per-feature color roles) — let the Agent pull the actual tokens from the codebase rather than hardcoding values. Do not modify the protected components (Recovery.tsx, GoalProgress.tsx, Motivation.tsx).
+
+
+7. Build sequence
+Each phase on a branch, incremental Checkpoints, verified on a physical device (EAS dev build — not Expo Go or web preview). Run OpenAPI codegen after any route change.
+
+Plan mode — investigate the existing plan page, any current meal/diet code, the design tokens, and where new schema should live given the Supabase migration. Report before building.
+Data model + migration (§2). Acceptance: tables created, relations correct, migration clean.
+Calculation engine + unit tests (§3). Acceptance: reconciliation invariants and floor clamps pass on fixed inputs. Build this before any UI.
+AI build endpoint + portion validation/snapping (§4). Add a manual-trigger endpoint and inspect real JSON output before wiring UI. Acceptance: reconciles to targets, no allergens.
+Create wizard UI (§6, steps 1–6). Acceptance: inputs collected in dependency order; Generate gated on completeness.
+Generate + Review screen (step 7–8). Acceptance: day-type plans, per-meal portions, and the weekly prep list render and match the engine's numbers.
+Swap endpoint + UI (§5). Acceptance: macro-constrained swaps recompute and still reconcile.
+Weekly prep/shopping list endpoint (§2). Acceptance: prepped quantities = per-serving × recurrence, verified by hand on a sample.
+Scaffold Upload / Find entries (routes to placeholder). Full paths are v1.1.
+
+
+8. Conventions & guardrails
+pnpm only — pnpm exec expo … from artifacts/valo/; schema via pnpm --filter @workspace/db run push. Never npm/npx.
+OpenAPI codegen after route changes.
+Don't modify Recovery.tsx, GoalProgress.tsx, Motivation.tsx.
+New schema targets the settled storage path (mind the Supabase migration).
+Verify on a physical device via EAS dev build; static typecheck/architect-clean is not sufficient.
+Safety: calculator enforces sane calorie/protein floors and refuses extreme deficits (clamp + explain); allergies are absolute filters the AI can't override, including during swaps.
+
+
+9. Decisions to lock before building
+Model for the build step (recipe quality vs cost — one call per plan, so a stronger model is reasonable).
+Macro reconciliation tolerance (e.g. ±5% per meal) for generation and swaps.
+Activity-level factors and goal deltas, and the calorie/protein floor values.
+Whether v1 assigns day-types to specific weekdays or just uses counts (recommend counts for v1).
+Recipe source: pure AI generation vs an AI-over-recipe-DB approach (affects swap quality and repeatability).
+Diet-type → macro-ratio table (the defaults deriveMacros uses).
+
+
+10. Plan-mode kickoff prompt (paste-ready)
+Plan mode — do not build yet. I'm adding a meal-planning feature to Valo. Before proposing an implementation, investigate and report back on: (1) the current plan page and any existing meal/diet/nutrition code or schema; (2) the design tokens and component patterns I should reuse; (3) where new Drizzle tables should live given the in-progress Supabase migration, so nothing gets stranded; (4) how existing AI/Claude-API calls are structured so a meal-generation endpoint fits the same pattern.
+
+The feature: from an empty state (tool description + a +), a floating menu offers Create / Upload / Find. Create walks the user through — do you know your macros (input) or not (a calculator from biometrics, activity, and goal); training vs rest days per week; diet type; allergies and dislikes; meals per day; and prep-vs-cook per meal. Then the AI builds a training-aware plan the user can refine with macro-constrained swaps, and we show a weekly prep list.
+
+The critical correctness requirement: the per-serving portion is the single source of truth. Per-meal targets sum to each day-type's daily target; training and rest days are one weekly budget distributed across them (they must sum to daily × 7); prep quantities are per-serving × how many times that day-type recurs in the week; and the backend — not the model — validates and scales portions to hit targets. Calorie/protein floors are enforced and allergens are absolute excludes.
+
+Report what you find and propose a phased plan with Checkpoints. I'll verify on a device build. Don't touch Recovery.tsx, GoalProgress.tsx, or Motivation.tsx.

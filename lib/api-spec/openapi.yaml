@@ -45,6 +45,12 @@ tags:
     description: Accountability buddy relationships and the buddy-facing view
   - name: shared-commitments
     description: Shared accountability commitments and their participants
+  - name: commitment-exceptions
+    description: Planned pauses and excused absences that keep streaks alive
+  - name: encouragements
+    description: Buddy support taps on shared commitments
+  - name: accountability
+    description: Merged accountability activity feed
 paths:
   /healthz:
     get:
@@ -1395,6 +1401,12 @@ paths:
       operationId: createBuddyInvite
       tags: [buddies]
       summary: Create a single-use buddy invite code
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BuddyInviteInput"
       responses:
         "201":
           description: Invite created
@@ -1565,6 +1577,104 @@ paths:
           description: Revoked
         "404":
           description: Commitment not found
+
+  /commitment-exceptions:
+    post:
+      operationId: createCommitmentException
+      tags: [commitment-exceptions]
+      summary: Declare a pause or excused-absence window
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CommitmentExceptionInput"
+      responses:
+        "201":
+          description: Exception created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CommitmentException"
+        "400":
+          description: Invalid kind, scope, or dates
+        "404":
+          description: Commitment not found
+
+  /shared-commitments/{id}/exceptions:
+    get:
+      operationId: listCommitmentExceptions
+      tags: [commitment-exceptions]
+      summary: Exceptions affecting one commitment, newest first
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Exceptions list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/CommitmentException"
+        "404":
+          description: Commitment not found
+
+  /encouragements:
+    post:
+      operationId: createEncouragement
+      tags: [encouragements]
+      summary: Send a one-tap support encouragement (one per buddy/commitment/day)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EncouragementInput"
+      responses:
+        "201":
+          description: Encouragement sent
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Encouragement"
+        "400":
+          description: Invalid request or own commitment
+        "403":
+          description: Not a buddy on this commitment
+        "404":
+          description: Commitment not found
+        "409":
+          description: Already encouraged this today
+
+  /accountability/feed:
+    get:
+      operationId: getAccountabilityFeed
+      tags: [accountability]
+      summary: Merged, newest-first activity feed (cursor-paginated)
+      parameters:
+        - name: cursor
+          in: query
+          required: false
+          schema:
+            type: string
+          description: ISO timestamp of the last item from the previous page
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Feed page
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AccountabilityFeed"
 
 components:
   schemas:
@@ -3003,6 +3113,13 @@ components:
           type: boolean
           description: Always true on success.
 
+    BuddyInviteInput:
+      type: object
+      properties:
+        displayName:
+          type: string
+          description: "Optional name the inviter wants their buddy to see"
+
     BuddyInviteResponse:
       type: object
       required: [relationshipId, code, shareUrl, expiresAt]
@@ -3208,3 +3325,111 @@ components:
         weeklyTarget:
           type: ["integer", "null"]
           description: "Expected actions per week; present only for summary and full scopes"
+
+    CommitmentExceptionInput:
+      type: object
+      required: [kind, scope, startDate, endDate]
+      properties:
+        kind:
+          type: string
+          description: "pause | excused"
+        scope:
+          type: string
+          description: "one | all (Stage 0; 'several' is schema-ready, UI-deferred)"
+        commitmentId:
+          type: ["integer", "null"]
+          description: "Required when scope is 'one'; the owned commitment to pause"
+        startDate:
+          type: string
+          description: "YYYY-MM-DD inclusive"
+        endDate:
+          type: string
+          description: "YYYY-MM-DD inclusive"
+        reason:
+          type: ["string", "null"]
+
+    CommitmentException:
+      type: object
+      required: [id, userId, kind, scope, startDate, endDate, isRetroactive, createdAt, updatedAt]
+      properties:
+        id:
+          type: integer
+        userId:
+          type: string
+        commitmentId:
+          type: ["integer", "null"]
+        kind:
+          type: string
+        scope:
+          type: string
+        startDate:
+          type: string
+        endDate:
+          type: string
+        reason:
+          type: ["string", "null"]
+        isRetroactive:
+          type: boolean
+        createdAt:
+          type: string
+        updatedAt:
+          type: string
+
+    EncouragementInput:
+      type: object
+      required: [commitmentId]
+      properties:
+        commitmentId:
+          type: integer
+        messageType:
+          type: string
+          description: "support (Stage 0 only)"
+
+    Encouragement:
+      type: object
+      required: [id, commitmentId, senderType, recipientId, messageType, sentDate, sentAt]
+      properties:
+        id:
+          type: integer
+        commitmentId:
+          type: integer
+        senderType:
+          type: string
+        senderId:
+          type: ["string", "null"]
+        recipientId:
+          type: string
+        messageType:
+          type: string
+        body:
+          type: ["string", "null"]
+        sentDate:
+          type: string
+        sentAt:
+          type: string
+
+    AccountabilityFeedItem:
+      type: object
+      required: [type, id, timestamp, data]
+      properties:
+        type:
+          type: string
+          description: "encouragement | exception | buddy_joined"
+        id:
+          type: integer
+        timestamp:
+          type: string
+        data:
+          type: object
+          additionalProperties: true
+
+    AccountabilityFeed:
+      type: object
+      required: [items, nextCursor]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/AccountabilityFeedItem"
+        nextCursor:
+          type: ["string", "null"]

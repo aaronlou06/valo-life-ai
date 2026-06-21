@@ -1055,6 +1055,11 @@ export interface UndoActionResult {
   undone: boolean;
 }
 
+export interface BuddyInviteInput {
+  /** Optional name the inviter wants their buddy to see */
+  displayName?: string;
+}
+
 export interface BuddyInviteResponse {
   relationshipId: number;
   code: string;
@@ -1191,6 +1196,76 @@ export interface BuddyCommitmentView {
   weeklyTarget?: number | null;
 }
 
+export interface CommitmentExceptionInput {
+  /** pause | excused */
+  kind: string;
+  /** one | all (Stage 0; 'several' is schema-ready, UI-deferred) */
+  scope: string;
+  /**
+   * Required when scope is 'one'; the owned commitment to pause
+   * @nullable
+   */
+  commitmentId?: number | null;
+  /** YYYY-MM-DD inclusive */
+  startDate: string;
+  /** YYYY-MM-DD inclusive */
+  endDate: string;
+  /** @nullable */
+  reason?: string | null;
+}
+
+export interface CommitmentException {
+  id: number;
+  userId: string;
+  /** @nullable */
+  commitmentId?: number | null;
+  kind: string;
+  scope: string;
+  startDate: string;
+  endDate: string;
+  /** @nullable */
+  reason?: string | null;
+  isRetroactive: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface EncouragementInput {
+  commitmentId: number;
+  /** support (Stage 0 only) */
+  messageType?: string;
+}
+
+export interface Encouragement {
+  id: number;
+  commitmentId: number;
+  senderType: string;
+  /** @nullable */
+  senderId?: string | null;
+  recipientId: string;
+  messageType: string;
+  /** @nullable */
+  body?: string | null;
+  sentDate: string;
+  sentAt: string;
+}
+
+export type AccountabilityFeedItemData = { [key: string]: unknown };
+
+export interface AccountabilityFeedItem {
+  /** encouragement | exception | buddy_joined */
+  type: string;
+  id: number;
+  timestamp: string;
+  data: AccountabilityFeedItemData;
+}
+
+export interface AccountabilityFeed {
+  items: AccountabilityFeedItem[];
+  /** @nullable */
+  nextCursor: string | null;
+}
+
 export type ListDailyLogHistoryParams = {
   /**
    * ISO date (YYYY-MM-DD). When provided, return all logs on or after this date. When omitted, defaults to the last 30 days.
@@ -1249,4 +1324,12 @@ export type GetWorkoutVolumeParams = {
    * Look-back window in weeks (default 13, max 52)
    */
   weeks?: number;
+};
+
+export type GetAccountabilityFeedParams = {
+  /**
+   * ISO timestamp of the last item from the previous page
+   */
+  cursor?: string;
+  limit?: number;
 };

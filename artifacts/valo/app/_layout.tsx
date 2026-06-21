@@ -166,6 +166,10 @@ function RootLayoutNav() {
         <Stack.Screen name="tools" />
         <Stack.Screen name="(tools)" />
         <Stack.Screen name="accountability-buddy" />
+        <Stack.Screen name="buddy-invite" options={{ presentation: "modal" }} />
+        <Stack.Screen name="buddy-accept/[code]" options={{ presentation: "modal" }} />
+        <Stack.Screen name="commitment/new" options={{ presentation: "modal" }} />
+        <Stack.Screen name="commitment/[id]" />
         <Stack.Screen name="charts" />
         <Stack.Screen name="copilot-start" />
         <Stack.Screen name="copilot-workout" options={{ gestureEnabled: false }} />
