@@ -1,0 +1,24 @@
+Fix — Cheered-state must be server-derived, not client-local
+
+Why: The support-tap limit is enforced by the partial unique index on encouragements (one support per user, per commitment, per day), so the server is the source of truth for "already cheered today." The current UI reads that state from date-keyed AsyncStorage, which is device-local — it desyncs on reinstall or a second device (the button looks tappable, the tap hits a 409), and its client-computed local date can disagree with the index's day boundary near midnight.
+
+Do:
+
+
+In the buddy-surface commitments response (GET /buddies/:buddyRelationshipId/commitments), add a per-commitment cheeredToday boolean, computed server-side for the authed user as sender — true if a support encouragement from this user for this commitment already exists today. Compute it the same way onTrackStatus is computed (server-side, no raw data shipped to the client).
+Use the exact same day boundary the partial unique index uses to bucket support taps, so the read-flag and the write-constraint can never disagree. Do not introduce a second timezone for the read. (Shifting both to a user-local day is a separate follow-up, not part of this fix.)
+In accountability-buddy.tsx, initialize each Support button from commitment.cheeredToday. Remove AsyncStorage as the source of truth for cheered state. On a successful tap, optimistically set the button to the cheered state; if a tap returns 409 (already cheered), treat it as cheered rather than surfacing an error.
+Regenerate the API client after the schema change (OpenAPI codegen), then typecheck both packages.
+
+
+Done looks like:
+
+
+On first load, reload, reinstall, and a second device, the button shows "Cheered today" whenever the server already has today's support row — no dead taps, no 409 on a button that looked tappable.
+No client-side date math determines whether the user can cheer; the server decides.
+Codegen run, both typechecks clean.
+
+
+Verify on device (not just typecheck): cheer a buddy's commitment, then force-reload — and ideally reinstall or open a second device. The button must still read "Cheered today." If it resets, it's still reading from the wrong place.
+
+Relevant files: the buddy-surface commitments route and its OpenAPI schema, lib/api-spec/openapi.yaml, artifacts/valo/app/accountability-buddy.tsx.

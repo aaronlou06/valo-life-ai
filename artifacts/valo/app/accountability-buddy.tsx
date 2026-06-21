@@ -1,5 +1,4 @@
-import React, { useState, useEffect } from "react";
-import AsyncStorage from "@react-native-async-storage/async-storage";
+import React, { useState } from "react";
 import {
   ActivityIndicator,
   Platform,
@@ -273,32 +272,22 @@ function CommitmentRow({
 }) {
   const queryClient = useQueryClient();
   const createEncouragement = useCreateEncouragement();
-  const [cheered, setCheered] = useState(false);
+  // Server-derived: cheeredToday uses the same sentDate boundary as the DB partial
+  // unique index, so this is always consistent — on reload, reinstall, or a second device.
+  const [cheered, setCheered] = useState(view.cheeredToday);
   const meta = STATUS_META[view.onTrackStatus] ?? STATUS_META.on_track!;
-  const cheerKey = `cheer_${view.commitmentId}_${new Date().toISOString().slice(0, 10)}`;
-
-  useEffect(() => {
-    AsyncStorage.getItem(cheerKey).then((v) => {
-      if (v === "1") setCheered(true);
-    });
-  }, [cheerKey]);
-
-  const markCheered = () => {
-    setCheered(true);
-    AsyncStorage.setItem(cheerKey, "1");
-  };
 
   const sendSupport = async () => {
     if (cheered || createEncouragement.isPending) return;
     try {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
       await createEncouragement.mutateAsync({ data: { commitmentId: view.commitmentId } });
-      markCheered();
+      setCheered(true);
       queryClient.invalidateQueries({ queryKey: getGetAccountabilityFeedQueryKey() });
     } catch (err) {
-      // 409 means we already cheered today — reflect the muted state anyway.
+      // 409 means the server already has today's support row — reflect the muted state.
       const status = (err as { response?: { status?: number } })?.response?.status;
-      if (status === 409) markCheered();
+      if (status === 409) setCheered(true);
     }
   };
 

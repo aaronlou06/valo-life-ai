@@ -1194,6 +1194,8 @@ export interface BuddyCommitmentView {
    * @nullable
    */
   weeklyTarget?: number | null;
+  /** True if the viewing buddy already sent a support tap today (server-derived, uses sentDate boundary — same as the DB partial unique index) */
+  cheeredToday: boolean;
 }
 
 export interface CommitmentExceptionInput {

@@ -3302,7 +3302,7 @@ components:
 
     BuddyCommitmentView:
       type: object
-      required: [commitmentId, title, metricType, cadence, shareScope, onTrackStatus]
+      required: [commitmentId, title, metricType, cadence, shareScope, onTrackStatus, cheeredToday]
       properties:
         commitmentId:
           type: integer
@@ -3325,6 +3325,9 @@ components:
         weeklyTarget:
           type: ["integer", "null"]
           description: "Expected actions per week; present only for summary and full scopes"
+        cheeredToday:
+          type: boolean
+          description: "True if the viewing buddy already sent a support tap today (server-derived, uses sentDate boundary — same as the DB partial unique index)"
 
     CommitmentExceptionInput:
       type: object

@@ -1749,6 +1749,11 @@ export const ListBuddyCommitmentsResponseItem = zod.object({
     .describe(
       "Expected actions per week; present only for summary and full scopes",
     ),
+  cheeredToday: zod
+    .boolean()
+    .describe(
+      "True if the viewing buddy already sent a support tap today (server-derived, uses sentDate boundary — same as the DB partial unique index)",
+    ),
 });
 export const ListBuddyCommitmentsResponse = zod.array(
   ListBuddyCommitmentsResponseItem,

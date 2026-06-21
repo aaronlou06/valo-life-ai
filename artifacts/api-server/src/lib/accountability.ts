@@ -4,6 +4,7 @@ import {
   db,
   verificationEventsTable,
   commitmentExceptionsTable,
+  encouragementsTable,
   userProfilesTable,
   type SharedCommitment,
 } from "@workspace/db";
@@ -43,6 +44,8 @@ export interface BuddyCommitmentView {
   streak: number | null;
   completionRate: number | null;
   weeklyTarget: number | null;
+  /** True if the viewing buddy already sent a support tap today (uses sentDate, same boundary as the DB unique index). */
+  cheeredToday: boolean;
 }
 
 function weeklyTargetFor(commitment: Pick<SharedCommitment, "cadence" | "cadenceDaysPerWeek">): number | null {
@@ -70,15 +73,27 @@ function isoDaysBefore(isoDate: string, days: number): string {
 export async function buildBuddyCommitmentViews(
   ownerId: string,
   commitments: Array<SharedCommitment & { shareScope: string }>,
+  viewerUserId: string,
 ): Promise<BuddyCommitmentView[]> {
   if (commitments.length === 0) return [];
 
-  const [profile] = await db
-    .select({ tz: userProfilesTable.callTimezone })
-    .from(userProfilesTable)
-    .where(eq(userProfilesTable.userId, ownerId))
-    .limit(1);
+  const [profile, viewerProfile] = await Promise.all([
+    db
+      .select({ tz: userProfilesTable.callTimezone })
+      .from(userProfilesTable)
+      .where(eq(userProfilesTable.userId, ownerId))
+      .limit(1)
+      .then((r) => r[0]),
+    db
+      .select({ tz: userProfilesTable.callTimezone })
+      .from(userProfilesTable)
+      .where(eq(userProfilesTable.userId, viewerUserId))
+      .limit(1)
+      .then((r) => r[0]),
+  ]);
   const today = getDateInTimezone(profile?.tz ?? DEFAULT_TIMEZONE);
+  // viewerToday uses the viewer's timezone — same boundary sentDate was stored under.
+  const viewerToday = getDateInTimezone(viewerProfile?.tz ?? DEFAULT_TIMEZONE);
   const windowStart = isoDaysBefore(today, 6); // inclusive 7-day window
 
   const { byHabitId } = await deriveHabitStreaks(ownerId);
@@ -108,6 +123,27 @@ export async function buildBuddyCommitmentViews(
       if (r.habitId == null || r.status !== "done") continue;
       doneByHabit.set(r.habitId, (doneByHabit.get(r.habitId) ?? 0) + 1);
     }
+  }
+
+  // Which commitments the viewer has already cheered today.
+  // Uses sentDate (stored in sender's local TZ at write time) — exactly the
+  // same boundary as the partial unique index, so read and write can never disagree.
+  const commitmentIds = commitments.map((c) => c.id);
+  const cheeredSet = new Set<number>();
+  const cheeredRows = await db
+    .select({ commitmentId: encouragementsTable.commitmentId })
+    .from(encouragementsTable)
+    .where(
+      and(
+        eq(encouragementsTable.senderId, viewerUserId),
+        eq(encouragementsTable.senderType, "user"),
+        eq(encouragementsTable.messageType, "support"),
+        eq(encouragementsTable.sentDate, viewerToday),
+        inArray(encouragementsTable.commitmentId, commitmentIds),
+      ),
+    );
+  for (const r of cheeredRows) {
+    if (r.commitmentId != null) cheeredSet.add(r.commitmentId);
   }
 
   // Exceptions (pause or excused) whose window covers today. scope='all' marks
@@ -165,6 +201,7 @@ export async function buildBuddyCommitmentViews(
       streak: streakVal,
       completionRate: summaryOrFull ? completionRate : null,
       weeklyTarget: summaryOrFull ? weeklyTarget : null,
+      cheeredToday: cheeredSet.has(c.id),
     };
   });
 }

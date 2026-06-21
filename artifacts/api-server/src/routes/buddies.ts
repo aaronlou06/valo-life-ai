@@ -266,6 +266,7 @@ router.get("/buddies/:buddyRelationshipId/commitments", requireAuth, async (req,
   const views = await buildBuddyCommitmentViews(
     ownerId,
     rows.map((r) => ({ ...r.commitment, shareScope: r.shareScope })),
+    userId,
   );
   res.json(views);
 });
