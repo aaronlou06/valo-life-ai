@@ -1,0 +1,46 @@
+Launch gates — status
+
+1. Core loop — works: onboard → Vapi call → extraction → data lands in DB, visible on Today/Insights.
+2. Privacy policy / ToS / voice consent / HealthKit compliance — all absent. No legal doc/route/screen anywhere. No voice-recording consent capture beyond the iOS system mic permission string. HealthKit isn't integrated at all — no react-native-health, no HKSample, no getDailyStepCountSamples/getAnchoredWorkouts, no HealthKit entitlement or NSHealth*UsageDescription in app.json. The CLAUDE.md HealthKit implementation rules describe code that doesn't exist yet.
+3. Supabase migration — not started, and "Replit DB" was never actually Replit DB. This gate as worded is moot; reword it.
+4. Baseline stability — partial. Empty states exist on Goals/Insights/Log and there's a global ErrorBoundary. No offline/no-connectivity handling, and api-server routes have no try/catch around DB calls.
+5. $20/mo paywall + referral-decline offer — absent. Sign-up is plain Clerk email/Google, no pricing screen, no Helcim integration, no referral logic.
+6. Resend domain verification — not wired. The only "Resend" string in the app is a "Resend code" button label for Clerk's verification flow; there's no Resend SDK or email-sending code.
+
+Stale / broken
+
+- Dead daily.co dependencies. Commit 7435b15 "remove daily.co plugins" only removed them from app.json's plugin list — @daily-co/react-native-daily-js, @daily-co/react-native-webrtc, @daily-co/config-plugin-rn-daily-js are still in artifacts/valo/package.json. These are heavy native WebRTC modules now installed but unused (Vapi's own SDK handles calls); worth fully removing to cut build size/risk.
+- insights.ts returns 3 hardcoded seed insights, never anything computed — there's no insight-generation logic behind the "Insights" tab at all.
+- app.json has no buildNumber scheme, which EAS will need before repeated App Store submissions.
+
+CLAUDE.md inaccuracies to fix
+
+The doc says Supabase migration is "in progress" (it's not started, and "Replit DB" is a mischaracterization), describes a 4-tab+FAB nav that doesn't match the real 5-tab layout, lists Ask Valo / Weekly Recap / agentic layer as "shipped, awaiting QA" when none have any code, and omits Clerk entirely from the stack. I'd treat this as a documentation-debt cleanup pass before the next session relies on it again — want me to rewrite the relevant sections now, or do you want to weigh in on nav/auth/Supabase decisions first since some of this looks like it reflects plans that changed rather than just drift?
+
+✻ Worked for 3m 20s
+
+※ recap: Goal: get Valo launch-ready. I just audited the codebase against CLAUDE.md's launch gates and found big gaps (no HealthKit, no paywall, no Supabase, stale 5-tab nav). Next: tell me if you want CLAUDE.md rewritten to match reality now. (disable recaps in /config)
+
+❯ git push github-valo main --force
+
+Before running that — force-pushing to main is flagged in my safety rules to always warn on, even when explicitly requested. Let me check what's actually on the remote first so you know the blast radius.
+
+  Ran 1 shell command
+
+There's no remote named github-valo — the only configured remote is origin (https://github.com/aaronlou06/valo-life-ai.git). Did you mean to push to origin, or is github-valo a remote you intended to add but haven't yet?
+───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+ ☐ Remote name
+
+There's no remote called 'github-valo'. How do you want to proceed?
+
+❯ 1. Use origin instead
+     Push to the existing 'origin' remote (https://github.com/aaronlou06/valo-life-ai.git) instead of 'github-valo'.
+  2. Add github-valo as a new remote
+     I'll need the repo URL you want 'github-valo' to point to, then add it and push.
+  3. Cancel
+     Don't push anything — let me re-check the remote name or URL myself.
+  4. Type something.
+───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+  5. Chat about this
+
+Enter to select · ↑/↓ to navigate · Esc to cancel
