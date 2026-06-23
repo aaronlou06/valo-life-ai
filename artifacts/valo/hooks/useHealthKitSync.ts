@@ -13,6 +13,7 @@ import {
   fetchTodayWorkout,
 } from "@/lib/healthKit";
 import { runHealthKitBackfill } from "@/lib/healthKitBackfill";
+import { registerBackgroundHealthSync } from "@/lib/backgroundHealthSync";
 
 const LAST_SYNCED_KEY = "@valo/healthkit-last-synced";
 const PERMISSIONS_KEY = "@valo/healthkit-permissions-requested";
@@ -164,6 +165,11 @@ export function useHealthKitSync(): HealthKitSyncState {
         }
 
         if (granted) {
+          // Register the BGAppRefreshTask and enableBackgroundDelivery observers
+          // now that HealthKit permissions are confirmed. registerBackgroundHealthSync
+          // is idempotent — safe to call on every cold start.
+          void registerBackgroundHealthSync();
+
           // Delay to give AuthContext time to finish the /api/auth/me validation
           // and settle into a known-good auth state before the first sync attempt.
           await sleep(MOUNT_DELAY_MS);

@@ -38,6 +38,7 @@ import sharedCommitmentsRouter from "./shared-commitments";
 import commitmentExceptionsRouter from "./commitment-exceptions";
 import encouragementsRouter from "./encouragements";
 import mealPlansRouter from "./meal-plans";
+import healthSyncRouter from "./health-sync";
 
 const router: IRouter = Router();
 
@@ -80,5 +81,6 @@ router.use(sharedCommitmentsRouter);
 router.use(commitmentExceptionsRouter);
 router.use(encouragementsRouter);
 router.use(mealPlansRouter);
+router.use(healthSyncRouter);
 
 export default router;

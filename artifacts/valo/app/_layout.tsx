@@ -25,6 +25,9 @@ import { WorkoutCopilotPanel } from "@/components/WorkoutCopilotPanel";
 import { GOOGLE_OAUTH_PREFIX } from "@/lib/googleCalendar";
 import { installErrorLogger } from "@/lib/errorLogger";
 import { scheduleCheckinReminder, scheduleMorningBriefing } from "@/lib/notifications";
+// Side-effect import: registers the BGAppRefreshTask handler at module-load time.
+// TaskManager.defineTask must run before BackgroundFetch.registerTaskAsync is called.
+import "@/lib/backgroundHealthSync";
 
 installErrorLogger();
 

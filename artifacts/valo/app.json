@@ -26,7 +26,8 @@
         "NSHealthShareUsageDescription": "Valo reads your health data to personalize your daily check-in and insights.",
         "NSHealthUpdateUsageDescription": "Valo writes workout and mindfulness data to Apple Health.",
         "NSBluetoothAlwaysUsageDescription": "Valo uses Bluetooth to connect to heart-rate monitors and read your live heart rate during workouts.",
-        "UIBackgroundModes": ["voip", "bluetooth-central"],
+        "UIBackgroundModes": ["voip", "bluetooth-central", "fetch"],
+        "BGTaskSchedulerPermittedIdentifiers": ["com.valo.healthkit.refresh"],
         "ITSAppUsesNonExemptEncryption": false
       }
     },
