@@ -64,6 +64,8 @@ import {
   useGetDashboard,
   useGetStreakData,
 } from "@workspace/api-client-react";
+import { useSubscription } from "@/contexts/SubscriptionContext";
+import CancellationModal from "@/components/CancellationModal";
 
 function getApiBase(): string {
   const domain = process.env.EXPO_PUBLIC_DOMAIN;
@@ -985,6 +987,8 @@ export default function ProfileScreen() {
   const router = useRouter();
   const { name, email, signOut, deleteAccount, updateName, getToken, userId } = useValoAuth();
   const { region, saveRegion } = useHolidayRegion();
+  const { status: subStatus, trialEndsAt, currentPeriodEnd, freeMonthsAvailable, isLoaded: subLoaded } = useSubscription();
+  const [showCancellationModal, setShowCancellationModal] = useState(false);
 
   const { data: goals } = useListGoals();
   const { data: habits } = useListHabits();
@@ -1877,25 +1881,98 @@ export default function ProfileScreen() {
         <View style={styles.section}>
           <SectionLabel label="MEMBERSHIP" />
           <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
+            {/* Status row */}
             <View style={styles.membershipRow}>
               <Text style={[styles.membershipLabel, { color: colors.foreground, fontFamily: "Inter_600SemiBold" }]}>
-                Current plan
+                Plan
               </Text>
-              <View style={[styles.planBadge, { backgroundColor: colors.muted }]}>
-                <Text style={[styles.planText, { color: colors.mutedForeground, fontFamily: "Inter_500Medium" }]}>
-                  Free
+              {subLoaded && (
+                <View style={[styles.planBadge, {
+                  backgroundColor:
+                    subStatus === "active" ? "#EAF7EE"
+                    : subStatus === "trialing" ? "#FBF0E6"
+                    : colors.muted,
+                }]}>
+                  <Text style={[styles.planText, {
+                    color:
+                      subStatus === "active" ? "#2D7A4A"
+                      : subStatus === "trialing" ? colors.primary
+                      : colors.mutedForeground,
+                    fontFamily: "Inter_500Medium",
+                  }]}>
+                    {subStatus === "active" ? "Active"
+                      : subStatus === "trialing" ? "Free trial"
+                      : subStatus === "grace" ? "Grace period"
+                      : subStatus === "canceled" ? "Canceled"
+                      : subStatus === "expired" ? "Expired"
+                      : "Loading..."}
+                  </Text>
+                </View>
+              )}
+            </View>
+
+            {/* Trial countdown */}
+            {subStatus === "trialing" && trialEndsAt && (
+              <Text style={[styles.membershipMeta, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
+                Trial ends {new Date(trialEndsAt).toLocaleDateString("en-US", { month: "long", day: "numeric" })}
+              </Text>
+            )}
+
+            {/* Active period */}
+            {subStatus === "active" && currentPeriodEnd && (
+              <Text style={[styles.membershipMeta, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
+                Renews {new Date(currentPeriodEnd).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })}
+              </Text>
+            )}
+
+            {/* Free months balance */}
+            {freeMonthsAvailable > 0 && (
+              <View style={[styles.freeMonthRow, { backgroundColor: "#FBF0E6" }]}>
+                <Feather name="gift" size={14} color={colors.primary} />
+                <Text style={[styles.freeMonthText, { color: colors.primary, fontFamily: "Inter_500Medium" }]}>
+                  {freeMonthsAvailable} free month{freeMonthsAvailable !== 1 ? "s" : ""} available
                 </Text>
               </View>
-            </View>
+            )}
+
+            {/* CTA: subscribe if expired/trial */}
+            {(subStatus === "expired" || subStatus === "canceled" || subStatus === "trialing" || subStatus === "grace") && (
+              <TouchableOpacity
+                style={[styles.upgradeBtn, { backgroundColor: colors.primary }]}
+                onPress={() => router.push("/paywall")}
+                activeOpacity={0.85}
+              >
+                <Text style={[styles.upgradeText, { color: colors.primaryForeground, fontFamily: "Inter_600SemiBold" }]}>
+                  {subStatus === "trialing" || subStatus === "grace" ? "Subscribe — $20/mo" : "Reactivate subscription"}
+                </Text>
+              </TouchableOpacity>
+            )}
+
+            {/* Referrals link */}
             <TouchableOpacity
-              style={[styles.upgradeBtn, { backgroundColor: colors.primary }]}
-              onPress={() => Alert.alert("Coming soon")}
-              activeOpacity={0.85}
+              style={styles.referralLink}
+              onPress={() => router.push("/referrals")}
+              activeOpacity={0.75}
             >
-              <Text style={[styles.upgradeText, { color: colors.primaryForeground, fontFamily: "Inter_600SemiBold" }]}>
-                Upgrade to Valo Pro
+              <Feather name="users" size={15} color={colors.primary} />
+              <Text style={[styles.referralLinkText, { color: colors.primary, fontFamily: "Inter_500Medium" }]}>
+                Referrals{freeMonthsAvailable > 0 ? ` (${freeMonthsAvailable} available)` : ""}
               </Text>
+              <Feather name="chevron-right" size={15} color={colors.primary} />
             </TouchableOpacity>
+
+            {/* Cancel link — only shown for active/grace */}
+            {(subStatus === "active" || subStatus === "grace") && (
+              <TouchableOpacity
+                style={styles.cancelLink}
+                onPress={() => setShowCancellationModal(true)}
+                activeOpacity={0.7}
+              >
+                <Text style={[styles.cancelLinkText, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
+                  Cancel subscription
+                </Text>
+              </TouchableOpacity>
+            )}
           </View>
         </View>
 
@@ -2002,6 +2079,16 @@ export default function ProfileScreen() {
           setShowDeleteModal(false);
           router.replace("/(auth)/sign-in");
         }}
+      />
+
+      <CancellationModal
+        visible={showCancellationModal}
+        onClose={() => setShowCancellationModal(false)}
+        onCanceled={() => {
+          setShowCancellationModal(false);
+          Alert.alert("Subscription canceled", "Your subscription has been canceled. You'll retain access until the end of your billing period.");
+        }}
+        periodEnd={currentPeriodEnd}
       />
     </>
   );
@@ -2252,6 +2339,33 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   upgradeText: { fontSize: 15 },
+  membershipMeta: { fontSize: 13, marginTop: -8, marginBottom: 12 },
+  freeMonthRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 10,
+    marginBottom: 12,
+  },
+  freeMonthText: { fontSize: 13 },
+  referralLink: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    paddingVertical: 12,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: "transparent",
+    marginTop: 8,
+  },
+  referralLinkText: { flex: 1, fontSize: 14 },
+  cancelLink: {
+    alignItems: "center",
+    paddingVertical: 10,
+    marginTop: 4,
+  },
+  cancelLinkText: { fontSize: 13 },
   // Sign out / delete
   signOutBtn: {
     flexDirection: "row",

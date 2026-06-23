@@ -2,7 +2,7 @@ import { Router, type IRouter } from "express";
 import bcrypt from "bcryptjs";
 import { randomBytes, randomInt } from "crypto";
 import { and, eq, isNull, gt, desc } from "drizzle-orm";
-import { db, usersTable, userProfilesTable, passwordResetTokensTable } from "@workspace/db";
+import { db, usersTable, userProfilesTable, passwordResetTokensTable, subscriptionsTable } from "@workspace/db";
 import { requireAuth, type AuthenticatedRequest } from "../middlewares/requireAuth";
 import { deleteUserAccount } from "../lib/deleteAccount";
 import { exportUserData } from "../lib/exportUserData";
@@ -52,6 +52,20 @@ router.post("/auth/register", async (req, res): Promise<void> => {
     .insert(usersTable)
     .values({ email: String(email).toLowerCase(), passwordHash, sessionToken: token, sessionExpiresAt: expires })
     .returning();
+
+  // Start a 7-day free trial immediately on registration.
+  const now = new Date();
+  const trialEndAt = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+  await db
+    .insert(subscriptionsTable)
+    .values({
+      userId: String(user.id),
+      status: "trialing",
+      trialStartAt: now,
+      trialEndAt,
+      hadTrial: true,
+    })
+    .onConflictDoNothing();
 
   res.status(201).json({
     token,

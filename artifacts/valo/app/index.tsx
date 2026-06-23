@@ -1,4 +1,5 @@
 import { useValoAuth } from "@/contexts/AuthContext";
+import { useSubscription } from "@/contexts/SubscriptionContext";
 import { Redirect } from "expo-router";
 import { View, ActivityIndicator } from "react-native";
 import { useEffect, useState } from "react";
@@ -13,6 +14,7 @@ type OnboardingStatus = "checking" | "needed" | "done";
 
 export default function Index() {
   const { isSignedIn, isLoaded, getToken } = useValoAuth();
+  const { status: subStatus, isLoaded: subLoaded } = useSubscription();
   const [status, setStatus] = useState<OnboardingStatus>("checking");
 
   useEffect(() => {
@@ -26,9 +28,6 @@ export default function Index() {
     let cancelled = false;
     (async () => {
       try {
-        // AsyncStorage check first — survives hot reloads without a network round-trip.
-        // This is the primary guard against onboarding restarting after a code reload
-        // when the API call in finishOnboarding may have failed silently.
         const cachedComplete = await loadOnboardingState();
         if (cachedComplete) {
           if (!cancelled) setStatus("done");
@@ -82,6 +81,20 @@ export default function Index() {
 
   if (status === "needed") {
     return <Redirect href="/onboarding" />;
+  }
+
+  // Subscription gate — only apply after subscription state is loaded.
+  if (subLoaded) {
+    // Hard block: expired or canceled-and-past-period-end → paywall.
+    if (subStatus === "expired") {
+      return <Redirect href="/paywall" />;
+    }
+    // Canceled and period has ended (server computes this as "expired" already,
+    // but guard here for belt-and-suspenders).
+    if (subStatus === "canceled") {
+      return <Redirect href="/paywall" />;
+    }
+    // Grace period: let through normally — soft prompt handles it.
   }
 
   return <Redirect href="/(tabs)" />;

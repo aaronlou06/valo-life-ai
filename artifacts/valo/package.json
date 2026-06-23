@@ -80,6 +80,7 @@
     "expo-task-manager": "^56.0.19",
     "react-native-ble-plx": "3.5.1",
     "react-native-draggable-flatlist": "^4.0.3",
-    "react-native-health": "^1.19.0"
+    "react-native-health": "^1.19.0",
+    "react-native-webview": "^14.0.1"
   }
 }

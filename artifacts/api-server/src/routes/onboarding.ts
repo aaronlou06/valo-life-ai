@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
-import { eq } from "drizzle-orm";
-import { db, userProfilesTable, goalsTable } from "@workspace/db";
+import { eq, and, gt } from "drizzle-orm";
+import { db, userProfilesTable, goalsTable, referralCodesTable, referralConversionsTable } from "@workspace/db";
 import { requireAuth, type AuthenticatedRequest } from "../middlewares/requireAuth";
 import { anthropic } from "@workspace/integrations-anthropic-ai";
 import { logger } from "../lib/logger";
@@ -167,7 +167,7 @@ interface ClaudeProfile {
 
 router.post("/onboarding/complete", requireAuth, async (req, res): Promise<void> => {
   const userId = (req as AuthenticatedRequest).userId;
-  const { answers } = req.body as { answers: OnboardingAnswers };
+  const { answers, referralCode } = req.body as { answers: OnboardingAnswers; referralCode?: string };
 
   if (!answers || typeof answers !== "object") {
     res.status(400).json({ error: "answers object is required" });
@@ -277,6 +277,46 @@ router.post("/onboarding/complete", requireAuth, async (req, res): Promise<void>
     req.log.error({ err, userId }, "POST /onboarding/complete: DB write failed");
     res.status(500).json({ error: "Failed to save onboarding profile" });
     return;
+  }
+
+  // Redeem referral code if provided.
+  if (referralCode && typeof referralCode === "string") {
+    try {
+      const code = referralCode.trim();
+      const now2 = new Date();
+      const [rc] = await db
+        .select()
+        .from(referralCodesTable)
+        .where(
+          and(
+            eq(referralCodesTable.code, code),
+            eq(referralCodesTable.expired, false),
+            gt(referralCodesTable.expiresAt, now2),
+          ),
+        )
+        .limit(1);
+
+      if (rc && rc.userId !== userId) {
+        const [alreadyReferred] = await db
+          .select({ id: referralConversionsTable.id })
+          .from(referralConversionsTable)
+          .where(eq(referralConversionsTable.referredUserId, userId))
+          .limit(1);
+
+        if (!alreadyReferred) {
+          await db.insert(referralConversionsTable).values({
+            referrerUserId: rc.userId,
+            referredUserId: userId,
+            codeUsed: code,
+            signedUpAt: now2,
+            firstPaidAt: null,
+            freeMonthCredited: false,
+          });
+        }
+      }
+    } catch (err) {
+      logger.error({ err, userId, referralCode }, "Referral code redeem failed in onboarding/complete");
+    }
   }
 
   res.status(200).json({

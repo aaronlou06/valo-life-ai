@@ -21,6 +21,8 @@ import { ThemeProvider } from "@/contexts/ThemeContext";
 import { HolidayRegionProvider } from "@/contexts/HolidayRegionContext";
 import { WorkoutCopilotProvider } from "@/contexts/WorkoutCopilotContext";
 import { HeartRateProvider } from "@/contexts/HeartRateContext";
+import { SubscriptionProvider } from "@/contexts/SubscriptionContext";
+import GracePeriodPrompt from "@/components/GracePeriodPrompt";
 import { WorkoutCopilotPanel } from "@/components/WorkoutCopilotPanel";
 import { GOOGLE_OAUTH_PREFIX } from "@/lib/googleCalendar";
 import { installErrorLogger } from "@/lib/errorLogger";
@@ -179,6 +181,9 @@ function RootLayoutNav() {
         <Stack.Screen name="copilot-workout" options={{ gestureEnabled: false }} />
         <Stack.Screen name="copilot-summary" options={{ gestureEnabled: false }} />
         <Stack.Screen name="oauth2redirect/google" />
+        <Stack.Screen name="paywall" options={{ gestureEnabled: false }} />
+        <Stack.Screen name="referral-offer" options={{ presentation: "modal" }} />
+        <Stack.Screen name="referrals" />
       </Stack>
     </>
   );
@@ -292,10 +297,12 @@ export default function RootLayout() {
           <QueryClientProvider client={queryClient}>
             <GestureHandlerRootView style={{ flex: 1 }}>
               <KeyboardProvider>
+                <SubscriptionProvider>
                 <WorkoutCopilotProvider>
                   <HeartRateProvider>
                     <RootLayoutNav />
                     <WorkoutCopilotPanel />
+                    <GracePeriodPrompt />
                     {serverStatus === "offline" && (
                       <View style={styles.offlineBanner} pointerEvents="none">
                         <Text style={styles.offlineBannerText}>
@@ -305,6 +312,7 @@ export default function RootLayout() {
                     )}
                   </HeartRateProvider>
                 </WorkoutCopilotProvider>
+                </SubscriptionProvider>
               </KeyboardProvider>
             </GestureHandlerRootView>
           </QueryClientProvider>

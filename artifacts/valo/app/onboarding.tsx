@@ -32,6 +32,7 @@ import StepMotivation from "@/components/onboarding/StepMotivation";
 import StepOpenText from "@/components/onboarding/StepOpenText";
 import StepCallTime from "@/components/onboarding/StepCallTime";
 import StepComplete from "@/components/onboarding/StepComplete";
+import StepReferralSource from "@/components/onboarding/StepReferralSource";
 
 type StepName =
   | "welcome"
@@ -50,18 +51,19 @@ type StepName =
   | "weighing"
   | "call_time"
   | "remember_this"
+  | "referral_source"
   | "connect"
   | "complete";
 
 // Voice path skips the text-only deep-profile questions (Valo collects those verbally)
 const VOICE_SEQUENCE: StepName[] = [
-  "language", "identity", "birthday", "mic_permission", "voice", "connect",
+  "language", "identity", "birthday", "mic_permission", "voice", "referral_source", "connect",
 ];
 const TEXT_SEQUENCE: StepName[] = [
   "language", "identity", "birthday", "mic_permission", "voice",
   "priorities", "wants", "motivation",
   "ideal_day", "struggling", "people", "goal_90", "weighing", "call_time", "remember_this",
-  "connect",
+  "referral_source", "connect",
 ];
 
 function getProgress(
@@ -219,7 +221,7 @@ export default function OnboardingScreen() {
             "Content-Type": "application/json",
             ...(token ? { Authorization: `Bearer ${token}` } : {}),
           },
-          body: JSON.stringify({ answers }),
+          body: JSON.stringify({ answers, referralCode: data.referralCode ?? undefined }),
         });
         if (res.ok) {
           const result = await res.json() as { success: boolean; profile: any };
@@ -314,7 +316,7 @@ export default function OnboardingScreen() {
   const handleVoiceCallComplete = useCallback(() => {
     setVoiceCallCompleted(true);
     animateTransition(() => {
-      setStep("connect");
+      setStep("referral_source");
       setCurrentValid(false);
     });
   }, [animateTransition]);
@@ -366,6 +368,30 @@ export default function OnboardingScreen() {
     },
     [animateTransition],
   );
+
+  const handleReferralSourceContinue = useCallback(
+    (data: { referralSource: string; referralCode?: string }) => {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      setAllData((prev) => ({
+        ...prev,
+        referralSource: data.referralSource,
+        referralCode: data.referralCode ?? prev.referralCode,
+      }));
+      animateTransition(() => {
+        setStep("connect");
+        setCurrentValid(false);
+      });
+    },
+    [animateTransition],
+  );
+
+  const handleReferralSourceSkip = useCallback(() => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    animateTransition(() => {
+      setStep("connect");
+      setCurrentValid(false);
+    });
+  }, [animateTransition]);
 
   // StepConnect completion → Claude processing → complete screen
   const handleConnectComplete = useCallback(async () => {
@@ -575,8 +601,15 @@ export default function OnboardingScreen() {
               question="What's one thing you want me to always remember about you?"
               placeholder="Anything that defines who you are..."
               field="rememberThis"
-              onContinue={(data) => handleOpenTextContinue(data, "connect")}
-              onSkip={() => handleOpenTextSkip("connect")}
+              onContinue={(data) => handleOpenTextContinue(data, "referral_source")}
+              onSkip={() => handleOpenTextSkip("referral_source")}
+            />
+          )}
+
+          {step === "referral_source" && (
+            <StepReferralSource
+              onContinue={handleReferralSourceContinue}
+              onSkip={handleReferralSourceSkip}
             />
           )}
 
