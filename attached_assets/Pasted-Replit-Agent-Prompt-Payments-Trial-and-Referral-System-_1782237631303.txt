@@ -1,0 +1,53 @@
+Replit Agent Prompt — Payments, Trial, and Referral System
+Build the complete payments, trial, and referral system for Valo. This is a foundational launch-gate feature. Use Plan mode to investigate the existing codebase before coding, then build incrementally with checkpoints.
+Scope: trial + paywall
+Implement a 7-day cardless free trial that begins automatically at signup. Track trial start and end timestamps on the user record. During the trial, the user has full app access — no restrictions, no nag screens.
+When the trial ends, give the user a 48-hour grace period during which they retain full access but see a soft prompt on app open: "Your trial ended. Choose a plan to keep going." After grace expires, hard-block access — every screen routes to the paywall.
+The paywall screen displays the $20/mo offer prominently with a "Start subscription" CTA. Below it, a secondary "I'd rather not pay" link opens the referral offer screen.
+When a user hears about Valo from a friend but signs up without clicking the referral link, during onboarding ask "How did you hear about Valo?" with one option being "A friend's referral" — selecting it reveals a text field for entering a referral code manually. Same code format as the link version.
+Scope: payment processing
+Integrate Helcim as the payment processor using HelcimPay.js hosted payment page rendered inside a React Native WebView modal that opens over the paywall screen. The WebView loads Helcim's hosted page, the user completes payment, Helcim returns a success callback, the WebView closes, and the app updates the user's subscription state to active.
+Store subscription state server-side in our database — do not delegate state to Helcim's recurring engine. We need full control over trial extensions, promo months, and referral credits. Helcim is the processor; we are the source of truth for entitlement.
+Use Helcim's hosted tokenizing modal so card data never touches our server (SAQ A PCI scope).
+Scope: referral system
+Every paying user has a unique referral link and code. Referral capability unlocks only after the user has completed their first paid month — trial users cannot refer.
+When a referred user signs up, completes their trial, and pays their first $20, credit the referrer with 1 free month. Free months stack uncapped. A user can continue earning new referrals while currently redeeming previously-earned free months.
+Tier the referral cost based on cumulative free months earned by the referrer:
+0-3 lifetime free months earned: 1 referral = 1 free month
+4-6 lifetime free months earned: 2 referrals = 1 free month
+7 or more lifetime free months earned: 3 referrals = 1 free month
+Referral links expire 30 days after generation. Build a regeneration flow so users can request a fresh link.
+Scope: referral dashboard
+Build a referrals screen accessible from the profile menu. Show: the user's referral link with copy button, total referrals sent, referrals converted to paying customers, free months earned lifetime, free months currently available to redeem, and current tier (with progress toward the next tier).
+Scope: cancellation flow
+When a user cancels, do not immediately revoke access. Account remains active until the current billing period ends. Capture a cancellation reason via a required short feedback step with options: too expensive, not using it enough, missing features, switching to another app, other (text field).
+Based on the reason, surface a tailored response screen before final confirmation:
+"Too expensive" → offer one month at 50% off as a save attempt
+"Not using it enough" → offer to pause billing for 30 days
+"Missing features" → text field asking which features, with a thank-you and route to confirm
+"Switching to another app" → text field asking which app and why
+"Other" → thank them for the feedback and route to confirm
+After save attempts are declined or for other reasons, confirm the cancellation. Schedule access revocation at period end.
+Scope: winback path
+A user who previously canceled and returns sees the paywall with only the $20/mo and referral options. No new trial is offered — their trial flag is permanent.
+Acceptance criteria
+Users complete signup and start a 7-day trial without entering payment information
+Trial countdown is visible somewhere persistent in-app (settings or profile)
+At trial end + 48h grace, app access is hard-blocked at the paywall screen
+Paywall displays $20/mo CTA and referral alternative
+Helcim WebView modal opens, processes payment, and updates subscription state server-side
+Referral link generates only after first successful $20 payment
+Referred user signup credits the referrer when they complete their own first paid month, with tier-aware logic
+Free months stack and decrement correctly when applied
+Referral dashboard shows accurate live counts
+Cancellation captures feedback, offers tailored save attempts, and revokes access at period end
+Returning canceled users see paywall without trial option
+Onboarding includes referral code entry fallback
+30-day referral link expiry enforced, with regeneration available
+Implementation notes
+All subscription state, referral counts, free month balances, and tier calculations live in our Postgres DB via Drizzle
+Use Stripe-like webhook-style endpoints to receive Helcim payment events and update our state
+Idempotency on all payment-related endpoints
+Server-computed values only for tier, balance, and counts — never trust client state for entitlement decisions
+Generate referral codes as short, URL-safe, non-sequential strings (avoid guessable patterns)
+Plan first, present the plan, then build with checkpoints after each major milestone: trial logic, paywall UI, Helcim integration, referral system, dashboard, cancellation flow.
