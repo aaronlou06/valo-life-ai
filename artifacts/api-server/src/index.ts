@@ -7,6 +7,7 @@ import { startNightlyAggregationJob } from "./lib/nightlyAggregation";
 import { startCalendarSyncJob } from "./lib/calendarSyncJob";
 import { startWeeklyRecapJob } from "./lib/weeklyRecapJob";
 import { startSubscriptionStateJob } from "./lib/subscriptionJob";
+import { startWearableSyncJob } from "./lib/wearableSyncJob";
 
 const rawPort = process.env["PORT"];
 
@@ -36,4 +37,5 @@ app.listen(port, (err) => {
   startCalendarSyncJob();
   startWeeklyRecapJob();
   startSubscriptionStateJob();
+  startWearableSyncJob();
 });

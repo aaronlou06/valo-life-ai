@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import {
   View,
   Text,
@@ -8,6 +8,7 @@ import {
   StyleSheet,
   Alert,
   Platform,
+  Linking,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
@@ -15,6 +16,15 @@ import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useColors } from "@/hooks/useColors";
+import { useValoAuth } from "@/contexts/AuthContext";
+
+function getApiBase(): string {
+  const domain = process.env.EXPO_PUBLIC_DOMAIN;
+  return domain ? `https://${domain}` : "";
+}
+
+// IDs of integrations that use real server-side OAuth flows
+const OAUTH_IDS = new Set(["oura", "whoop", "garmin"]);
 
 // ─── Storage ──────────────────────────────────────────────────────────────────
 
@@ -229,14 +239,54 @@ export default function ConnectionsScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const colors = useColors();
+  const { getToken } = useValoAuth();
 
   const [connected, setConnected] = useState<Record<string, boolean>>({});
+  const [connectingWearable, setConnectingWearable] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [activeCategory, setActiveCategory] = useState<string>("all");
 
+  // Load local connections from AsyncStorage
   useEffect(() => {
     void loadConnections().then(setConnected);
   }, []);
+
+  // Fetch real server-side status for oura/whoop/garmin
+  const refreshWearableStatus = useCallback(async () => {
+    const token = await getToken();
+    if (!token) return;
+    try {
+      const res = await fetch(`${getApiBase()}/api/integrations/status`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) return;
+      const data = (await res.json()) as { oura: boolean; whoop: boolean; garmin: boolean };
+      setConnected((prev) => ({
+        ...prev,
+        oura: data.oura,
+        whoop: data.whoop,
+        garmin: data.garmin,
+      }));
+    } catch {}
+  }, [getToken]);
+
+  useEffect(() => {
+    void refreshWearableStatus();
+  }, [refreshWearableStatus]);
+
+  // Listen for OAuth deep-link return: valo://integrations?connected=oura
+  useEffect(() => {
+    const subscription = Linking.addEventListener("url", ({ url }) => {
+      const match = url.match(/valo:\/\/integrations\?connected=(\w+)/);
+      if (!match) return;
+      const source = match[1]!;
+      if (OAUTH_IDS.has(source)) {
+        setConnectingWearable(null);
+        void refreshWearableStatus();
+      }
+    });
+    return () => subscription.remove();
+  }, [refreshWearableStatus]);
 
   const connectedCount = Object.values(connected).filter(Boolean).length;
 
@@ -262,6 +312,35 @@ export default function ConnectionsScreen() {
 
     if (integration.status === "unavailable") return;
 
+    // Real OAuth for oura, whoop, garmin
+    if (OAUTH_IDS.has(integration.id)) {
+      const token = await getToken();
+      if (!token) {
+        Alert.alert("Not signed in", "Please sign in before connecting a device.");
+        return;
+      }
+      setConnectingWearable(integration.id);
+      try {
+        const res = await fetch(`${getApiBase()}/api/integrations/${integration.id}/init`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (!res.ok) {
+          const body = (await res.json().catch(() => ({}))) as { error?: string };
+          Alert.alert("Connection unavailable", body.error ?? "Could not start the authorization flow.");
+          setConnectingWearable(null);
+          return;
+        }
+        const { authUrl } = (await res.json()) as { authUrl: string };
+        await Linking.openURL(authUrl);
+        // Status will be updated when the deep-link valo://integrations?connected=... fires
+      } catch {
+        Alert.alert("Connection failed", "Could not open the authorization page. Please try again.");
+        setConnectingWearable(null);
+      }
+      return;
+    }
+
+    // Local toggle for all other integrations
     const label = integration.status === "unofficial" ? "unofficial" : null;
     const message = label
       ? `${integration.name} uses an unofficial API. Connect anyway?`
@@ -286,6 +365,7 @@ export default function ConnectionsScreen() {
 
   async function handleDisconnect(integration: Integration) {
     void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+
     Alert.alert(
       `Disconnect ${integration.name}?`,
       `This will remove Valo's access to your ${integration.name} data.`,
@@ -295,6 +375,16 @@ export default function ConnectionsScreen() {
           text: "Disconnect",
           style: "destructive",
           onPress: async () => {
+            // Real server-side disconnect for oura/whoop/garmin
+            if (OAUTH_IDS.has(integration.id)) {
+              const token = await getToken();
+              if (token) {
+                await fetch(`${getApiBase()}/api/integrations/${integration.id}/disconnect`, {
+                  method: "DELETE",
+                  headers: { Authorization: `Bearer ${token}` },
+                }).catch(() => {});
+              }
+            }
             const updated = { ...connected, [integration.id]: false };
             setConnected(updated);
             await saveConnections(updated);
@@ -550,11 +640,12 @@ export default function ConnectionsScreen() {
                               )}
                               <TouchableOpacity
                                 onPress={() => void handleConnect(integration)}
-                                style={[styles.connectBtn, { backgroundColor: colors.primary }]}
+                                disabled={connectingWearable === integration.id}
+                                style={[styles.connectBtn, { backgroundColor: colors.primary, opacity: connectingWearable === integration.id ? 0.6 : 1 }]}
                                 activeOpacity={0.8}
                               >
                                 <Text style={[styles.connectBtnText, { color: colors.primaryForeground, fontFamily: "Inter_600SemiBold" }]}>
-                                  Connect
+                                  {connectingWearable === integration.id ? "Opening..." : "Connect"}
                                 </Text>
                               </TouchableOpacity>
                             </View>

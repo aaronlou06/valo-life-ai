@@ -1,0 +1,13 @@
+PROMPT 2 — Oura integration
+
+"Add Oura Ring integration to the Valo app. On the backend, implement the following: (1) add an Oura OAuth 2.0 connect flow — store the access token and refresh token per user in the database; (2) create a /api/integrations/oura/callback endpoint to handle the OAuth redirect; (3) create a background sync job using pg-boss that runs every 2 hours and pulls the following from the Oura REST API for each connected user: sleep data (total sleep, sleep stages, sleep score), readiness score, HRV, resting heart rate, and activity summary — store results in a wearable_data table with source, user_id, date, and metric/value columns; (4) register a webhook endpoint at /api/integrations/oura/webhook so Oura can push data when a new sync is available; (5) on the Profile tab in the app, add an 'Connect Oura' button under Connected Devices that initiates the OAuth flow."
+
+
+PROMPT 3 — Whoop integration
+
+"Add Whoop integration to the Valo app. On the backend: (1) implement Whoop OAuth 2.0 — store access and refresh tokens per user; (2) create a /api/integrations/whoop/callback OAuth redirect handler; (3) create a pg-boss background job that runs every 2 hours pulling the following from the Whoop API for each connected user: recovery score, HRV, resting heart rate, sleep performance, strain score — store in the existing wearable_data table with source tagged as 'whoop'; (4) register a webhook at /api/integrations/whoop/webhook for real-time push when Whoop syncs new data; (5) on the Profile tab, add a 'Connect Whoop' button under Connected Devices that initiates the OAuth flow. Reuse the same token refresh pattern established for Oura."
+
+
+PROMPT 4 — Garmin integration
+
+"Add Garmin integration to the Valo app. Note: Garmin requires the user to have the Garmin Connect app installed — data flows from the device to Garmin Connect, then to our backend via their Health API. Implement the following: (1) set up Garmin OAuth 1.0a (Garmin uses OAuth 1.0a, not 2.0 — handle this correctly) and store credentials per user; (2) create a /api/integrations/garmin/callback handler; (3) register a Garmin Health API webhook at /api/integrations/garmin/webhook — Garmin pushes summaries (daily summary, sleep summary, HRV summary, activity summary) to this endpoint when the user's device syncs with Garmin Connect; (4) parse and store incoming Garmin webhook payloads into the wearable_data table with source tagged as 'garmin'; (5) on the Profile tab, add a 'Connect Garmin' button under Connected Devices. Flag in a comment that Garmin's push API requires registering the webhook URL in the Garmin Health API developer portal — include a note in the README with the URL to register."
