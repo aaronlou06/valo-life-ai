@@ -8,9 +8,19 @@ import {
   ActivityIndicator,
   Platform,
 } from "react-native";
-import { WebView, type WebViewMessageEvent } from "react-native-webview";
 import { useColors } from "@/hooks/useColors";
 import { Feather } from "@expo/vector-icons";
+
+// Lazy-load react-native-webview so the module doesn't crash in Expo Go or
+// any environment where the native binary doesn't include RNCWebViewModule.
+let WebViewComponent: React.ComponentType<any> | null = null;
+try {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const mod = require("react-native-webview") as { WebView: React.ComponentType<any> };
+  WebViewComponent = mod.WebView;
+} catch {
+  // Not available in Expo Go — payment WebView silently disabled
+}
 
 function getApiBase(): string {
   const domain = process.env.EXPO_PUBLIC_DOMAIN;
@@ -84,7 +94,7 @@ export default function HelcimPayWebView({ visible, onClose, onSuccess, getToken
     })();
   }, [visible, getToken]);
 
-  function handleMessage(event: WebViewMessageEvent) {
+  function handleMessage(event: { nativeEvent: { data: string } }) {
     if (hasHandledRef.current) return;
     try {
       const raw = event.nativeEvent.data;
@@ -108,6 +118,8 @@ export default function HelcimPayWebView({ visible, onClose, onSuccess, getToken
   const helcimUrl = checkoutToken
     ? `https://secure.helcim.app/helcim-pay/?checkoutToken=${checkoutToken}&secretToken=${secretToken ?? ""}`
     : null;
+
+  const canShowWebView = Platform.OS !== "web" && WebViewComponent !== null;
 
   return (
     <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
@@ -144,8 +156,8 @@ export default function HelcimPayWebView({ visible, onClose, onSuccess, getToken
           </View>
         )}
 
-        {helcimUrl && !loading && !error && Platform.OS !== "web" && (
-          <WebView
+        {helcimUrl && !loading && !error && canShowWebView && WebViewComponent && (
+          <WebViewComponent
             source={{ uri: helcimUrl }}
             onMessage={handleMessage}
             injectedJavaScript={INJECT_JS}
@@ -157,10 +169,10 @@ export default function HelcimPayWebView({ visible, onClose, onSuccess, getToken
           />
         )}
 
-        {helcimUrl && !loading && !error && Platform.OS === "web" && (
+        {helcimUrl && !loading && !error && !canShowWebView && (
           <View style={styles.center}>
             <Text style={[styles.webNote, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
-              Please use the mobile app to complete payment.
+              Please use the production app to complete payment.
             </Text>
           </View>
         )}
