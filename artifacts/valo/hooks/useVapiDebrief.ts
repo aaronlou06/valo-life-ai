@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { Alert } from "react-native";
+import { Audio } from "expo-av";
 import vapi from "@/lib/vapi";
 
 export type CallState = "idle" | "loading" | "active" | "ending";
@@ -150,6 +151,19 @@ export function useVapiDebrief(
   }, [userId, getToken]);
 
   const startCall = useCallback(async () => {
+    // Request microphone permission here (deferred from onboarding).
+    // On first invocation iOS will show the system dialog; subsequent calls
+    // return the cached result immediately.
+    const { granted } = await Audio.requestPermissionsAsync();
+    if (!granted) {
+      Alert.alert(
+        "Microphone access needed",
+        "Please allow microphone access in Settings to use voice check-ins.",
+        [{ text: "OK" }],
+      );
+      return;
+    }
+
     setCallState("loading");
     setTranscript([]);
     transcriptRef.current = [];

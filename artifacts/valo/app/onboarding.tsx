@@ -1,4 +1,4 @@
-import React, { useState, useRef, useCallback } from "react";
+import React, { useState, useRef, useCallback, useEffect } from "react";
 import {
   View,
   Text,
@@ -14,72 +14,44 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
+import { getLocales, getCalendars } from "expo-localization";
 import { useValoAuth } from "@/contexts/AuthContext";
 import { useColors } from "@/hooks/useColors";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { markOnboardingComplete } from "@/hooks/onboardingState";
 
 import StepValoIntro from "@/components/onboarding/StepValoIntro";
-import StepLanguage from "@/components/onboarding/StepLanguage";
 import Step1Identity from "@/components/onboarding/Step1Identity";
-import StepBirthday from "@/components/onboarding/StepBirthday";
-import StepMicPermission from "@/components/onboarding/StepMicPermission";
-import StepVoiceCall from "@/components/onboarding/StepVoiceCall";
+import StepLifeAreas from "@/components/onboarding/StepLifeAreas";
+import StepCheckinSetup from "@/components/onboarding/StepCheckinSetup";
 import StepConnect from "@/components/onboarding/StepConnect";
-import StepPriorities from "@/components/onboarding/StepPriorities";
-import StepWants from "@/components/onboarding/StepWants";
-import StepMotivation from "@/components/onboarding/StepMotivation";
-import StepOpenText from "@/components/onboarding/StepOpenText";
-import StepCallTime from "@/components/onboarding/StepCallTime";
 import StepComplete from "@/components/onboarding/StepComplete";
-import StepReferralSource from "@/components/onboarding/StepReferralSource";
 
-type StepName =
-  | "welcome"
-  | "language"
-  | "identity"
-  | "birthday"
-  | "mic_permission"
-  | "voice"
-  | "priorities"
-  | "wants"
-  | "motivation"
-  | "ideal_day"
-  | "struggling"
-  | "people"
-  | "goal_90"
-  | "weighing"
-  | "call_time"
-  | "remember_this"
-  | "referral_source"
-  | "connect"
-  | "complete";
+// ── Step types ────────────────────────────────────────────────────────────────
 
-// Voice path skips the text-only deep-profile questions (Valo collects those verbally)
-const VOICE_SEQUENCE: StepName[] = [
-  "language", "identity", "birthday", "mic_permission", "voice", "referral_source", "connect",
-];
-const TEXT_SEQUENCE: StepName[] = [
-  "language", "identity", "birthday", "mic_permission", "voice",
-  "priorities", "wants", "motivation",
-  "ideal_day", "struggling", "people", "goal_90", "weighing", "call_time", "remember_this",
-  "referral_source", "connect",
-];
+type StepName = "welcome" | "identity" | "life_areas" | "checkin_setup" | "connect" | "complete";
 
-function getProgress(
-  step: StepName,
-  voiceCallCompleted: boolean,
-): { current: number; total: number } {
-  if (step === "welcome" || step === "complete") return { current: 0, total: 1 };
-  const seq = voiceCallCompleted ? VOICE_SEQUENCE : TEXT_SEQUENCE;
-  const idx = seq.indexOf(step);
-  return { current: idx === -1 ? 1 : idx + 1, total: seq.length };
+// Steps shown in the progress bar (excludes welcome & complete screens)
+const SEQUENCE: StepName[] = ["identity", "life_areas", "checkin_setup", "connect"];
+
+const BACK_MAP: Partial<Record<StepName, StepName>> = {
+  life_areas: "identity",
+  checkin_setup: "life_areas",
+  connect: "checkin_setup",
+};
+
+function getProgress(step: StepName): { current: number; total: number } {
+  const idx = SEQUENCE.indexOf(step);
+  if (idx === -1) return { current: 0, total: SEQUENCE.length };
+  return { current: idx + 1, total: SEQUENCE.length };
 }
 
 function getApiBase(): string {
   const domain = process.env.EXPO_PUBLIC_DOMAIN;
   return domain ? `https://${domain}` : "";
 }
+
+// ── ProgressBar ───────────────────────────────────────────────────────────────
 
 function ProgressBar({
   current,
@@ -88,7 +60,7 @@ function ProgressBar({
 }: {
   current: number;
   total: number;
-  colors: any;
+  colors: ReturnType<typeof useColors>;
 }) {
   const progress = useRef(new Animated.Value(current / total)).current;
 
@@ -115,6 +87,8 @@ function ProgressBar({
   );
 }
 
+// ── Main screen ───────────────────────────────────────────────────────────────
+
 export default function OnboardingScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
@@ -122,21 +96,64 @@ export default function OnboardingScreen() {
   const { getToken, updateName } = useValoAuth();
 
   const [step, setStep] = useState<StepName>("welcome");
-  const [voiceCallCompleted, setVoiceCallCompleted] = useState(false);
   const [saving, setSaving] = useState(false);
   const [completing, setCompleting] = useState(false);
-  const [allData, setAllData] = useState<Record<string, any>>({});
-  const [completedProfile, setCompletedProfile] = useState<any>(null);
+  const [allData, setAllData] = useState<Record<string, unknown>>({});
+  // false until the mount status-check resolves; prevents welcome-screen flash on resume
+  const [resumeChecked, setResumeChecked] = useState(false);
 
-  const currentDataRef = useRef<{ data: Record<string, any>; valid: boolean }>({
-    data: {},
-    valid: false,
-  });
+  // identity step uses an external Continue button; other steps handle Continue internally
+  const currentDataRef = useRef<{ data: Record<string, unknown>; valid: boolean }>({ data: {}, valid: false });
   const [currentValid, setCurrentValid] = useState(false);
 
   const scrollRef = useRef<ScrollView>(null);
   const fadeAnim = useRef(new Animated.Value(1)).current;
   const slideAnim = useRef(new Animated.Value(0)).current;
+
+  // ── Resume-from-last-step on mount ──────────────────────────────────────────
+
+  useEffect(() => {
+    void (async () => {
+      try {
+        const token = await getToken();
+        const res = await fetch(`${getApiBase()}/api/onboarding/status`, {
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+        });
+        if (res.ok) {
+          const status = (await res.json()) as {
+            onboardingCompleted: boolean;
+            lastStep: string | null;
+            onboardingProgress?: {
+              answersSOFar?: Record<string, unknown>;
+            } | null;
+          };
+
+          if (!status.onboardingCompleted) {
+            const lastStep = status.lastStep as StepName | null;
+            const answers = status.onboardingProgress?.answersSOFar ?? {};
+
+            if (lastStep && SEQUENCE.includes(lastStep)) {
+              // Restore any previously-saved answers so subsequent screens have context
+              if (Object.keys(answers).length > 0) {
+                setAllData(answers);
+                if (answers.name) updateName(answers.name as string);
+              }
+              // Jump directly to the last incomplete step (no animation — instant)
+              setStep(lastStep);
+            }
+          }
+        }
+      } catch {
+        // Non-critical — start from welcome if status check fails
+      } finally {
+        setResumeChecked(true);
+      }
+    })();
+    // Run once on mount only
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // ── Animation ───────────────────────────────────────────────────────────────
 
   const animateTransition = useCallback(
     (next: () => void) => {
@@ -156,8 +173,10 @@ export default function OnboardingScreen() {
     [fadeAnim, slideAnim],
   );
 
+  // ── API helpers ─────────────────────────────────────────────────────────────
+
   const patchOnboarding = useCallback(
-    async (data: Record<string, any>) => {
+    async (data: Record<string, unknown>) => {
       const token = await getToken();
       const res = await fetch(`${getApiBase()}/api/onboarding/save`, {
         method: "PATCH",
@@ -173,7 +192,7 @@ export default function OnboardingScreen() {
   );
 
   const saveProgress = useCallback(
-    async (currentStep: number, answers: Record<string, any>) => {
+    async (lastStep: string, answers: Record<string, unknown>) => {
       try {
         const token = await getToken();
         await fetch(`${getApiBase()}/api/onboarding/progress`, {
@@ -182,53 +201,33 @@ export default function OnboardingScreen() {
             "Content-Type": "application/json",
             ...(token ? { Authorization: `Bearer ${token}` } : {}),
           },
-          body: JSON.stringify({ lastQuestion: currentStep, answersSOFar: answers }),
+          body: JSON.stringify({ lastStep, answersSOFar: answers }),
         });
       } catch {
-        // Non-critical — don't block the user
+        // Non-critical — progress save failing never blocks the user
       }
     },
     [getToken],
   );
 
-  const handleStepChange = useCallback((data: Record<string, any>, valid: boolean) => {
-    currentDataRef.current = { data, valid };
-    setCurrentValid(valid);
-  }, []);
-
-  // ── Complete onboarding — calls Claude endpoint ──────────────────────────
   const completeOnboarding = useCallback(
-    async (data: Record<string, any>) => {
+    async (data: Record<string, unknown>) => {
       setCompleting(true);
-      const answers = {
-        name: data.name,
-        area_to_improve: data.lifePriorities,
-        ideal_day: data.idealDay,
-        change_struggling_with: data.changeStruggling,
-        important_people: data.importantPeople,
-        motivation: data.userMotivation,
-        success_90_days: data.goal90Days,
-        weighing_on_you: data.weighingOn,
-        call_time: data.preferredCallTime,
-        remember_this: data.rememberThis,
-      };
-
       try {
         const token = await getToken();
-        const res = await fetch(`${getApiBase()}/api/onboarding/complete`, {
+        await fetch(`${getApiBase()}/api/onboarding/complete`, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
             ...(token ? { Authorization: `Bearer ${token}` } : {}),
           },
-          body: JSON.stringify({ answers, referralCode: data.referralCode ?? undefined }),
+          // Chip-selected data was already saved per-step via /onboarding/save.
+          // We pass name so Claude can reference it, but there are no open-text
+          // answers in this flow — the route handles the empty-answers case.
+          body: JSON.stringify({ answers: { name: data.name } }),
         });
-        if (res.ok) {
-          const result = await res.json() as { success: boolean; profile: any };
-          setCompletedProfile(result.profile);
-        }
       } catch {
-        // Fail silently — we still transition to complete screen
+        // Fail silently — the user still reaches Home
       } finally {
         setCompleting(false);
       }
@@ -236,164 +235,104 @@ export default function OnboardingScreen() {
     [getToken],
   );
 
-  const navigateToApp = useCallback(async () => {
-    await AsyncStorage.setItem("@valo/onboarding-complete", "true");
-    markOnboardingComplete();
-    router.replace("/(tabs)");
-  }, [router]);
+  // ── Navigation ──────────────────────────────────────────────────────────────
 
-  // ── Step handlers ─────────────────────────────────────────────────────────
-
-  const handleWelcomeBegin = useCallback(() => {
-    animateTransition(() => {
-      setStep("language");
-      setCurrentValid(false);
-    });
-  }, [animateTransition]);
-
-  const handleLanguageContinue = useCallback(
-    (data: Record<string, any>) => {
-      void patchOnboarding(data).catch(() => {});
-      setAllData((prev) => ({ ...prev, ...data }));
-      animateTransition(() => {
-        setStep("identity");
-        setCurrentValid(false);
-      });
+  const navigateToApp = useCallback(
+    async (goToVoice?: boolean) => {
+      await AsyncStorage.setItem("@valo/onboarding-complete", "true");
+      markOnboardingComplete();
+      router.replace(goToVoice ? "/voice" : "/(tabs)");
     },
-    [patchOnboarding, animateTransition],
+    [router],
   );
 
-  const handleNext = useCallback(async () => {
+  // ── Step handlers ────────────────────────────────────────────────────────────
+
+  // Screen 1 (Welcome): detect device locale + timezone, save silently, advance immediately
+  const handleWelcomeBegin = useCallback(() => {
+    void (async () => {
+      try {
+        const locales = getLocales();
+        const calendars = getCalendars();
+        const preferredLanguage = locales[0]?.languageCode ?? "en";
+        const callTimezone = calendars[0]?.timeZone ?? null;
+        void patchOnboarding({
+          preferredLanguage,
+          ...(callTimezone ? { callTimezone } : {}),
+        }).catch(() => {});
+      } catch {
+        // Non-critical — proceed regardless of locale detection errors
+      }
+    })();
+    // Transition immediately; locale save fires in the background
+    animateTransition(() => {
+      setStep("identity");
+      setCurrentValid(false);
+    });
+  }, [patchOnboarding, animateTransition]);
+
+  // Screen 2 (identity): Step1Identity reports via onChange; external button calls this
+  const handleStepChange = useCallback((data: Record<string, unknown>, valid: boolean) => {
+    currentDataRef.current = { data, valid };
+    setCurrentValid(valid);
+  }, []);
+
+  const handleIdentityContinue = useCallback(async () => {
     if (!currentValid || saving) return;
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     setSaving(true);
     const { data } = currentDataRef.current;
+    const merged = { ...allData, ...data };
     try {
       await patchOnboarding(data);
-      if (data.name) updateName(data.name);
-      setAllData((prev) => ({ ...prev, ...data }));
-      animateTransition(() => {
-        setStep("birthday");
-        setCurrentValid(false);
-      });
+      if (data.name) updateName(data.name as string);
     } catch {
-      if (data.name) updateName(data.name);
-      setAllData((prev) => ({ ...prev, ...data }));
-      animateTransition(() => {
-        setStep("birthday");
-        setCurrentValid(false);
-      });
+      // Save failed — still advance and update name optimistically
+      if (data.name) updateName(data.name as string);
     } finally {
       setSaving(false);
     }
-  }, [currentValid, saving, patchOnboarding, animateTransition, updateName]);
+    setAllData(merged);
+    void saveProgress("life_areas", merged);
+    animateTransition(() => {
+      setStep("life_areas");
+      setCurrentValid(false);
+    });
+  }, [currentValid, saving, allData, patchOnboarding, updateName, saveProgress, animateTransition]);
 
-  const handleBirthdayContinue = useCallback(
-    (data: Record<string, any>) => {
+  // Screen 3 (life_areas): StepLifeAreas calls back here on its internal Continue
+  const handleLifeAreasContinue = useCallback(
+    (data: Record<string, unknown>) => {
+      void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
       void patchOnboarding(data).catch(() => {});
-      setAllData((prev) => ({ ...prev, ...data }));
-      animateTransition(() => setStep("mic_permission"));
-    },
-    [patchOnboarding, animateTransition],
-  );
-
-  const handleBirthdaySkip = useCallback(() => {
-    animateTransition(() => setStep("mic_permission"));
-  }, [animateTransition]);
-
-  const handleMicGranted = useCallback(
-    (micPermission: boolean) => {
-      void patchOnboarding({ microphonePermission: micPermission }).catch(() => {});
-      setAllData((prev) => ({ ...prev, microphonePermission: micPermission }));
+      const merged = { ...allData, ...data };
+      setAllData(merged);
+      void saveProgress("checkin_setup", merged);
       animateTransition(() => {
-        setStep("voice");
+        setStep("checkin_setup");
         setCurrentValid(false);
       });
     },
-    [patchOnboarding, animateTransition],
+    [allData, patchOnboarding, saveProgress, animateTransition],
   );
 
-  const handleVoiceCallComplete = useCallback(() => {
-    setVoiceCallCompleted(true);
-    animateTransition(() => {
-      setStep("referral_source");
-      setCurrentValid(false);
-    });
-  }, [animateTransition]);
-
-  const handleSkipVoiceCall = useCallback(() => {
-    animateTransition(() => {
-      setStep("priorities");
-      setCurrentValid(false);
-    });
-  }, [animateTransition]);
-
-  // Generic text step continue — saves data and moves to next step
-  const handleTextStepContinue = useCallback(
-    (data: Record<string, any>, nextStep: StepName) => {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+  // Screen 4 (checkin_setup): StepCheckinSetup calls back here on its internal Continue
+  const handleCheckinSetupContinue = useCallback(
+    (data: Record<string, unknown>) => {
+      void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
       void patchOnboarding(data).catch(() => {});
       const merged = { ...allData, ...data };
       setAllData(merged);
-      void saveProgress(TEXT_SEQUENCE.indexOf(nextStep), merged);
-      animateTransition(() => setStep(nextStep));
-    },
-    [patchOnboarding, animateTransition, allData, saveProgress],
-  );
-
-  const handleTextStepSkip = useCallback(
-    (nextStep: StepName) => {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-      animateTransition(() => setStep(nextStep));
-    },
-    [animateTransition],
-  );
-
-  // Open-text step continue — stores locally and moves forward
-  const handleOpenTextContinue = useCallback(
-    (data: Record<string, any>, nextStep: StepName) => {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-      const merged = { ...allData, ...data };
-      setAllData(merged);
-      void saveProgress(TEXT_SEQUENCE.indexOf(nextStep), merged);
-      animateTransition(() => setStep(nextStep));
-    },
-    [animateTransition, allData, saveProgress],
-  );
-
-  const handleOpenTextSkip = useCallback(
-    (nextStep: StepName) => {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-      animateTransition(() => setStep(nextStep));
-    },
-    [animateTransition],
-  );
-
-  const handleReferralSourceContinue = useCallback(
-    (data: { referralSource: string; referralCode?: string }) => {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-      setAllData((prev) => ({
-        ...prev,
-        referralSource: data.referralSource,
-        referralCode: data.referralCode ?? prev.referralCode,
-      }));
+      void saveProgress("connect", merged);
       animateTransition(() => {
         setStep("connect");
         setCurrentValid(false);
       });
     },
-    [animateTransition],
+    [allData, patchOnboarding, saveProgress, animateTransition],
   );
 
-  const handleReferralSourceSkip = useCallback(() => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    animateTransition(() => {
-      setStep("connect");
-      setCurrentValid(false);
-    });
-  }, [animateTransition]);
-
-  // StepConnect completion → Claude processing → complete screen
+  // Screen 5 (connect): fires /onboarding/complete then transitions to final screen
   const handleConnectComplete = useCallback(async () => {
     const data = allData;
     animateTransition(() => setStep("complete"));
@@ -402,58 +341,56 @@ export default function OnboardingScreen() {
 
   const handleBack = useCallback(() => {
     if (saving) return;
-    const backMap: Partial<Record<StepName, StepName>> = {
-      identity: "language",
-      birthday: "identity",
-      mic_permission: "birthday",
-      wants: "priorities",
-      motivation: "wants",
-      ideal_day: "motivation",
-      struggling: "ideal_day",
-      people: "struggling",
-      goal_90: "people",
-      weighing: "goal_90",
-      call_time: "weighing",
-      remember_this: "call_time",
-    };
-    const target = backMap[step];
+    const target = BACK_MAP[step];
     if (!target) return;
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     animateTransition(() => {
       setStep(target);
       setCurrentValid(false);
     });
   }, [step, saving, animateTransition]);
 
+  // ── Layout helpers ───────────────────────────────────────────────────────────
+
   const topPad = Platform.OS === "web" ? Math.max(insets.top, 67) : insets.top;
   const bottomPad = insets.bottom;
 
-  const showHeader = step !== "voice" && step !== "welcome" && step !== "complete";
+  const showHeader = step !== "welcome" && step !== "complete";
   const showContinueBtn = step === "identity";
-  const backAllowedSteps: StepName[] = [
-    "identity", "birthday", "mic_permission", "wants", "motivation",
-    "ideal_day", "struggling", "people", "goal_90", "weighing", "call_time", "remember_this",
-  ];
-  const backDisabled = !backAllowedSteps.includes(step);
-  const { current: progressCurrent, total: progressTotal } = getProgress(step, voiceCallCompleted);
+  const backDisabled = !(step in BACK_MAP);
+  const { current: progressCurrent, total: progressTotal } = getProgress(step);
+
+  // ── Render ──────────────────────────────────────────────────────────────────
+
+  // Show blank background while resume check is in-flight — prevents welcome
+  // screen from flashing before jumping to the resumed step for returning users.
+  if (!resumeChecked) {
+    return <View style={{ flex: 1, backgroundColor: colors.background }} />;
+  }
 
   if (step === "welcome") {
-    return (
-      <StepValoIntro
-        name={allData.name}
-        onBegin={handleWelcomeBegin}
-      />
-    );
+    return <StepValoIntro onBegin={handleWelcomeBegin} />;
   }
 
   if (step === "complete") {
     return (
-      <View style={[styles.completeContainer, { backgroundColor: colors.background, paddingTop: topPad + 24, paddingBottom: bottomPad + 24, paddingHorizontal: 24 }]}>
+      <View
+        style={[
+          styles.completeContainer,
+          {
+            backgroundColor: colors.background,
+            paddingTop: topPad + 24,
+            paddingBottom: bottomPad + 24,
+            paddingHorizontal: 24,
+          },
+        ]}
+      >
         <StepComplete
-          name={allData.name ?? completedProfile?.name}
-          callTime={completedProfile?.user_call_time ?? allData.preferredCallTime}
+          name={allData.name as string | undefined}
+          callTime={allData.preferredCallTime as string | undefined}
           loading={completing}
-          onGo={navigateToApp}
+          onGo={() => void navigateToApp(false)}
+          onFirstCheckin={() => void navigateToApp(true)}
         />
       </View>
     );
@@ -483,9 +420,7 @@ export default function OnboardingScreen() {
         </View>
       )}
 
-      {!showHeader && (
-        <View style={{ height: topPad + 8 }} />
-      )}
+      {!showHeader && <View style={{ height: topPad + 8 }} />}
 
       <Animated.View style={[styles.animated, { opacity: fadeAnim, transform: [{ translateY: slideAnim }] }]}>
         <ScrollView
@@ -495,128 +430,20 @@ export default function OnboardingScreen() {
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >
-          {step === "language" && (
-            <StepLanguage onContinue={handleLanguageContinue} />
-          )}
-
           {step === "identity" && <Step1Identity {...stepProps} />}
 
-          {step === "birthday" && (
-            <StepBirthday
-              onContinue={handleBirthdayContinue}
-              onSkip={handleBirthdaySkip}
-            />
+          {step === "life_areas" && (
+            <StepLifeAreas onContinue={handleLifeAreasContinue} />
           )}
 
-          {step === "mic_permission" && (
-            <StepMicPermission onGranted={handleMicGranted} />
-          )}
-
-          {step === "voice" && (
-            <StepVoiceCall
-              {...stepProps}
-              onAdvance={handleVoiceCallComplete}
-              onSkip={handleSkipVoiceCall}
-            />
-          )}
-
-          {step === "priorities" && (
-            <StepPriorities
-              onContinue={(data) => handleTextStepContinue(data, "wants")}
-              onSkip={() => handleTextStepSkip("wants")}
-            />
-          )}
-
-          {step === "wants" && (
-            <StepWants
-              onContinue={(data) => handleTextStepContinue(data, "motivation")}
-              onSkip={() => handleTextStepSkip("motivation")}
-            />
-          )}
-
-          {step === "motivation" && (
-            <StepMotivation
-              onContinue={(data) => handleTextStepContinue(data, "ideal_day")}
-              onSkip={() => handleTextStepSkip("ideal_day")}
-            />
-          )}
-
-          {step === "ideal_day" && (
-            <StepOpenText
-              question="What does your ideal day look like — what would make you feel like you really lived it?"
-              field="idealDay"
-              onContinue={(data) => handleOpenTextContinue(data, "struggling")}
-              onSkip={() => handleOpenTextSkip("struggling")}
-            />
-          )}
-
-          {step === "struggling" && (
-            <StepOpenText
-              question="What's something you keep trying to change about yourself but haven't cracked yet?"
-              field="changeStruggling"
-              onContinue={(data) => handleOpenTextContinue(data, "people")}
-              onSkip={() => handleOpenTextSkip("people")}
-            />
-          )}
-
-          {step === "people" && (
-            <StepOpenText
-              question="Who are the most important people in your life right now?"
-              placeholder="Family, partner, friends, colleagues..."
-              field="importantPeople"
-              onContinue={(data) => handleOpenTextContinue(data, "goal_90")}
-              onSkip={() => handleOpenTextSkip("goal_90")}
-            />
-          )}
-
-          {step === "goal_90" && (
-            <StepOpenText
-              question="What does success look like for you in the next 90 days?"
-              placeholder="Be specific — what would feel like a real win?"
-              field="goal90Days"
-              onContinue={(data) => handleOpenTextContinue(data, "weighing")}
-              onSkip={() => handleOpenTextSkip("weighing")}
-            />
-          )}
-
-          {step === "weighing" && (
-            <StepOpenText
-              question="Is there anything you're dealing with right now that's been weighing on you?"
-              placeholder="No pressure — share only what feels right."
-              field="weighingOn"
-              onContinue={(data) => handleOpenTextContinue(data, "call_time")}
-              onSkip={() => handleOpenTextSkip("call_time")}
-            />
-          )}
-
-          {step === "call_time" && (
-            <StepCallTime
-              onContinue={(data) => handleOpenTextContinue(data, "remember_this")}
-              onSkip={() => handleOpenTextSkip("remember_this")}
-            />
-          )}
-
-          {step === "remember_this" && (
-            <StepOpenText
-              question="What's one thing you want me to always remember about you?"
-              placeholder="Anything that defines who you are..."
-              field="rememberThis"
-              onContinue={(data) => handleOpenTextContinue(data, "referral_source")}
-              onSkip={() => handleOpenTextSkip("referral_source")}
-            />
-          )}
-
-          {step === "referral_source" && (
-            <StepReferralSource
-              onContinue={handleReferralSourceContinue}
-              onSkip={handleReferralSourceSkip}
-            />
+          {step === "checkin_setup" && (
+            <StepCheckinSetup onContinue={handleCheckinSetupContinue} />
           )}
 
           {step === "connect" && (
             <StepConnect
-              name={allData.name ?? ""}
-              onComplete={handleConnectComplete}
+              name={(allData.name as string) ?? ""}
+              onComplete={() => void handleConnectComplete()}
             />
           )}
         </ScrollView>
@@ -632,31 +459,24 @@ export default function OnboardingScreen() {
                 opacity: saving ? 0.8 : 1,
               },
             ]}
-            onPress={handleNext}
+            onPress={() => void handleIdentityContinue()}
             disabled={!currentValid || saving}
             activeOpacity={0.85}
           >
             {saving ? (
               <ActivityIndicator color={colors.primaryForeground} size="small" />
             ) : (
-              <>
-                <Text
-                  style={[
-                    styles.continueBtnText,
-                    {
-                      color: currentValid ? colors.primaryForeground : colors.mutedForeground,
-                      fontFamily: "Inter_600SemiBold",
-                    },
-                  ]}
-                >
-                  Continue
-                </Text>
-                <Feather
-                  name="arrow-right"
-                  size={18}
-                  color={currentValid ? colors.primaryForeground : colors.mutedForeground}
-                />
-              </>
+              <Text
+                style={[
+                  styles.continueBtnText,
+                  {
+                    color: currentValid ? colors.primaryForeground : colors.mutedForeground,
+                    fontFamily: "Inter_600SemiBold",
+                  },
+                ]}
+              >
+                Continue
+              </Text>
             )}
           </TouchableOpacity>
         </View>
@@ -667,37 +487,22 @@ export default function OnboardingScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  completeContainer: { flex: 1 },
   header: {
     flexDirection: "row",
     alignItems: "center",
     paddingHorizontal: 20,
-    paddingBottom: 16,
+    paddingBottom: 12,
     gap: 12,
   },
-  backBtn: { width: 28, height: 28, justifyContent: "center", alignItems: "center" },
-  progressTrack: { flex: 1, height: 3, borderRadius: 2, overflow: "hidden" },
-  progressFill: { height: 3, borderRadius: 2 },
+  backBtn: { padding: 6 },
+  progressTrack: { flex: 1, height: 4, borderRadius: 2, overflow: "hidden" },
+  progressFill: { height: "100%", borderRadius: 2 },
   stepLabel: { fontSize: 12, minWidth: 36, textAlign: "right" },
   animated: { flex: 1 },
   scroll: { flex: 1 },
-  scrollContent: {
-    paddingHorizontal: 24,
-    paddingTop: 16,
-    paddingBottom: 32,
-  },
-  bottomActions: {
-    paddingHorizontal: 20,
-    paddingTop: 12,
-    gap: 10,
-  },
-  continueBtn: {
-    height: 56,
-    borderRadius: 16,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 8,
-  },
+  scrollContent: { paddingHorizontal: 24, paddingTop: 28, paddingBottom: 32 },
+  completeContainer: { flex: 1 },
+  bottomActions: { paddingHorizontal: 24, paddingTop: 12 },
+  continueBtn: { height: 56, borderRadius: 16, alignItems: "center", justifyContent: "center" },
   continueBtnText: { fontSize: 16 },
 });

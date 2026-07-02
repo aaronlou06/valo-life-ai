@@ -29,6 +29,7 @@ import { useValoAuth } from "@/contexts/AuthContext";
 import { CheckInSheet } from "@/components/CheckInSheet";
 import { triggerVoiceStart } from "@/lib/voiceTrigger";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import ReferralPromptModal from "@/components/ReferralPromptModal";
 import {
   customFetch,
   useGetWeeklyRecapLatest,
@@ -1406,6 +1407,22 @@ export default function HomeScreen() {
 
   const [checkInOpen, setCheckInOpen] = useState(false);
   const [appsOpen, setAppsOpen] = useState(false);
+  const [showReferralPrompt, setShowReferralPrompt] = useState(false);
+
+  // Show referral prompt once per install after onboarding completes
+  useEffect(() => {
+    void (async () => {
+      try {
+        const already = await AsyncStorage.getItem("@valo/referral-prompted");
+        if (!already) {
+          // Small delay so the home screen has time to settle
+          setTimeout(() => setShowReferralPrompt(true), 1500);
+        }
+      } catch {
+        // Non-critical
+      }
+    })();
+  }, []);
 
   const { data: briefing = null, isLoading: loading, refetch: refetchBriefing } = useQuery<Briefing | null>({
     queryKey: ["/api/home-briefing"],
@@ -1676,6 +1693,15 @@ export default function HomeScreen() {
           )}
         </View>
       )}
+
+      <ReferralPromptModal
+        visible={showReferralPrompt}
+        getToken={getToken}
+        onDismiss={() => {
+          setShowReferralPrompt(false);
+          void AsyncStorage.setItem("@valo/referral-prompted", "true").catch(() => {});
+        }}
+      />
     </View>
   );
 }
