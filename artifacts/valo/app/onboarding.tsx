@@ -433,11 +433,11 @@ export default function OnboardingScreen() {
           {step === "identity" && <Step1Identity {...stepProps} />}
 
           {step === "life_areas" && (
-            <StepLifeAreas onContinue={handleLifeAreasContinue} />
+            <StepLifeAreas onContinue={handleLifeAreasContinue} initialValue={allData} />
           )}
 
           {step === "checkin_setup" && (
-            <StepCheckinSetup onContinue={handleCheckinSetupContinue} />
+            <StepCheckinSetup onContinue={handleCheckinSetupContinue} initialValue={allData} />
           )}
 
           {step === "connect" && (

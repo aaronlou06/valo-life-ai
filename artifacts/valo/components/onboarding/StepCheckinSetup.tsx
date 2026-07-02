@@ -16,12 +16,22 @@ const MODE_OPTIONS = [
 
 interface Props {
   onContinue: (data: { preferredCallTime: string; callsEnabled: boolean }) => void;
+  initialValue?: Record<string, unknown>;
 }
 
-export default function StepCheckinSetup({ onContinue }: Props) {
+export default function StepCheckinSetup({ onContinue, initialValue }: Props) {
   const colors = useColors();
-  const [selectedTime, setSelectedTime] = useState<string>("20:00");
-  const [callsEnabled, setCallsEnabled] = useState<boolean>(true);
+  const [selectedTime, setSelectedTime] = useState<string>(() => {
+    const raw = initialValue?.preferredCallTime;
+    const validValues = TIME_OPTIONS.map((o) => o.value) as string[];
+    if (typeof raw === "string" && validValues.includes(raw)) return raw;
+    return "20:00";
+  });
+  const [callsEnabled, setCallsEnabled] = useState<boolean>(() => {
+    const raw = initialValue?.callsEnabled;
+    if (typeof raw === "boolean") return raw;
+    return true;
+  });
 
   const handleContinue = () => {
     onContinue({ preferredCallTime: selectedTime, callsEnabled });

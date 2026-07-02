@@ -41,12 +41,25 @@ function deriveTopGoal(areas: Area[], subchips: string[]): string {
 
 interface Props {
   onContinue: (data: Record<string, unknown>) => void;
+  initialValue?: Record<string, unknown>;
 }
 
-export default function StepLifeAreas({ onContinue }: Props) {
+export default function StepLifeAreas({ onContinue, initialValue }: Props) {
   const colors = useColors();
-  const [selectedAreas, setSelectedAreas] = useState<Area[]>([]);
-  const [selectedSubs, setSelectedSubs] = useState<string[]>([]);
+  const [selectedAreas, setSelectedAreas] = useState<Area[]>(() => {
+    const raw = initialValue?.lifePriorities;
+    if (typeof raw === "string" && raw.length > 0) {
+      return raw.split(",").filter((a): a is Area => (AREAS as readonly string[]).includes(a));
+    }
+    return [];
+  });
+  const [selectedSubs, setSelectedSubs] = useState<string[]>(() => {
+    const raw = initialValue?.userWantsMore;
+    if (typeof raw === "string" && raw.length > 0) {
+      return raw.split(",").filter((s) => s.length > 0);
+    }
+    return [];
+  });
 
   const pooledChips = useMemo(() => {
     const seen = new Set<string>();
