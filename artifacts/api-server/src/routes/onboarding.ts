@@ -23,12 +23,20 @@ router.get("/onboarding/status", requireAuth, async (req, res): Promise<void> =>
     .limit(1);
 
   const profile = rows[0];
+  const progress = profile?.onboardingProgress
+    ? (JSON.parse(profile.onboardingProgress) as {
+        completed?: boolean;
+        lastStep?: string;
+        lastQuestion?: number;
+        answersSOFar?: Record<string, unknown>;
+      })
+    : null;
+
   res.status(200).json({
     onboardingCompleted: profile?.onboardingCompleted ?? false,
     firstCallCompleted: profile?.firstCallCompleted ?? false,
-    onboardingProgress: profile?.onboardingProgress
-      ? JSON.parse(profile.onboardingProgress)
-      : null,
+    onboardingProgress: progress,
+    lastStep: progress?.lastStep ?? null,
   });
 });
 
@@ -60,6 +68,8 @@ const ALLOWED_FIELDS = [
   "preferredLanguage",
   "microphonePermission",
   "topGoal",
+  "topGoalProvenance",
+  "referralSource",
   "onboardingAnswers",
   "onboardingProgress",
 ] as const;
@@ -95,13 +105,15 @@ router.patch("/onboarding/save", requireAuth, async (req, res): Promise<void> =>
 
 router.patch("/onboarding/progress", requireAuth, async (req, res): Promise<void> => {
   const userId = (req as AuthenticatedRequest).userId;
-  const { lastQuestion, answersSOFar } = req.body as {
+  const { lastStep, lastQuestion, answersSOFar } = req.body as {
+    lastStep?: string;
     lastQuestion?: number;
     answersSOFar?: Record<string, unknown>;
   };
 
   const progress = JSON.stringify({
     completed: false,
+    lastStep: lastStep ?? null,
     lastQuestion: lastQuestion ?? 0,
     answersSOFar: answersSOFar ?? {},
   });
@@ -187,11 +199,6 @@ router.post("/onboarding/complete", requireAuth, async (req, res): Promise<void>
     answers.remember_this ? `remember_this: ${answers.remember_this}` : null,
   ].filter((l): l is string => l !== null);
 
-  if (answerLines.length === 0) {
-    res.status(400).json({ error: "at least one answer is required" });
-    return;
-  }
-
   let profile: ClaudeProfile = {
     personal_details: [],
     things_that_matter: [],
@@ -202,25 +209,30 @@ router.post("/onboarding/complete", requireAuth, async (req, res): Promise<void>
     user_call_time: answers.call_time ?? null,
   };
 
-  try {
-    const msg = await anthropic.messages.create({
-      model: "claude-haiku-4-5",
-      max_tokens: 1200,
-      system: CLAUDE_SYSTEM_PROMPT,
-      messages: [
-        {
-          role: "user",
-          content: `Raw answers:\n${answerLines.join("\n")}`,
-        },
-      ],
-    });
+  // The new short onboarding may collect no open-text answers at all (name-only
+  // or fully chip-based). Only run Claude synthesis when there is something to
+  // synthesize; never block completion on an empty answer set.
+  if (answerLines.length > 0) {
+    try {
+      const msg = await anthropic.messages.create({
+        model: "claude-haiku-4-5",
+        max_tokens: 1200,
+        system: CLAUDE_SYSTEM_PROMPT,
+        messages: [
+          {
+            role: "user",
+            content: `Raw answers:\n${answerLines.join("\n")}`,
+          },
+        ],
+      });
 
-    const text = msg.content[0]?.type === "text" ? msg.content[0].text : "";
-    const clean = text.replace(/```(?:json)?\n?/g, "").replace(/```\n?/g, "").trim();
-    profile = JSON.parse(clean) as ClaudeProfile;
-  } catch (err) {
-    logger.error({ err, userId }, "POST /onboarding/complete: Claude processing failed");
-    // Proceed with raw data — don't block the user
+      const text = msg.content[0]?.type === "text" ? msg.content[0].text : "";
+      const clean = text.replace(/```(?:json)?\n?/g, "").replace(/```\n?/g, "").trim();
+      profile = JSON.parse(clean) as ClaudeProfile;
+    } catch (err) {
+      logger.error({ err, userId }, "POST /onboarding/complete: Claude processing failed");
+      // Proceed with raw data — don't block the user
+    }
   }
 
   // ── Persist to DB ─────────────────────────────────────────────────────────
@@ -235,14 +247,15 @@ router.post("/onboarding/complete", requireAuth, async (req, res): Promise<void>
   if (profile.user_call_time) updateValues.preferredCallTime = profile.user_call_time;
   if (profile.top_goal) updateValues.topGoal = profile.top_goal;
 
-  if (profile.personal_details.length > 0) {
-    updateValues.userIdentity = profile.personal_details.join("; ");
+  // Claude's synthesized identity + emotional patterns both go into userIdentity.
+  // Do NOT overwrite userWantsMore / userWantsLess here — those hold the user's
+  // raw chip selections saved earlier via /onboarding/save and must be preserved.
+  const identityParts = [...profile.personal_details, ...profile.emotional_patterns];
+  if (identityParts.length > 0) {
+    updateValues.userIdentity = identityParts.join("; ");
   }
   if (profile.things_that_matter.length > 0) {
     updateValues.userPriorities = profile.things_that_matter.join("; ");
-  }
-  if (profile.emotional_patterns.length > 0) {
-    updateValues.userWantsMore = profile.emotional_patterns.join("; ");
   }
   if (profile.recurring_struggles.length > 0) {
     updateValues.recurringStruggles = JSON.stringify(profile.recurring_struggles);

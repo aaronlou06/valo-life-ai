@@ -1,0 +1,22 @@
+Plan mode. Do not build yet — produce an implementation plan behind checkpoints.
+
+Target: rebuild onboarding to this flow.
+- Screen 1 Welcome: 1 tap. Auto-detect + save language and timezone silently.
+- Screen 2 Name: required text field. Save immediately.
+- Screen 3 What you're working on: multi-select up to 3 life areas, then ONE capped set of contextual sub-chips pooled from the selected areas (do not render a separate sub-chip group per area). Captures life priorities, wants-more, and a derived top goal. Save immediately. Mark the derived goal as "assumed" provenance so it can be confirmed/refined later, not treated as user-stated.
+- Screen 4 Check-in time + mode: pick Morning/Afternoon/Evening (Evening pre-selected), and Voice or Text. Do NOT trigger the iOS microphone permission here — only record the mode preference. Save immediately.
+- Screen 5 Connect Apple Health: single focused card, triggers HealthKit permission + immediate day-zero sync. "Skip for now" link. Remove the Apple Calendar and Google Calendar cards from onboarding.
+- Screen 6 Complete: confirmation + an OPTIONAL "do your first check-in now" button (opt-in, never blocks reaching Home). Fires /api/onboarding/complete.
+
+Required investigations, report before planning the build:
+1. Does a 13+ birth-year / COPPA age gate already exist at account signup (separate from onboarding)? If yes, we defer the personalization birthday to HealthKit/Profile. If no, keep a birth-year gate in the flow. State which.
+2. Confirm the six open-text steps and the unused Step2–Step9 components can be removed without breaking anything that reads their data. List anything that depends on them.
+3. Where is the mic permission currently requested, and what's the cleanest place to move it to the first voice check-in?
+
+Fixes to fold in while rebuilding:
+- Every retained step must persist immediately (the current open-text steps only save to local state and are lost on mid-flow exit) so an interrupted onboarding never loses answers.
+- Add resume-from-last-step on app restart instead of always restarting at Welcome.
+- Persist referral source to a real column (currently dropped); keep the referral-code path working.
+- Stop /api/onboarding/complete from overwriting raw user selections (wants-more) with Claude's synthesis — keep both, raw and derived, in separate fields.
+
+Report the investigation findings and a checkpointed build plan. Do not implement yet.

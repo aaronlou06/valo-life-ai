@@ -30,4 +30,10 @@ export interface OnboardingSaveInput {
   preferredCallTime?: string;
   callTimezone?: string;
   callsEnabled?: boolean;
+  preferredLanguage?: string;
+  birthday?: string;
+  topGoal?: string;
+  topGoalProvenance?: string;
+  lifePriorities?: string;
+  referralSource?: string;
 }

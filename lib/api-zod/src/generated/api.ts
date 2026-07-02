@@ -498,6 +498,7 @@ export const GetStreakDataResponse = zod.object({
 export const GetOnboardingStatusResponse = zod.object({
   onboardingCompleted: zod.boolean(),
   firstCallCompleted: zod.boolean(),
+  lastStep: zod.string().nullish(),
 });
 
 /**
@@ -524,6 +525,12 @@ export const SaveOnboardingBody = zod.object({
   preferredCallTime: zod.string().optional(),
   callTimezone: zod.string().optional(),
   callsEnabled: zod.boolean().optional(),
+  preferredLanguage: zod.string().optional(),
+  birthday: zod.string().optional(),
+  topGoal: zod.string().optional(),
+  topGoalProvenance: zod.string().optional(),
+  lifePriorities: zod.string().optional(),
+  referralSource: zod.string().optional(),
 });
 
 export const SaveOnboardingResponse = zod.object({

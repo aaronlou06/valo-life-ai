@@ -459,6 +459,8 @@ export interface StreakData {
 export interface OnboardingStatus {
   onboardingCompleted: boolean;
   firstCallCompleted: boolean;
+  /** @nullable */
+  lastStep?: string | null;
 }
 
 export interface OnboardingSaveInput {
@@ -485,6 +487,12 @@ export interface OnboardingSaveInput {
   preferredCallTime?: string;
   callTimezone?: string;
   callsEnabled?: boolean;
+  preferredLanguage?: string;
+  birthday?: string;
+  topGoal?: string;
+  topGoalProvenance?: string;
+  lifePriorities?: string;
+  referralSource?: string;
 }
 
 export type AnalyzeImageInputType =

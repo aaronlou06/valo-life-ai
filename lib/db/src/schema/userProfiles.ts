@@ -49,6 +49,11 @@ export const userProfilesTable = pgTable("user_profiles", {
   // check-ins can reference workout progress without re-querying the full DB.
   workoutMemory: text("workout_memory"),
   topGoal: text("top_goal"),
+  // Provenance of topGoal: "assumed" (derived from onboarding chip selections,
+  // not yet confirmed by the user) or "stated" (explicitly set by the user).
+  topGoalProvenance: text("top_goal_provenance"),
+  // How the user heard about Valo (captured post-onboarding). Analytics only.
+  referralSource: text("referral_source"),
   onboardingAnswers: text("onboarding_answers"),
   onboardingProgress: text("onboarding_progress"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),

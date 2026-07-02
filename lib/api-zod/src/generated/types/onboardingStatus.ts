@@ -9,4 +9,6 @@
 export interface OnboardingStatus {
   onboardingCompleted: boolean;
   firstCallCompleted: boolean;
+  /** @nullable */
+  lastStep?: string | null;
 }
