@@ -2,6 +2,8 @@
 
 This file is loaded into context at the start of every Claude Code session. Read it before acting.
 
+For any session doing autonomous build/fix work (not needed for quick one-off questions), also read `AUTONOMOUS_BUILD_SOP.md` (repo root) at session start — it defines what can proceed without stopping to ask and what requires a check-in.
+
 Last verified against codebase: 2026-07-03, commit `40dd7c3`.
 
 ---
