@@ -365,8 +365,8 @@ importers:
         specifier: ^14.0.8
         version: 14.0.8(expo@54.0.35)
       expo-localization:
-        specifier: ^57.0.0
-        version: 57.0.0(expo@54.0.35)(react@19.1.0)
+        specifier: ~17.0.9
+        version: 17.0.9(expo@54.0.35)(react@19.1.0)
       expo-mail-composer:
         specifier: ^15.0.8
         version: 15.0.8(expo@54.0.35)
@@ -4385,8 +4385,8 @@ packages:
       react: '*'
       react-native: '*'
 
-  expo-localization@57.0.0:
-    resolution: {integrity: sha512-6/o4SE4p1K8f0vXrm5oqt7SxyRPLomdhsANsZOwAqduTC/rzkLsqh5FidgppoTR6lPKT58z+jfk5R3grmbjQtA==}
+  expo-localization@17.0.9:
+    resolution: {integrity: sha512-k5eYHr7iLMob3M8cHH6bgDrDRmqnZG8xKGLhpx8ST+LsFXmSgYpJ/t0VwWm0gz64C/K669XhObdG3D6QwCGqhw==}
     peerDependencies:
       expo: '*'
       react: '*'
@@ -11251,7 +11251,7 @@ snapshots:
       - expo
       - supports-color
 
-  expo-localization@57.0.0(expo@54.0.35)(react@19.1.0):
+  expo-localization@17.0.9(expo@54.0.35)(react@19.1.0):
     dependencies:
       expo: 54.0.35(@babel/core@7.29.0)(@expo/metro-runtime@6.1.2)(expo-router@6.0.24)(react-native-webview@14.0.1(react-native@0.81.5(@babel/core@7.29.0)(@types/react@19.1.17)(react@19.1.0))(react@19.1.0))(react-native@0.81.5(@babel/core@7.29.0)(@types/react@19.1.17)(react@19.1.0))(react@19.1.0)(typescript@5.9.3)
       react: 19.1.0

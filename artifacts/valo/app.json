@@ -62,6 +62,7 @@
         }
       ],
       "expo-font",
+      "expo-localization",
       [
         "react-native-health",
         {

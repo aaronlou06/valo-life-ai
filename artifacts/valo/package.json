@@ -75,7 +75,7 @@
     "expo-device": "^8.0.10",
     "expo-file-system": "~19.0.23",
     "expo-image-manipulator": "^14.0.8",
-    "expo-localization": "^57.0.0",
+    "expo-localization": "~17.0.9",
     "expo-mail-composer": "^15.0.8",
     "expo-notifications": "^0.32.17",
     "expo-task-manager": "^56.0.19",
