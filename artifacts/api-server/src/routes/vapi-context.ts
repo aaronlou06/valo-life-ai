@@ -7,7 +7,12 @@ import {
   buildVapiSystemPrompt,
   generatePreCallIntelligence,
 } from "../lib/buildVapiContext";
-import { processDebriefTranscript, type TranscriptEntry } from "../lib/processDebrief";
+import {
+  processDebriefTranscript,
+  detectRecurringPatterns,
+  type TranscriptEntry,
+} from "../lib/processDebrief";
+import { invalidateFromValoCache } from "../lib/fromValoInsight";
 
 const router: IRouter = Router();
 
@@ -146,6 +151,16 @@ async function handleVapiDebrief(req: any, res: any): Promise<void> {
   try {
     const extraction = await processDebriefTranscript(userId, transcript);
     res.status(200).json({ ok: true, extraction });
+
+    // Mirror the outbound (VAPI webhook) post-processing path: detect
+    // recurring patterns across recent debriefs and persist them to the
+    // profile so {{memory_recurring_struggles}} reflects in-app check-ins the
+    // same way it does phone-call debriefs, then invalidate the cached "From
+    // Valo" home synthesis so it regenerates from the fresh data.
+    await detectRecurringPatterns(userId).catch((err) => {
+      req.log.error({ err, userId }, "detectRecurringPatterns failed in vapi/debrief");
+    });
+    invalidateFromValoCache(userId);
   } catch (err: any) {
     req.log.error({ err, userId }, "vapi/debrief process failed");
     res.status(500).json({ error: "Debrief processing failed" });

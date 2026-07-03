@@ -17,7 +17,9 @@ function todayKey(): string {
 
 // Per-user, per-day in-memory cache. No schema changes: the synthesis is
 // regenerated at most once per calendar day per user (resets on process
-// restart, which is acceptable — it simply regenerates lazily).
+// restart, which is acceptable — it simply regenerates lazily), OR sooner if
+// explicitly invalidated via invalidateFromValoCache() when the underlying
+// debrief data actually changes (see callers in vapi-webhook.ts / vapi-context.ts).
 const cache = new Map<string, { date: string; value: FromValoInsight }>();
 // Dedupe concurrent generations for the same user so a burst of home loads
 // triggers at most one Anthropic call.
@@ -27,6 +29,14 @@ export function getCachedFromValo(userId: string): FromValoInsight | null {
   const entry = cache.get(userId);
   if (entry && entry.date === todayKey()) return entry.value;
   return null;
+}
+
+// Called by the post-debrief processing paths (outbound webhook and in-app
+// debrief endpoint) once a new debrief has been extracted and recurring
+// patterns recomputed, so a same-day second debrief is reflected instead of
+// serving the first debrief's cached synthesis until midnight.
+export function invalidateFromValoCache(userId: string): void {
+  cache.delete(userId);
 }
 
 function normalize(s: string): string {

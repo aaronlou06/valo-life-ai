@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { Alert } from "react-native";
 import { Audio } from "expo-av";
+import { useQueryClient } from "@tanstack/react-query";
 import vapi from "@/lib/vapi";
 
 export type CallState = "idle" | "loading" | "active" | "ending";
@@ -48,6 +49,7 @@ export function useVapiDebrief(
     useState<DebriefExtraction | null>(null);
 
   const transcriptRef = useRef<TranscriptEntry[]>([]);
+  const queryClient = useQueryClient();
 
   useEffect(() => {
     const onCallStart = () => {
@@ -76,6 +78,11 @@ export function useVapiDebrief(
           );
           if (res.ok) {
             const data = await res.json();
+            // The server has persisted the new debrief (and recomputed recurring
+            // patterns / invalidated its own "From Valo" cache); invalidate the
+            // client's home-briefing query so Home reflects it on next view
+            // without requiring a manual pull-to-refresh or app restart.
+            void queryClient.invalidateQueries({ queryKey: ["/api/home-briefing"] });
             if (data.extraction) {
               const raw = data.extraction;
               setDebriefExtraction({
@@ -148,7 +155,7 @@ export function useVapiDebrief(
       vapi.off("message", onMessage);
       vapi.off("error", onError);
     };
-  }, [userId, getToken]);
+  }, [userId, getToken, queryClient]);
 
   const startCall = useCallback(async () => {
     // Request microphone permission here (deferred from onboarding).

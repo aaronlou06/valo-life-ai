@@ -6,6 +6,7 @@ import {
   detectRecurringPatterns,
   type TranscriptEntry,
 } from "../lib/processDebrief";
+import { invalidateFromValoCache } from "../lib/fromValoInsight";
 
 const router: IRouter = Router();
 
@@ -166,6 +167,12 @@ router.post("/vapi/webhook", async (req, res): Promise<void> => {
   await detectRecurringPatterns(effectiveUserId).catch((err) => {
     req.log.error({ err, userId: effectiveUserId }, "detectRecurringPatterns failed in webhook");
   });
+
+  // The "From Valo" home card is cached per user per day; invalidate it now
+  // that debrief data (and possibly recurring patterns) changed, so a second
+  // same-day debrief is reflected on next home load instead of being masked
+  // by the first debrief's cached synthesis until midnight.
+  invalidateFromValoCache(effectiveUserId);
 });
 
 export default router;
