@@ -1,0 +1,26 @@
+{
+  "permissions": {
+    "defaultMode": "acceptEdits",
+    "allow": [
+      "Bash(pnpm *)",
+      "Bash(git add *)",
+      "Bash(git commit *)",
+      "Bash(git log *)",
+      "Bash(git show *)",
+      "Bash(git diff *)",
+      "Bash(npx expo install --check)",
+      "Bash(eas build:list *)",
+      "Bash(python3 *)"
+    ],
+    "ask": [
+      "Bash(eas build *)",
+      "Bash(git push *)",
+      "Bash(rm *)",
+      "Bash(pnpm --filter @workspace/db run push)"
+    ],
+    "deny": [
+      "Read(**/.env)",
+      "Read(**/.env.*)"
+    ]
+  }
+}
