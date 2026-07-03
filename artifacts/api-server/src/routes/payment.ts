@@ -217,20 +217,30 @@ router.post("/payment/confirm", requireAuth, async (req, res): Promise<void> => 
 // Helcim webhook backstop — HMAC-verified, idempotent.
 
 router.post("/payment/webhook", async (req, res): Promise<void> => {
-  // Verify HMAC signature.
+  // Fail closed: require HELCIM_WEBHOOK_SECRET to be configured.
+  if (!HELCIM_WEBHOOK_SECRET) {
+    logger.error("HELCIM_WEBHOOK_SECRET is not configured — rejecting webhook");
+    res.status(503).json({ error: "Webhook not configured" });
+    return;
+  }
+
+  // Verify HMAC signature — required when secret is set.
   const signature = req.headers["helcim-signature"] as string | undefined;
+  if (!signature) {
+    logger.warn("Helcim webhook missing signature header");
+    res.status(401).json({ error: "Missing signature" });
+    return;
+  }
 
-  if (HELCIM_WEBHOOK_SECRET && signature) {
-    const rawBody = JSON.stringify(req.body);
-    const expected = createHmac("sha256", HELCIM_WEBHOOK_SECRET)
-      .update(rawBody)
-      .digest("hex");
+  const rawBody = JSON.stringify(req.body);
+  const expected = createHmac("sha256", HELCIM_WEBHOOK_SECRET)
+    .update(rawBody)
+    .digest("hex");
 
-    if (signature !== expected) {
-      logger.warn("Helcim webhook signature mismatch");
-      res.status(401).json({ error: "Invalid signature" });
-      return;
-    }
+  if (signature !== expected) {
+    logger.warn("Helcim webhook signature mismatch");
+    res.status(401).json({ error: "Invalid signature" });
+    return;
   }
 
   const event = req.body as {

@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { eq, and, gt, isNull } from "drizzle-orm";
+import { eq, and, gt } from "drizzle-orm";
 import { randomBytes } from "crypto";
 import {
   db,
@@ -25,22 +25,11 @@ function codeExpiresAt(): Date {
 }
 
 // ── POST /api/referrals/generate-code ─────────────────────────────────────────
-// Only callable after the user's first successful payment.
+// Available to any authenticated user — no payment required.
+// Referrers earn credit when their referred user makes their first payment.
 
 router.post("/referrals/generate-code", requireAuth, async (req, res): Promise<void> => {
   const userId = (req as AuthenticatedRequest).userId;
-
-  // Check first payment exists.
-  const [payment] = await db
-    .select({ id: paymentEventsTable.id })
-    .from(paymentEventsTable)
-    .where(and(eq(paymentEventsTable.userId, userId), eq(paymentEventsTable.status, "success")))
-    .limit(1);
-
-  if (!payment) {
-    res.status(403).json({ error: "Referral access requires at least one completed payment" });
-    return;
-  }
 
   // Return existing unexpired code if available.
   const now = new Date();
